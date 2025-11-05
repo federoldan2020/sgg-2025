@@ -1,0 +1,83 @@
+{# src/modulos/impresion/templates/reintegro_afiliado.ticket.njk #}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>{{ ui.titulo }}</title>
+  <style>
+    {% include cssFile %}
+  </style>
+</head>
+<body>
+  {% if org.logoBase64 %}
+    <img class="logo" src="{{ org.logoBase64 }}" alt="Logo"/>
+  {% endif %}
+
+  <div class="h1">{{ ui.titulo }}</div>
+  {% if dto.numero %}
+    <div class="center small">N° {{ dto.numero }} • {{ dto.fecha | dateAR }}</div>
+  {% else %}
+    <div class="center small">{{ dto.fecha | dateAR }}</div>
+  {% endif %}
+
+  <div class="line"></div>
+
+  <div><strong>{{ org.nombre }}</strong></div>
+  {% if org.domicilio %}<div class="small">{{ org.domicilio }}</div>{% endif %}
+  {% if org.cuit %}<div class="small">{{ org.cuit }}</div>{% endif %}
+
+  <div class="line"></div>
+
+  <div>Afiliado: <strong>
+    {% if dto.tercero and dto.tercero.nombre %}{{ dto.tercero.nombre }}{% else %}—{% endif %}
+  </strong></div>
+  <div class="small">Doc:
+    {% if dto.tercero and dto.tercero.cuit %}{{ dto.tercero.cuit }}{% else %}—{% endif %}
+  </div>
+
+  <div class="line"></div>
+
+  {% for it in (dto.items or []) %}
+    {% set imp = (it.importe if (it.importe is defined and it.importe is not none) else ((it.cantidad or 1) * (it.pUnit or 0))) %}
+    <div>{{ it.desc }}</div>
+    <div class="row">
+      <div class="small">{{ it.cantidad or 1 }} x {{ (it.pUnit or 0) | money }}</div>
+      <div class="right">{{ imp | money }}</div>
+    </div>
+  {% endfor %}
+
+  <div class="line"></div>
+
+  <div class="row">
+    <div>Subtotal</div>
+    <div class="right">
+      {% if dto.subtotal is defined and dto.subtotal is not none %}
+        {{ dto.subtotal | money }}
+      {% else %}
+        {{ dto.total | money }}
+      {% endif %}
+    </div>
+  </div>
+  {% if (dto.impuestos or 0) != 0 %}
+  <div class="row">
+    <div>Ret./Imp.</div>
+    <div class="right">{{ (dto.impuestos or 0) | money }}</div>
+  </div>
+  {% endif %}
+
+  <div class="line"></div>
+
+  <div class="row">
+    <div><strong>TOTAL A REINTEGRAR</strong></div>
+    <div class="right"><strong>{{ dto.total | money }}</strong></div>
+  </div>
+
+  {% if dto.notas %}
+    <div class="line"></div>
+    <div class="small">{{ dto.notas }}</div>
+  {% endif %}
+
+  <div class="line"></div>
+  <div class="center small">Gracias</div>
+</body>
+</html>

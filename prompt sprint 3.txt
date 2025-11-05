@@ -1,0 +1,103 @@
+CONTINUAR PROYECTO PGG — REANUDAR SPRINT 3
+
+Quiero continuar un proyecto que ya tengo en marcha. Resumen técnico y estado actual:
+
+Stack
+
+Backend: NestJS + Prisma (PostgreSQL), multitenant por Organizacion.
+
+Frontend: Next.js (app router).
+
+Tipos: serialización BigInt/Decimal resuelta con BigIntSerializerInterceptor y transformBigInt/Decimal.
+
+Lint: TS-ESLint + Prettier; reglas ya ajustadas para nuestro flujo.
+
+Prisma (resumen de modelos relevantes)
+
+Núcleo: Organizacion, Afiliado, Padron, Concepto, Obligacion, Pago/Caja, Asiento/LineaAsiento.
+
+Coseguro sprint 2: Parentesco, CoseguroAfiliado, Colateral, ReglaPrecioCoseguro, ReglaPrecioColateral.
+
+Órdenes de crédito sprint 3: OrdenCredito (cabecera) y OrdenCreditoCuota (detalle, una por cuota/periodo).
+
+Novedades & Nómina sprint 3: LoteNovedad, NovedadDetalle, LoteNomina, NominaDetalle (nombres pueden variar, pero la idea de lote+detalle existe).
+
+Endpoints implementados (MVP)
+
+Coseguro: configuración + colaterales + resumen (funcionando).
+
+Órdenes de Crédito: crear orden; generar novedades materializa cuotas como obligaciones.
+
+Novedades:
+
+POST /novedades/generar → crea lote (por ahora sin lógica de cálculo real) y devuelve CSV.
+
+GET /novedades/:id → detalle del lote.
+
+Nómina:
+
+POST /nomina/preview → guarda lote de previsualización.
+
+POST /nomina/:id/confirmar → marca confirmado (aún no aplica contra obligaciones).
+
+Front:
+
+Páginas básicas para reglas/parentescos, órdenes, generar novedades, y UI maquetada para conciliar nómina (importador simple).
+
+Decisiones de negocio clave
+
+Caja no crea créditos a favor manualmente.
+
+Si el afiliado paga y luego también se descuenta por nómina → el sobrante se registra como crédito a favor (se materializa en conciliación).
+
+Órdenes en cuotas: cabecera + cuotas; las obligaciones se crean al generar novedades del período correspondiente.
+
+Códigos de nómina (ejemplos): J22 = Coseguro, K16 = Orden de crédito (puede agrupar varias órdenes). Se centralizarán en un mapa por organización.
+
+Estado del Sprint 3 (lo que falta)
+
+Implementar cálculo real en NovedadesService.generar:
+
+Precio de coseguro base vigente al período.
+
+Precio por colaterales (tramos y cantidades activas).
+
+Cuotas de órdenes del período (una línea por cuota).
+
+Mapear a { afiliadoId, padronId?, codigo, monto } usando el mapa de códigos (J22, K16, etc.).
+
+Agregar mapa de códigos por organización (concepto ↔ código de nómina).
+
+Completar conciliación de nómina en NominaService.confirmar:
+
+Agrupar por afiliado/concepto y aplicar contra obligaciones del período.
+
+Sobrante → Crédito a favor (definir modelo/uso si aún no existe).
+
+UI:
+
+“Generar Novedades”: tabla de líneas y totales por concepto.
+
+“Conciliar Nómina”: preview por afiliado y botón Confirmar (usar endpoints existentes).
+
+Idempotencia opcional por hashContenido.
+
+Qué necesito ahora
+
+Diseñar e implementar la lógica de cálculo para NovedadesService.generar con helpers:
+
+getPrecioCoseguroVigente(periodo).
+
+getPrecioColaterales(afiliadoId, periodo).
+
+getCuotasOrdenes(afiliadoId, periodo).
+
+mapConceptoACodigo(conceptoCodigo) con fallback por organización.
+
+Conectar la conciliación para aplicar contra obligaciones y crear crédito a favor en caso de sobrante.
+
+Ajustar front de novedades/conciliación para mostrar los renglones reales.
+
+Importante: NO cambiar decisiones de negocio (Caja sin créditos manuales; órdenes generan obligación al crear novedades). Mantener multitenancy por organizacionId desde req.organizacionId.
+
+Dime qué necesitas de mi lado (por ejemplo, formato exacto de archivos de novedades/computos, o el mapa final de códigos) y proponeme el plan de implementación paso a paso, con código.

@@ -1,0 +1,115 @@
+{
+  "info": {
+    "name": "Impresión Service - Smoke Tests",
+    "description": "Colección para probar el sistema de impresión de comprobantes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🧾 Orden de Pago A4",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/print/comprobantes?disposition=inline",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "print",
+            "comprobantes"
+          ],
+          "query": [
+            {
+              "key": "disposition",
+              "value": "inline"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tipo\": \"ORDEN_PAGO\",\n  \"formato\": \"A4\",\n  \"numero\": \"OP-SMOKE-001\",\n  \"tercero\": {\n    \"nombre\": \"Juan Pérez Testing\",\n    \"cuit\": \"20-12345678-9\"\n  },\n  \"items\": [\n    {\n      \"desc\": \"Servicios profesionales\",\n      \"cantidad\": 1,\n      \"pUnit\": 50000\n    },\n    {\n      \"desc\": \"Gastos varios\",\n      \"cantidad\": 2,\n      \"pUnit\": 7500\n    }\n  ],\n  \"impuestos\": 6500,\n  \"notas\": \"Smoke test - Orden de pago\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "🎫 Recibo Ticket 80mm",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/print/comprobantes?disposition=inline",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "print",
+            "comprobantes"
+          ],
+          "query": [
+            {
+              "key": "disposition",
+              "value": "inline"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tipo\": \"RECIBO_AFILIADO\",\n  \"formato\": \"TICKET_80MM\",\n  \"numero\": \"REC-SMOKE-001\",\n  \"tercero\": {\n    \"nombre\": \"María González\",\n    \"cuit\": \"27-98765432-1\"\n  },\n  \"items\": [\n    {\n      \"desc\": \"Cuota mensual\",\n      \"importe\": 15000\n    }\n  ],\n  \"notas\": \"Smoke test - Recibo ticket\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "💰 Reintegro A4 con 3 copias",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/print/comprobantes?disposition=inline",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "print",
+            "comprobantes"
+          ],
+          "query": [
+            {
+              "key": "disposition",
+              "value": "inline"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tipo\": \"REINTEGRO_AFILIADO\",\n  \"formato\": \"A4\",\n  \"copias\": 3,\n  \"numero\": \"REIN-SMOKE-001\",\n  \"tercero\": {\n    \"nombre\": \"Carlos Rodríguez\",\n    \"cuit\": \"23-11223344-5\"\n  },\n  \"items\": [\n    {\n      \"desc\": \"Consulta médica\",\n      \"importe\": 12000\n    },\n    {\n      \"desc\": \"Medicamentos\",\n      \"importe\": 8500\n    }\n  ],\n  \"descuentos\": 2000,\n  \"notas\": \"Smoke test - Reintegro con descuentos\"\n}"
+        }
+      },
+      "response": []
+    }
+  ]
+}

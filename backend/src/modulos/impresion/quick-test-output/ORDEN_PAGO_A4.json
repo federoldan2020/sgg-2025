@@ -1,0 +1,23 @@
+{
+  "tipo": "ORDEN_PAGO",
+  "formato": "A4",
+  "numero": "OP-SMOKE-001",
+  "tercero": {
+    "nombre": "Juan Pérez Testing",
+    "cuit": "20-12345678-9"
+  },
+  "items": [
+    {
+      "desc": "Servicios profesionales",
+      "cantidad": 1,
+      "pUnit": 50000
+    },
+    {
+      "desc": "Gastos varios",
+      "cantidad": 2,
+      "pUnit": 7500
+    }
+  ],
+  "impuestos": 6500,
+  "notas": "Smoke test - Orden de pago"
+}

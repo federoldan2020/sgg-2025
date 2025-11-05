@@ -1,0 +1,29 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-*.log*
+pnpm-*.log*
+
+# Builds
+dist/
+build/
+.next/
+out/
+coverage/
+*.log
+
+# Env
+.env
+.env.local
+.env.*.local
+frontend/.env
+backend/.env
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Prisma (si aplica)
+prisma/*.db

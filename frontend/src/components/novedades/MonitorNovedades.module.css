@@ -1,0 +1,414 @@
+/* components/novedades/MonitorNovedades.module.css */
+
+/* Layout Principal */
+.container {
+  min-height: calc(100vh - 64px);
+  background: #f7f7f8;
+}
+
+.header {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.content {
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+/* Cards */
+.card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
+}
+
+.cardBody {
+  padding: 24px;
+}
+
+/* Filtros */
+.filtersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.searchGroup {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.filterActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Formularios */
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.formLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #374151;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.formControl {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+}
+
+.formControl:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.inputGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.inputGroup .formControl {
+  flex: 1;
+}
+
+/* Botones */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 20px;
+  gap: 8px;
+  background: white;
+  white-space: nowrap;
+}
+
+.btn:focus {
+  outline: 2px solid #e0e7ff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #4f46e5;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnPrimary {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #4338ca;
+  border-color: #4338ca;
+}
+
+.btnSecondary {
+  background: white;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btnSm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Alertas */
+.alert {
+  background: #ffe4e6;
+  border: 1px solid #f87171;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #991b1b;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.alert strong {
+  font-weight: 600;
+}
+
+/* Tabla */
+.tableContainer {
+  overflow-x: auto;
+  border-radius: 8px 8px 0 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 14px;
+}
+
+.tableHeader {
+  background: #f9fafb;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.tableHeader th {
+  text-align: left;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.tableRow {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.tableRow:hover {
+  background: #fafbfc;
+}
+
+.tableRow td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+.textRight {
+  text-align: right !important;
+}
+
+/* Badges y Valores */
+.padronBadge {
+  display: inline-block;
+  background: #e0e7ff;
+  color: #4f46e5;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.systemBadge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.systemES {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.systemSG {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.moneyValue {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.dateCell {
+  color: #6b7280;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Estados de carga y vacío */
+.loadingCell {
+  padding: 48px 16px !important;
+  text-align: center;
+  color: #6b7280;
+}
+
+.loadingCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.loadingSpinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.emptyCell {
+  padding: 48px 16px !important;
+  text-align: center;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Paginación */
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #fafbfc;
+  border-radius: 0 0 8px 8px;
+}
+
+.paginationInfo {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.paginationInfo strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+.paginationActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .filtersGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .searchGroup {
+    grid-column: span 2;
+  }
+
+  .filterActions {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    font-size: 13px;
+  }
+
+  .header {
+    padding: 16px;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 20px;
+    line-height: 28px;
+  }
+
+  .cardBody {
+    padding: 16px;
+  }
+
+  .filtersGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .searchGroup {
+    grid-column: span 1;
+  }
+
+  .filterActions {
+    grid-column: span 1;
+    flex-direction: column;
+  }
+
+  .filterActions .btn {
+    width: 100%;
+  }
+
+  .table {
+    font-size: 12px;
+  }
+
+  .tableHeader th {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .tableRow td {
+    padding: 8px 12px;
+  }
+
+  .pagination {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .paginationActions {
+    width: 100%;
+  }
+
+  .paginationActions .btn {
+    flex: 1;
+  }
+}

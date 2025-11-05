@@ -1,0 +1,22 @@
+{
+  "tipo": "REINTEGRO_AFILIADO",
+  "formato": "A4",
+  "copias": 3,
+  "numero": "REIN-SMOKE-001",
+  "tercero": {
+    "nombre": "Carlos Rodríguez",
+    "cuit": "23-11223344-5"
+  },
+  "items": [
+    {
+      "desc": "Consulta médica",
+      "importe": 12000
+    },
+    {
+      "desc": "Medicamentos",
+      "importe": 8500
+    }
+  ],
+  "descuentos": 2000,
+  "notas": "Smoke test - Reintegro con descuentos"
+}

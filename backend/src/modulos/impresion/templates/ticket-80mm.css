@@ -1,0 +1,11 @@
+/* src/modulos/impresion/templates/ticket-80mm.css */
+@page { size: 80mm auto; margin: 4mm; }  /* alto “auto”: Playwright + preferCSSPageSize */
+* { box-sizing: border-box; }
+body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: #111; }
+.center { text-align: center; }
+.logo { max-width: 64mm; display:block; margin: 0 auto 2mm; }
+.h1 { text-align: center; font-weight: 700; margin: 1mm 0 2mm; }
+.line { border-top: 1px dashed #aaa; margin: 2mm 0; }
+.row { display: flex; justify-content: space-between; }
+.right { text-align: right; }
+.small { color:#555; font-size: 10px; }

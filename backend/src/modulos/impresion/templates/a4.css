@@ -1,0 +1,21 @@
+/* src/modulos/impresion/templates/a4.css */
+@page { size: A4; margin: 14mm; }
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-size: 11px; color: #111; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8mm; }
+.header .org { font-weight: 700; font-size: 14px; }
+.logo { height: 28px; }
+.grid-copies { display: grid; grid-template-columns: 1fr; gap: 10mm; }
+.copy { border: 1px solid #e5e7eb; padding: 8mm; page-break-inside: avoid; }
+.copy .badge { float: right; font-size: 10px; color: #555; }
+.h1 { font-size: 13px; font-weight: 700; margin: 0 0 4mm; }
+.meta { display:flex; justify-content: space-between; margin-bottom: 4mm; }
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; background: #f3f4f6; }
+.table th, .table td { padding: 6px; border-bottom: 1px solid #e5e7eb; }
+.right { text-align: right; }
+.summary { width: 60mm; margin-left: auto; margin-top: 4mm; }
+.notes { margin-top: 6mm; color: #555; }
+.footer { margin-top: 10mm; display:flex; justify-content: space-between; color:#6b7280; font-size: 10px; }
+.sign { width: 70mm; text-align: center; margin-top: 10mm; }
+.sign .line { margin-top: 18mm; border-top: 1px solid #111; }

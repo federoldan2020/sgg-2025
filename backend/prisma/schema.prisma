@@ -1,0 +1,1493 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ===================== Núcleo multitenant =====================
+ */
+
+model Organizacion {
+  id       String   @id @default(uuid())
+  nombre   String   @unique
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
+
+  // Relaciones (back-relations)
+  afiliados              Afiliado[]
+  padrones               Padron[]
+  conceptos              Concepto[]
+  obligaciones           Obligacion[]
+  cajas                  Caja[]
+  pagos                  Pago[]
+  asientos               Asiento[]
+  // Sprint 2
+  parentescos            Parentesco[]
+  reglasPrecioCoseguro   ReglaPrecioCoseguro[]
+  reglasPrecioColateral  ReglaPrecioColateral[]
+  coseguros              CoseguroAfiliado[]
+  OrdenCredito           OrdenCredito[]
+  OrganizacionConfig     OrganizacionConfig[]
+  NovedadLote            NovedadLote[]
+  NovedadItem            NovedadItem[]
+  CreditoAfiliado        CreditoAfiliado[]
+  LoteNovedad            LoteNovedad[]
+  LoteNomina             LoteNomina[]
+  CreditoFavor           CreditoFavor[]
+  CuentaContable         CuentaContable[]
+  CuentaMapeo            CuentaMapeo[]
+  Tercero                Tercero[]
+  Clasificacion          Clasificacion[]
+  CuentaTercero          CuentaTercero[]
+  ComprobanteTercero     ComprobanteTercero[]
+  OrdenPagoTercero       OrdenPagoTercero[]
+  NovedadPendiente       NovedadPendiente[]
+  NovedadCalendario      NovedadCalendario[]
+  NovedadPendientePadron NovedadPendientePadron[]
+  MovimientoAfiliado     MovimientoAfiliado[]
+}
+
+// Propuesta modificacion afiliados y padrones
+// ===================== Enums nuevos =====================
+enum Sexo {
+  M
+  F
+  X
+}
+
+enum AfiliadoTipo {
+  TITULAR
+  FAMILIAR
+  JUBILADO
+  OTRO
+}
+
+enum Sistema {
+  ESC
+  SGR
+  SG
+}
+
+// ===================== Afiliado (extendido) =====================
+model Afiliado {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  dni            BigInt
+  apellido       String
+  nombre         String
+  estado         String   @default("activo")
+  creadoEn       DateTime @default(now())
+
+  // ---- Datos personales / contacto
+  cuit     String? // CUIT/CUIL (con o sin guiones)
+  sexo     Sexo?
+  tipo     AfiliadoTipo?
+  telefono String?
+  celular  String?
+
+  // ---- Domicilio
+  calle       String?
+  numero      String?
+  orientacion String?
+  barrio      String?
+  piso        String?
+  depto       String?
+  monoblock   String?
+  casa        String?
+  manzana     String?
+  localidad   String?
+
+  // ---- Otros datos
+  fechaNacimiento DateTime? @db.Date
+  numeroSocio     String?
+  cupo            Decimal   @default(0) @db.Decimal(14, 2)
+  saldo           Decimal   @default(0) @db.Decimal(14, 2) // saldo general por agrupación de padrones
+  observaciones   String?   @db.Text
+
+  // ---- Relaciones
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  padrones           Padron[]
+  obligaciones       Obligacion[]
+  pagos              Pago[]
+  coseguro           CoseguroAfiliado?
+  OrdenCredito       OrdenCredito[]
+  NovedadItem        NovedadItem[]
+  CreditoAfiliado    CreditoAfiliado[]
+  NovedadDetalle     NovedadDetalle[]
+  NominaDetalle      NominaDetalle[]
+  CreditoFavor       CreditoFavor[]
+  Colateral          Colateral[]
+  MovimientoAfiliado MovimientoAfiliado[]
+
+  // ---- Índices / Uniques
+  @@unique([organizacionId, dni], name: "organizacionId_dni")
+  @@unique([organizacionId, cuit], name: "organizacionId_cuit")
+  @@index([organizacionId])
+  @@index([organizacionId, numeroSocio])
+  @@index([organizacionId, apellido, nombre])
+}
+
+// ===================== Padron (extendido) =====================
+model Padron {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  afiliadoId     BigInt
+  padron         String
+  centro         Int?
+  sector         Int?
+  clase          String?
+  situacion      String? // (se mantiene String para códigos como TITULAR, SUPLEMENTE, PP, "04", etc.)
+  fechaAlta      DateTime? @db.Date
+  fechaBaja      DateTime? @db.Date
+  activo         Boolean   @default(true)
+
+  // ---- Códigos / parámetros económicos
+  j17 Decimal @default(0) @db.Decimal(14, 2)
+  j22 Decimal @default(0) @db.Decimal(14, 2)
+  j38 Decimal @default(0) @db.Decimal(14, 2)
+  k16 Decimal @default(0) @db.Decimal(14, 2)
+
+  // ---- Jubilados / bancarios
+  motivoBaja           String?
+  cajaAhorro           String? // nro de cuenta/caja ahorro (jubilados)
+  beneficiarioJubilado String? // nombre del beneficiario (si aplica)
+
+  // ---- Sistema / importes
+  sistema      Sistema?
+  sueldoBasico Decimal  @default(0) @db.Decimal(14, 2)
+  cupo         Decimal  @default(0) @db.Decimal(14, 2)
+  saldo        Decimal  @default(0) @db.Decimal(14, 2)
+
+  // ---- Relaciones
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  obligaciones Obligacion[]
+
+  // Sprint 2: back-relations nombrados (2 referencias desde CoseguroAfiliado)
+  coseguroImputaciones    CoseguroAfiliado[]       @relation("CoseguroImputacion")
+  colateralesImputaciones CoseguroAfiliado[]       @relation("ColateralesImputacion")
+  OrdenCredito            OrdenCredito[]
+  NovedadItem             NovedadItem[]
+  NovedadDetalle          NovedadDetalle[]
+  NominaDetalle           NominaDetalle[]
+  NovedadPendientePadron  NovedadPendientePadron[]
+  MovimientoAfiliado      MovimientoAfiliado[]
+
+  // ---- Índices / Uniques
+  @@unique([organizacionId, padron])
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, sistema])
+}
+
+/**
+ * ===================== Catálogos por código de descuento =====================
+ */
+
+model Concepto {
+  id             BigInt  @id @default(autoincrement())
+  organizacionId String
+  codigo         String // ej: CUOTA_SOC, COSEGURO, ADIC_COL, ORDEN_CREDITO, COMP_MIN
+  nombre         String
+  activo         Boolean @default(true)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  // Relaciones
+  obligaciones Obligacion[]
+  NovedadItem  NovedadItem[]
+
+  @@unique([organizacionId, codigo], name: "organizacionId_codigo")
+  @@index([organizacionId])
+}
+
+/**
+ * ===================== Finanzas: Obligaciones / Caja / Contabilidad =====================
+ */
+
+model Obligacion {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  afiliadoId     BigInt
+  padronId       BigInt? // padrón de imputación (cuando aplica)
+  conceptoId     BigInt
+  periodo        String // "YYYY-MM" o vacío si es por evento
+  origen         String // 'liquidacion' | 'orden_credito' | 'complemento_minimo' | 'ajuste' | etc.
+  monto          Decimal  @db.Decimal(12, 2)
+  saldo          Decimal  @db.Decimal(12, 2)
+  estado         String   @default("pendiente") // pendiente | parcialmente_pagada | pagada | anulada
+  creadoEn       DateTime @default(now())
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron       Padron?      @relation(fields: [padronId], references: [id])
+  concepto     Concepto     @relation(fields: [conceptoId], references: [id])
+
+  // Relaciones
+  aplicaciones      Aplicacion[]
+  OrdenCredito      OrdenCredito[]
+  OrdenCreditoCuota OrdenCreditoCuota[]
+
+  // Sprint 3 – tracking de envío/conciliación de nómina
+  novedadLoteId       BigInt?
+  bloqueada           Boolean   @default(false)
+  conciliacionEstado  String    @default("pendiente") // pendiente | descontado | no_descontado | parcial | ajustado
+  conciliacionImporte Decimal?  @db.Decimal(12, 2)
+  conciliacionFecha   DateTime?
+
+  novedadLote        NovedadLote?         @relation(fields: [novedadLoteId], references: [id])
+  NovedadItemDetalle NovedadItemDetalle[]
+  AplicacionCredito  AplicacionCredito[]
+
+  @@index([organizacionId, novedadLoteId])
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, conceptoId])
+  @@index([organizacionId, periodo])
+}
+
+model Caja {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  sede           String?
+  fechaApertura  DateTime  @default(now())
+  fechaCierre    DateTime?
+  estado         String    @default("abierta") // abierta | cerrada
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  // Relaciones
+  pagos Pago[]
+
+  @@index([organizacionId, estado])
+}
+
+model Pago {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  cajaId         BigInt
+  afiliadoId     BigInt
+  fecha          DateTime @default(now())
+  total          Decimal  @db.Decimal(12, 2)
+  numeroRecibo   String?
+  origen         String? // "caja" | "nomina" | "ajuste"
+  // --- NUEVO (opcionales agregados) ---
+  totalMoneda    Decimal? @db.Decimal(12, 2) // si el pago entero fuera en una moneda (suma de metodos en esa moneda)
+  moneda         Moneda? // solo informativo; si hay mezcla de monedas, dejalo null
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  caja         Caja         @relation(fields: [cajaId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id])
+
+  // Relaciones
+  metodos      MetodoPago[]
+  aplicaciones Aplicacion[]
+
+  @@index([organizacionId, cajaId])
+  @@index([organizacionId, afiliadoId])
+}
+
+model MetodoPago {
+  id     BigInt  @id @default(autoincrement())
+  pagoId BigInt
+  metodo String // efectivo | tarjeta | transferencia | qr | otro
+  monto  Decimal @db.Decimal(12, 2) // <-- ARS (base contable)  (compatible con lo actual)
+  ref    String?
+
+  // --- NUEVO ---
+  moneda      Moneda   @default(ARS)
+  montoMoneda Decimal? @db.Decimal(12, 2) // importe en la moneda original (p/ USD, etc.)
+  tcAplicado  Decimal? @db.Decimal(12, 6) // tipo de cambio usado para convertir a ARS
+
+  pago Pago @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+
+  @@index([pagoId])
+}
+
+model Aplicacion {
+  id           BigInt  @id @default(autoincrement())
+  pagoId       BigInt
+  obligacionId BigInt
+  monto        Decimal @db.Decimal(12, 2)
+
+  pago       Pago       @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  obligacion Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+
+  @@index([pagoId])
+  @@index([obligacionId])
+}
+
+/**
+ * ===================== Contabilidad (doble partida) =====================
+ */
+
+model Asiento {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  fecha          DateTime @default(now())
+  descripcion    String
+  origen         String // 'pago_caja' | 'cierre_caja' | 'ajuste' | etc.
+  referenciaId   String?
+
+  // --- NUEVO ---
+  moneda Moneda? // p/ referencia
+  tc     Decimal? @db.Decimal(12, 6)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  // Relaciones
+  lineas             LineaAsiento[]
+  MovimientoAfiliado MovimientoAfiliado[]
+
+  @@index([organizacionId, fecha])
+  @@index([organizacionId, origen])
+}
+
+model LineaAsiento {
+  id        BigInt  @id @default(autoincrement())
+  asientoId BigInt
+  cuenta    String // 1101 Caja, 1102 Bancos, 1xxx Deudores, 4xxx Ingresos...
+  debe      Decimal @db.Decimal(12, 2)
+  haber     Decimal @db.Decimal(12, 2)
+
+  asiento Asiento @relation(fields: [asientoId], references: [id], onDelete: Cascade)
+
+  @@index([asientoId])
+}
+
+/**
+ * ===================== Sprint 2: Coseguro & Colaterales =====================
+ */
+
+model Parentesco {
+  id             BigInt  @id @default(autoincrement())
+  organizacionId String
+  codigo         Int // ej.: 1=CONYUGE, 2=HIJO/A, 3=PADRE/MADRE, ...
+  descripcion    String
+  activo         Boolean @default(true)
+
+  organizacion Organizacion           @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  reglas       ReglaPrecioColateral[]
+  Colateral    Colateral[]
+
+  @@unique([organizacionId, codigo], name: "organizacionId_codigo_parentesco")
+  @@index([organizacionId])
+}
+
+model CoseguroAfiliado {
+  id                            BigInt    @id @default(autoincrement())
+  organizacionId                String
+  afiliadoId                    BigInt    @unique
+  fechaAlta                     DateTime  @db.Date
+  fechaBaja                     DateTime? @db.Date
+  estado                        String    @default("activo")
+  imputacionPadronIdCoseguro    BigInt?
+  imputacionPadronIdColaterales BigInt?
+
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado       Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  // dos referencias distintas a Padron → nombramos relaciones
+  padronCoseguro Padron?      @relation("CoseguroImputacion", fields: [imputacionPadronIdCoseguro], references: [id])
+  padronColat    Padron?      @relation("ColateralesImputacion", fields: [imputacionPadronIdColaterales], references: [id])
+
+  colaterales Colateral[]
+
+  @@index([organizacionId, afiliadoId])
+}
+
+//ESTA TABLA AHORA MANEJA EL GRUPO FAMILIAR
+model Colateral {
+  id              BigInt    @id @default(autoincrement())
+  afiliadoId      BigInt
+  coseguroId      BigInt? // opcional
+  parentescoId    BigInt
+  nombre          String
+  dni             String?   @db.VarChar(20)
+  fechaNacimiento DateTime? @db.Date
+  activo          Boolean   @default(true)
+  esColateral     Boolean   @default(true)
+
+  afiliado   Afiliado          @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  coseguro   CoseguroAfiliado? @relation(fields: [coseguroId], references: [id], onDelete: Cascade) // 👈 AQUÍ EL CAMBIO
+  parentesco Parentesco        @relation(fields: [parentescoId], references: [id])
+
+  @@unique([afiliadoId, dni])
+  @@index([afiliadoId, esColateral])
+  @@index([coseguroId])
+  @@index([parentescoId])
+  @@index([dni])
+}
+
+model ReglaPrecioCoseguro {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  vigenteDesde   DateTime  @db.Date
+  vigenteHasta   DateTime? @db.Date
+  precioBase     Decimal   @db.Decimal(12, 2)
+  activo         Boolean   @default(true)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, vigenteDesde])
+}
+
+model ReglaPrecioColateral {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  parentescoId   BigInt
+  cantidadDesde  Int // tramo inferior (incl.)
+  cantidadHasta  Int? // tramo superior (incl.) null = ∞
+  vigenteDesde   DateTime  @db.Date
+  vigenteHasta   DateTime? @db.Date
+  precioTotal    Decimal   @db.Decimal(12, 2) // total para el grupo (según cantidad)
+  activo         Boolean   @default(true)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  parentesco   Parentesco   @relation(fields: [parentescoId], references: [id])
+
+  @@index([organizacionId, parentescoId, vigenteDesde])
+}
+
+// MODIFICACIONES DE PRECIO CON WORKER Y borrador
+model PublicacionReglas {
+  id             BigInt            @id @default(autoincrement())
+  organizacionId String
+  estado         PublicacionEstado @default(draft) // draft | publicada | cancelada
+  comentario     String?
+  creadorId      String?
+  creadoAt       DateTime          @default(now())
+  publicadoAt    DateTime?
+
+  drafts ReglaPrecioColateralDraft[]
+
+  @@index([organizacionId, estado])
+}
+
+enum PublicacionEstado {
+  draft
+  publicada
+  cancelada
+}
+
+model ReglaPrecioColateralDraft {
+  id             BigInt    @id @default(autoincrement())
+  publicacionId  BigInt
+  organizacionId String
+  op             DraftOp
+  targetId       BigInt? // cuando op=update/delete, referencia regla real
+  parentescoId   BigInt?
+  cantidadDesde  Int?
+  cantidadHasta  Int?
+  vigenteDesde   DateTime? @db.Date
+  vigenteHasta   DateTime? @db.Date
+  precioTotal    Decimal?  @db.Decimal(12, 2)
+  activo         Boolean?
+
+  publicacion PublicacionReglas @relation(fields: [publicacionId], references: [id], onDelete: Cascade)
+
+  @@index([publicacionId])
+  @@index([organizacionId])
+  @@index([op])
+}
+
+enum DraftOp {
+  create
+  update
+  delete
+}
+
+/// ===================== Órdenes de Crédito (cabecera + cuotas) =====================
+/// ===================== Comercios =====================
+model Comercio {
+  id              BigInt    @id @default(autoincrement())
+  organizacionId  String
+  codigo          String // viene de CODIGO (numérico en DBF) pero lo guardamos como string
+  razonSocial     String
+  domicilio       String?
+  localidad       String?
+  fechaIngreso    DateTime? // INgreso (fecha)
+  telefono1       String?
+  telefono2       String?
+  email           String?
+  grupo           Int?
+  departamento    Int?
+  rubro           Int?
+  tipo            Int?
+  cuoMax          Int? // CUOMAX (máx. cuotas)
+  pIVA            Decimal?  @db.Decimal(6, 2) // P_IVA
+  pGanancia       Decimal?  @db.Decimal(6, 2) // P_GANANCIA
+  pIngresosBrutos Decimal?  @db.Decimal(6, 2) // P_INGBRUTO
+  pLoteHogar      Decimal?  @db.Decimal(6, 2) // P_LOTEHOGÁ (si aplica)
+  pRetencion      Decimal?  @db.Decimal(6, 2) // P_RETENCIO
+  cuit            String? // CUIT (13)
+  iibb            String? // INGBrutos (15)
+  usoContable     Boolean? // USOCONTABL
+  baja            Boolean? // BAJA (soft-delete)
+  confirma        Boolean? // I_CONFIRMA
+  saldoActual     Decimal?  @db.Decimal(12, 2) // SALDO_ACT (informativo)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // back-relations
+  ordenes OrdenCredito[]
+  cuotas  OrdenCreditoCuota[]
+
+  @@unique([organizacionId, codigo])
+  @@index([organizacionId, baja])
+}
+
+model OrdenCredito {
+  id                   BigInt   @id @default(autoincrement())
+  organizacionId       String
+  afiliadoId           BigInt
+  padronId             BigInt?
+  comercioId           BigInt?
+  descripcion          String
+  fechaAlta            DateTime @default(now())
+  enCuotas             Boolean  @default(false)
+  cantidadCuotas       Int?
+  cuotaActual          Int?
+  importeTotal         Decimal  @db.Decimal(12, 2)
+  saldoTotal           Decimal  @db.Decimal(12, 2)
+  periodoPrimera       String?
+  tasaInteres          Decimal? @db.Decimal(7, 4)
+  sistemaAmortizacion  String?
+  preMaterializarMeses Int?
+  estado               String   @default("pendiente") // pendiente | en_curso | cancelada | anulada
+  referenciaExterna    String?
+  obligacionId         BigInt?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron       Padron?      @relation(fields: [padronId], references: [id])
+  obligacion   Obligacion?  @relation(fields: [obligacionId], references: [id])
+  comercio     Comercio?    @relation(fields: [comercioId], references: [id])
+
+  cuotas OrdenCreditoCuota[]
+  // @@unique([organizacionId, referenciaExterna]) // habilitar si tu negocio lo necesita
+
+  @@index([organizacionId, afiliadoId, estado])
+  @@index([organizacionId, padronId])
+  @@index([organizacionId, comercioId])
+}
+
+model OrdenCreditoCuota {
+  id                        BigInt    @id @default(autoincrement())
+  ordenId                   BigInt
+  comercioId                BigInt?
+  numero                    Int // 1..N
+  periodoVenc               String // "YYYY-MM"
+  importe                   Decimal   @db.Decimal(12, 2)
+  cancelado                 Decimal   @default(0) @db.Decimal(12, 2)
+  saldo                     Decimal   @db.Decimal(12, 2)
+  estado                    String    @default("pendiente") // pendiente | generada | parcialmente_pagada | pagada | anulada
+  obligacionId              BigInt?
+  fechaGeneracionObligacion DateTime?
+  fechaCancelacion          DateTime?
+
+  comercio   Comercio?    @relation(fields: [comercioId], references: [id])
+  orden      OrdenCredito @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  obligacion Obligacion?  @relation(fields: [obligacionId], references: [id])
+
+  @@unique([ordenId, numero])
+  @@unique([ordenId, periodoVenc])
+  @@index([periodoVenc, estado])
+  @@index([comercioId, periodoVenc, estado])
+}
+
+/// ===================== Configuración organizacional (flags/políticas) =====================
+model OrganizacionConfig {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  clave          String // p.ej.: "bloquearCobroCajaObligacionesEnviadas"
+  valorBool      Boolean?
+  valorString    String?
+  valorNumber    Decimal? @db.Decimal(12, 2)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([organizacionId, clave])
+  @@index([organizacionId])
+}
+
+/// ===================== Novedades a nómina (envío/conciliación) =====================
+model NovedadLote {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  periodo        String // "YYYY-MM"
+  fechaEnvio     DateTime @default(now())
+  estado         String   @default("enviado") // enviado | conciliado | parcialmente_conciliado | anulado
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  items      NovedadItem[]
+  Obligacion Obligacion[]
+
+  @@index([organizacionId, periodo])
+}
+
+model NovedadItem {
+  id             BigInt  @id @default(autoincrement())
+  novedadLoteId  BigInt
+  organizacionId String
+  afiliadoId     BigInt
+  padronId       BigInt?
+  canal          String // J22, K16, J17, etc. (tu código de descuento externo)
+  conceptoId     BigInt? // cuando aplique (p.ej. CUOTA_SOC, COSEGURO...)
+  importeEnviado Decimal @db.Decimal(12, 2)
+
+  // Datos de conciliación (respuesta de cómputos)
+  importeCobrado     Decimal?  @db.Decimal(12, 2)
+  conciliacionEstado String    @default("pendiente") // pendiente | descontado | no_descontado | parcial | ajustado
+  conciliacionFecha  DateTime?
+
+  novedadLote  NovedadLote  @relation(fields: [novedadLoteId], references: [id], onDelete: Cascade)
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron       Padron?      @relation(fields: [padronId], references: [id])
+  concepto     Concepto?    @relation(fields: [conceptoId], references: [id])
+
+  // Si K16 agrupa varias obligaciones internas, las linkeamos acá
+  detalles NovedadItemDetalle[]
+
+  @@index([organizacionId, novedadLoteId])
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, canal])
+}
+
+model NovedadItemDetalle {
+  id            BigInt  @id @default(autoincrement())
+  novedadItemId BigInt
+  obligacionId  BigInt
+  importe       Decimal @db.Decimal(12, 2)
+
+  novedadItem NovedadItem @relation(fields: [novedadItemId], references: [id], onDelete: Cascade)
+  obligacion  Obligacion  @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+
+  @@index([novedadItemId])
+  @@index([obligacionId])
+}
+
+/// ===================== Novedades (Buffer de eventos) =====================
+model NovedadPendiente {
+  id             BigInt @id @default(autoincrement())
+  organizacionId String
+  /// A qué periodo "YYYY-MM" va el evento (según regla de corte)
+  periodoDestino String
+  /// Tipo del evento: PADRON_ALTA | PADRON_BAJA | COSEGURO_ALTA | COSEGURO_BAJA | COLATERAL_ALTA | COLATERAL_BAJA | ...
+  tipo           String
+
+  afiliadoId   BigInt
+  padronId     BigInt?
+  /// Código/canal DPI (ej. P40, J22/J17 si tuvieran letras+2 dígitos). Lo tratamos como string de 3 chars.
+  canal        String?
+  /// Concepto interno (si aplica)
+  conceptoId   BigInt?
+  /// Importe asociado al evento, cuando corresponda
+  importe      Decimal? @db.Decimal(12, 2)
+  /// Id útil para trazar la entidad origen (padron/coseguro/colateral)
+  referenciaId BigInt?
+  observacion  String?
+  ocurridoEn   DateTime @default(now())
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, periodoDestino])
+  @@index([organizacionId, afiliadoId])
+}
+
+/// ===================== Resumen de novedades por padrón/periodo (ADITIVO) =====================
+model NovedadPendientePadron {
+  id             BigInt @id @default(autoincrement())
+  organizacionId String
+  periodoDestino String // "YYYY-MM"
+  padronId       BigInt
+
+  // Datos utilitarios para monitor/TXT
+  centro  Int?
+  sistema String? // guardamos el prefijo DPI 'ES' | 'SG'
+
+  // Columnas por canal
+  j17 Decimal? @db.Decimal(12, 2)
+  j22 Decimal? @db.Decimal(12, 2)
+  j38 Decimal? @db.Decimal(12, 2)
+  k16 Decimal? @db.Decimal(12, 2)
+
+  ocurridoEn DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relaciones (opcionales, pero útiles)
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  padron       Padron       @relation(fields: [padronId], references: [id])
+
+  @@unique([organizacionId, periodoDestino, padronId], name: "npp_unique_org_period_padron")
+  @@index([organizacionId, periodoDestino], name: "npp_idx_org_period")
+}
+
+/// ===================== (Opcional) Calendario de corte por periodo =====================
+model NovedadCalendario {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  periodo        String // "YYYY-MM"
+  diaCorte       Int
+  fechaCorte     DateTime
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([organizacionId, periodo])
+}
+
+/// ===================== Créditos de afiliado (saldo a favor) =====================
+// Se generan SOLO en conciliación si detectamos doble cobro (no desde Caja).
+model CreditoAfiliado {
+  id              BigInt   @id @default(autoincrement())
+  organizacionId  String
+  afiliadoId      BigInt
+  origen          String // "nomina_doble_cobro" | "ajuste"
+  motivo          String?
+  montoTotal      Decimal  @db.Decimal(12, 2)
+  montoDisponible Decimal  @db.Decimal(12, 2)
+  estado          String   @default("abierto") // abierto | agotado | devuelto
+  creadoEn        DateTime @default(now())
+
+  organizacion Organizacion        @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado            @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  aplicaciones AplicacionCredito[]
+
+  @@index([organizacionId, afiliadoId])
+}
+
+model AplicacionCredito {
+  id           BigInt   @id @default(autoincrement())
+  creditoId    BigInt
+  obligacionId BigInt
+  monto        Decimal  @db.Decimal(12, 2)
+  fecha        DateTime @default(now())
+
+  credito    CreditoAfiliado @relation(fields: [creditoId], references: [id], onDelete: Cascade)
+  obligacion Obligacion      @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+
+  @@index([creditoId])
+  @@index([obligacionId])
+}
+
+/// ===================== Lotes de Novedades (salida) =====================
+model LoteNovedad {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  periodo        String // "YYYY-MM"
+  generadoPor    String?
+  generadoEn     DateTime @default(now())
+  totalRegistros Int      @default(0)
+  totalImporte   Decimal  @default(0) @db.Decimal(14, 2)
+
+  organizacion Organizacion     @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  detalles     NovedadDetalle[]
+
+  @@index([organizacionId, periodo])
+}
+
+model NovedadDetalle {
+  id         BigInt  @id @default(autoincrement())
+  loteId     BigInt
+  afiliadoId BigInt
+  padronId   BigInt?
+  // Código “de nómina” a reportar. Ej: J22 (coseguro), J38 (colaterales), K16 (créditos/órdenes)
+  codigo     String
+  // Importe a descontar (positivo). Agregá filas separadas si hay varios conceptos para el mismo afiliado.
+  monto      Decimal @db.Decimal(14, 2)
+
+  lote     LoteNovedad @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  afiliado Afiliado    @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron   Padron?     @relation(fields: [padronId], references: [id])
+
+  @@index([loteId])
+  @@index([afiliadoId])
+}
+
+/// ===================== Lotes de Devolución Nómina (entrada) =====================
+model LoteNomina {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  periodo        String
+  archivoNombre  String?
+  hashContenido  String? // para idempotencia
+  cargadoPor     String?
+  cargadoEn      DateTime @default(now())
+  estado         String   @default("previsualizado") // previsualizado | confirmado
+
+  organizacion Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  detalles     NominaDetalle[]
+
+  @@unique([organizacionId, periodo, hashContenido])
+  @@index([organizacionId, periodo])
+}
+
+model NominaDetalle {
+  id         BigInt  @id @default(autoincrement())
+  loteId     BigInt
+  afiliadoId BigInt
+  padronId   BigInt?
+  codigo     String
+  // importe efectivamente descontado por nómina (positivo)
+  monto      Decimal @db.Decimal(14, 2)
+
+  lote     LoteNomina @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  afiliado Afiliado   @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron   Padron?    @relation(fields: [padronId], references: [id])
+
+  @@index([loteId])
+  @@index([afiliadoId])
+}
+
+/// ===================== Crédito a favor (bucket simple) =====================
+/// Lo usamos sólo para acumular excedentes de nómina. Se consumirá en caja en el Sprint 4.
+model CreditoFavor {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  afiliadoId     BigInt
+  periodo        String? // período de nómina que generó el crédito
+  origen         String // ej: "nomina"
+  monto          Decimal  @db.Decimal(14, 2) // > 0 significa crédito a favor nuevo
+  saldo          Decimal  @db.Decimal(14, 2) // saldo actual del movimiento (mismo valor en MVP)
+  creadoEn       DateTime @default(now())
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, afiliadoId])
+}
+
+/// ===================== Contabilidad: Plan de cuentas & Mapeos =====================
+
+model CuentaContable {
+  id             BigInt  @id @default(autoincrement())
+  organizacionId String
+  codigo         String // p.ej. "1101", "1102", "1.1.01"
+  nombre         String
+  tipo           String // activo | pasivo | patrimonio | ingreso | gasto
+  nivel          Int?
+  imputable      Boolean @default(true)
+
+  // jerarquía opcional
+  padreId BigInt?
+  padre   CuentaContable?  @relation("CuentaPadre", fields: [padreId], references: [id])
+  hijos   CuentaContable[] @relation("CuentaPadre")
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([organizacionId, codigo], name: "org_codigo_cuenta")
+  @@index([organizacionId])
+}
+
+model CuentaMapeo {
+  id             BigInt  @id @default(autoincrement())
+  organizacionId String
+  origen         String
+  conceptoCodigo String?
+  metodoPago     String?
+  moneda         String? // <-- agregado para discriminar ARS/USD si querés
+  debeCodigo     String
+  haberCodigo    String
+  descripcion    String?
+  activo         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  // ÚNICO: por org + origen + (concepto, metodo, moneda)
+  @@unique([organizacionId, origen, conceptoCodigo, metodoPago, moneda], map: "cuentamapeo_u_org_ori_con_met_mon")
+  // Índices útiles
+  @@index([organizacionId, origen, activo], map: "cuentamapeo_i_org_ori_act")
+  @@index([organizacionId, activo], map: "cuentamapeo_i_org_act")
+  @@index([organizacionId, origen, conceptoCodigo, metodoPago], map: "cuentamapeo_i_org_ori_con_met")
+}
+
+// ===================== TERCEROS / PROVEEDORES / PRESTADORES =====================
+
+enum TipoPersona {
+  FISICA
+  JURIDICA
+  OTRO
+}
+
+enum CondIva {
+  INSCRIPTO
+  MONOTRIBUTO
+  EXENTO
+  CONSUMIDOR_FINAL
+  NO_RESPONSABLE
+}
+
+enum RolTercero {
+  PROVEEDOR
+  PRESTADOR
+  AFILIADO
+  OTRO
+}
+
+model Tercero {
+  id             BigInt       @id @default(autoincrement())
+  organizacionId String
+  codigo         String? // viene de CSV (CODIGO)
+  tipoPersona    TipoPersona?
+  nombre         String // RAZON / DESCRIPCIO
+  fantasia       String?
+  cuit           String?      @db.VarChar(20)
+  iibb           String? // INGBRUTOS
+  condIva        CondIva?
+  activo         Boolean      @default(true)
+
+  // metadatos
+  notas         String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  // relaciones
+  organizacion       Organizacion           @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  cuentas            CuentaTercero[]
+  roles              TerceroRol[]
+  direcciones        TerceroDireccion[]
+  contactos          TerceroContacto[]
+  bancos             TerceroBanco[]
+  impositivo         TerceroImpositivo?
+  clasificaciones    TerceroClasificacion[]
+  ComprobanteTercero ComprobanteTercero[]
+  OrdenPagoTercero   OrdenPagoTercero[]
+
+  @@index([organizacionId, cuit])
+  @@index([organizacionId, codigo])
+}
+
+model TerceroRol {
+  id        BigInt     @id @default(autoincrement())
+  terceroId BigInt
+  rol       RolTercero
+
+  tercero Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+
+  @@unique([terceroId, rol])
+}
+
+model TerceroDireccion {
+  id        BigInt  @id @default(autoincrement())
+  terceroId BigInt
+  etiqueta  String? // “fiscal”, “comercial”...
+  calle     String?
+  numero    String?
+  piso      String?
+  dpto      String?
+  ciudad    String?
+  provincia String?
+  cp        String?
+  pais      String?
+  principal Boolean @default(false)
+
+  tercero Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+}
+
+enum TipoContacto {
+  EMAIL
+  TELEFONO
+  WHATSAPP
+  WEB
+  OTRO
+}
+
+model TerceroContacto {
+  id        BigInt       @id @default(autoincrement())
+  terceroId BigInt
+  tipo      TipoContacto
+  valor     String
+  etiqueta  String?
+  principal Boolean      @default(false)
+
+  tercero Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+}
+
+enum TipoCuentaBancaria {
+  CBU
+  ALIAS
+  CVU
+  CCI
+  OTRO
+}
+
+model TerceroBanco {
+  id          BigInt             @id @default(autoincrement())
+  terceroId   BigInt
+  banco       String?
+  tipo        TipoCuentaBancaria
+  numero      String // CBU / ALIAS / nro cuenta
+  titular     String?
+  cuitTitular String?
+
+  tercero Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+
+  @@index([numero])
+}
+
+model TerceroImpositivo {
+  id           BigInt   @id @default(autoincrement())
+  terceroId    BigInt   @unique
+  exentoIva    Boolean  @default(false)
+  percepIva    Decimal? @db.Decimal(6, 2)
+  retGanancias Decimal? @db.Decimal(6, 2)
+  percepIibb   Decimal? @db.Decimal(6, 2)
+
+  tercero Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+}
+
+model Clasificacion {
+  id             BigInt @id @default(autoincrement())
+  organizacionId String
+  nombre         String
+
+  organizacion Organizacion           @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  terceros     TerceroClasificacion[]
+
+  @@unique([organizacionId, nombre])
+}
+
+model TerceroClasificacion {
+  id              BigInt @id @default(autoincrement())
+  terceroId       BigInt
+  clasificacionId BigInt
+
+  tercero       Tercero       @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+  clasificacion Clasificacion @relation(fields: [clasificacionId], references: [id], onDelete: Cascade)
+
+  @@unique([terceroId, clasificacionId])
+}
+
+/// ===================== Cuentas por rol (mayor de terceros) =====================
+model CuentaTercero {
+  id             BigInt     @id @default(autoincrement())
+  organizacionId String
+  terceroId      BigInt
+  rol            RolTercero
+  saldoInicial   Decimal?   @db.Decimal(18, 2)
+  saldoActual    Decimal?   @db.Decimal(18, 2)
+  activo         Boolean    @default(true)
+  creadoEn       DateTime   @default(now())
+  actualizadoEn  DateTime   @updatedAt
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tercero      Tercero      @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+
+  movimientos  MovimientoCuentaTercero[]
+  comprobantes ComprobanteTercero[]
+  ordenesPago  OrdenPagoTercero[]
+
+  @@unique([organizacionId, terceroId, rol], name: "org_tercero_rol_cuenta_unique")
+  @@index([organizacionId, rol])
+  @@index([terceroId, rol])
+  @@index([organizacionId, terceroId])
+}
+
+model MovimientoCuentaTercero {
+  id             BigInt        @id @default(autoincrement())
+  cuentaId       BigInt
+  fecha          DateTime      @default(now())
+  tipo           String // "debito" | "credito"
+  origen         String // "factura" | "prestacion" | "nota_credito" | "nota_debito" | "orden_pago" | "ajuste"
+  referenciaId   BigInt?
+  detalle        String?
+  monto          Decimal       @db.Decimal(18, 2)
+  saldoPosterior Decimal?      @db.Decimal(18, 2)
+  cuenta         CuentaTercero @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  @@index([cuentaId, fecha])
+}
+
+/// ===================== Comprobantes de terceros (por rol) =====================
+enum TipoComprobanteTercero {
+  FACTURA
+  PRESTACION
+  NOTA_CREDITO
+  NOTA_DEBITO
+}
+
+enum TipoMovimientoTercero {
+  debito
+  credito
+}
+
+enum OrigenMovimientoTercero {
+  factura
+  prestacion
+  nota_credito
+  nota_debito
+  orden_pago
+  ajuste
+}
+
+enum ClaseComprobanteAFIP {
+  A
+  B
+  C
+  M
+  X
+}
+
+enum EstadoComprobanteTercero {
+  borrador
+  emitido
+  contabilizado
+  pagado
+  anulado
+}
+
+model ComprobanteTercero {
+  id             BigInt                   @id @default(autoincrement())
+  organizacionId String
+  terceroId      BigInt
+  cuentaId       BigInt
+  rol            RolTercero
+  tipo           TipoComprobanteTercero
+  clase          ClaseComprobanteAFIP?
+  puntoVenta     Int?
+  numero         Int?
+  fecha          DateTime                 @default(now())
+  vencimiento    DateTime?
+  moneda         String                   @default("ARS")
+  tc             Decimal?                 @db.Decimal(12, 6)
+  estado         EstadoComprobanteTercero @default(borrador)
+
+  // Totales resumidos
+  netoGravado21  Decimal? @db.Decimal(18, 2)
+  netoGravado105 Decimal? @db.Decimal(18, 2)
+  netoGravado27  Decimal? @db.Decimal(18, 2)
+  netoNoGravado  Decimal? @db.Decimal(18, 2)
+  netoExento     Decimal? @db.Decimal(18, 2)
+  iva21          Decimal? @db.Decimal(18, 2)
+  iva105         Decimal? @db.Decimal(18, 2)
+  iva27          Decimal? @db.Decimal(18, 2)
+  percepIVA      Decimal? @db.Decimal(18, 2)
+  retIVA         Decimal? @db.Decimal(18, 2)
+  retGanancias   Decimal? @db.Decimal(18, 2)
+  percepIIBB     Decimal? @db.Decimal(18, 2)
+  retIIBB        Decimal? @db.Decimal(18, 2)
+  impMunicipal   Decimal? @db.Decimal(18, 2)
+  impInterno     Decimal? @db.Decimal(18, 2)
+  gastoAdmin     Decimal? @db.Decimal(18, 2)
+  otrosImpuestos Decimal? @db.Decimal(18, 2)
+  total          Decimal  @db.Decimal(18, 2)
+
+  cae            String?
+  caeVencimiento DateTime?
+  cuitEmisor     String?   @db.VarChar(20)
+  observaciones  String?
+  creadoEn       DateTime  @default(now())
+  actualizadoEn  DateTime  @updatedAt
+
+  organizacion Organizacion  @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tercero      Tercero       @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+  cuenta       CuentaTercero @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  lineas       ComprobanteTerceroLinea[]
+  impuestos    ComprobanteTerceroImpuesto[]
+  aplicaciones OrdenPagoAplicacion[]
+
+  @@unique([organizacionId, terceroId, tipo, clase, puntoVenta, numero], name: "org_tercero_tipo_clase_pv_num_unique")
+  @@index([organizacionId, rol, estado])
+  @@index([terceroId, rol, estado])
+  @@index([cuentaId, estado])
+}
+
+model ComprobanteTerceroLinea {
+  id             BigInt   @id @default(autoincrement())
+  comprobanteId  BigInt
+  descripcion    String
+  cantidad       Decimal  @db.Decimal(18, 4)
+  precioUnitario Decimal  @db.Decimal(18, 6)
+  alicuotaIVA    Decimal? @db.Decimal(5, 2) // 0, 10.5, 21, 27
+  importeNeto    Decimal  @db.Decimal(18, 2)
+  importeIVA     Decimal? @db.Decimal(18, 2)
+  importeTotal   Decimal  @db.Decimal(18, 2)
+
+  comprobante ComprobanteTercero @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+
+  @@index([comprobanteId])
+}
+
+enum TipoImpuestoComprobante {
+  IVA
+  IVA_EXENTO
+  IVA_NO_GRAVADO
+  PERCEPCION_IVA
+  RETENCION_IVA
+  RETENCION_GANANCIAS
+  PERCEPCION_IIBB
+  RETENCION_IIBB
+  IMP_MUNICIPAL
+  IMP_INTERNO
+  OTRO
+  GASTO_ADMINISTRATIVO
+}
+
+model ComprobanteTerceroImpuesto {
+  id            BigInt                  @id @default(autoincrement())
+  comprobanteId BigInt
+  tipo          TipoImpuestoComprobante
+  detalle       String?
+  jurisdiccion  String?
+  alicuota      Decimal?                @db.Decimal(7, 4)
+  baseImponible Decimal?                @db.Decimal(18, 2)
+  importe       Decimal                 @db.Decimal(18, 2)
+
+  comprobante ComprobanteTercero @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+
+  @@index([comprobanteId, tipo])
+}
+
+/// ===================== Orden de Pago (por rol) =====================
+enum EstadoOrdenPago {
+  borrador
+  confirmado
+  anulado
+}
+
+enum MetodoPagoOP {
+  transferencia
+  cheque
+  efectivo
+  otro
+}
+
+model OrdenPagoTercero {
+  id             BigInt          @id @default(autoincrement())
+  numeroOP       Int? // ← nuevo
+  organizacionId String
+  terceroId      BigInt
+  cuentaId       BigInt
+  rol            RolTercero
+  fecha          DateTime        @default(now())
+  estado         EstadoOrdenPago @default(borrador)
+  total          Decimal         @db.Decimal(18, 2)
+  observaciones  String?
+  creadoEn       DateTime        @default(now())
+  actualizadoEn  DateTime        @updatedAt
+
+  organizacion Organizacion  @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tercero      Tercero       @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+  cuenta       CuentaTercero @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  aplicaciones OrdenPagoAplicacion[]
+  metodos      OrdenPagoMetodo[]
+
+  @@unique([organizacionId, numeroOP])
+  @@index([organizacionId, rol, estado, fecha])
+  @@index([terceroId, rol, estado, fecha])
+  @@index([cuentaId, estado, fecha])
+}
+
+model OrdenPagoAplicacion {
+  id            BigInt  @id @default(autoincrement())
+  ordenId       BigInt
+  comprobanteId BigInt
+  montoAplicado Decimal @db.Decimal(18, 2)
+
+  orden       OrdenPagoTercero   @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  comprobante ComprobanteTercero @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+
+  @@index([ordenId])
+  @@index([comprobanteId])
+}
+
+model OrdenPagoMetodo {
+  id      BigInt       @id @default(autoincrement())
+  ordenId BigInt
+  metodo  MetodoPagoOP
+  monto   Decimal      @db.Decimal(18, 2)
+  ref     String?
+
+  orden OrdenPagoTercero @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+
+  @@index([ordenId])
+}
+
+//MODULO IMPRESION DE Comprobantes
+// enums
+enum ComprobanteTipo {
+  ORDEN_PAGO
+  RECIBO_AFILIADO
+  REINTEGRO_AFILIADO
+}
+
+enum ComprobanteFormato {
+  A4
+  A5
+  TICKET_80MM
+}
+
+enum ComprobanteEstado {
+  EMITIDO
+  ANULADO
+}
+
+// numeración correlativa por org + tipo + ptoVta + serie
+model Numerador {
+  id             String          @id @default(cuid())
+  organizacionId String
+  tipo           ComprobanteTipo
+  ptoVta         Int             @default(1)
+  serie          String? // opcional (p.ej. "A")
+  ultimoNumero   Int             @default(0) // el último asignado
+  longitud       Int             @default(8) // padding del correlativo (00000001)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizacionId, tipo, ptoVta, serie])
+}
+
+// cabecera del comprobante
+model Comprobante {
+  id             String          @id @default(cuid())
+  organizacionId String
+  tipo           ComprobanteTipo
+  ptoVta         Int             @default(1)
+  serie          String? // opcional
+  numero         Int? // correlativo numérico (para ordenar)
+  numeroCompleto String? // ej: "0001-00001234" (ptoVta-numero padded)
+
+  titulo       String?
+  fechaEmision DateTime @default(now())
+
+  // relación a tercero (opcional si tenés módulo Terceros)
+  terceroId     String?
+  // snapshot denormalizado (para reimpresión/consulta histórica)
+  terceroNombre String?
+  terceroCuit   String?
+
+  // importes
+  subtotal     Decimal? @db.Decimal(18, 2)
+  descuentos   Decimal? @db.Decimal(18, 2)
+  percepciones Decimal? @db.Decimal(18, 2)
+  impuestos    Decimal? @db.Decimal(18, 2)
+  total        Decimal  @db.Decimal(18, 2)
+
+  notas String?
+
+  // impresión usada
+  formato         ComprobanteFormato @default(A4)
+  copias          Int                @default(2)
+  templateArchivo String // ej "orden_pago.a4.njk"
+  templateCss     String // ej "a4.css"
+  templateVersion String? // commit/semver opcional
+
+  // persistencia del archivo generado (ruta/clave/hashes)
+  pdfStorageKey String? // ej "s3://bucket/key.pdf" o disco "file://..."
+  pdfHash       String? // sha256 para deduplicar/verificar
+
+  // payload de origen (snapshot del DTO de impresión)
+  payload Json // ImprimirComprobanteDto "congelado"
+
+  estado        ComprobanteEstado @default(EMITIDO)
+  anuladoMotivo String?
+  anuladoAt     DateTime?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items ComprobanteItem[]
+
+  @@unique([organizacionId, tipo, ptoVta, serie, numero])
+  @@index([organizacionId, fechaEmision])
+  @@index([tipo, fechaEmision])
+}
+
+// detalle del comprobante
+model ComprobanteItem {
+  id            String   @id @default(cuid())
+  comprobanteId String
+  orden         Int // posición de línea
+  desc          String
+  cantidad      Decimal  @db.Decimal(12, 2)
+  pUnit         Decimal? @db.Decimal(12, 2)
+  importe       Decimal  @db.Decimal(18, 2)
+
+  comprobante Comprobante @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+
+  @@index([comprobanteId, orden])
+}
+
+//SPRINT MOVIMIENTOS afiliados
+enum Moneda {
+  ARS
+  USD
+}
+
+/// ===================== Submayor Afiliados (Cuenta Corriente) =====================
+enum NaturalezaMovimientoAf {
+  debito // aumenta deuda del afiliado
+  credito // disminuye deuda del afiliado
+}
+
+enum OrigenMovimientoAf {
+  orden_credito // débito total al generar OC (o por materializar)
+  cuota // débito por generación/imputación de cuota
+  pago_caja // crédito por cobro en caja
+  nomina // crédito por descuento por nómina
+  ajuste // débito/crédito manual
+  anulacion // movimiento inverso para revertir
+}
+
+model MovimientoAfiliado {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  afiliadoId     BigInt
+  padronId       BigInt?
+  fecha          DateTime @default(now())
+
+  naturaleza NaturalezaMovimientoAf // debito | credito
+  origen     OrigenMovimientoAf // trazabilidad funcional
+  concepto   String
+
+  // importe SIEMPRE positivo; signo lo determina `naturaleza`
+  importe Decimal @db.Decimal(14, 2)
+
+  // --- NUEVO ---
+  moneda        Moneda? // moneda original del hecho económico, si aplica
+  importeMoneda Decimal? @db.Decimal(14, 2) // importe en moneda original
+  tcAplicado    Decimal? @db.Decimal(12, 6) // TC usado
+
+  // trazabilidad de negocio
+  obligacionId   BigInt?
+  ordenId        BigInt?
+  cuotaId        BigInt?
+  pagoId         BigInt?
+  referenciaId   BigInt? // por si querés link genérico alternativo
+  referenciaTipo String? // 'ORDEN' | 'CUOTA' | 'PAGO' | 'OBLIGACION' | ...
+
+  // contabilidad (doble partida) — opcional
+  asientoId BigInt?
+
+  // performa
+  saldoPosterior Decimal? @db.Decimal(14, 2)
+
+  // relaciones
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron       Padron?      @relation(fields: [padronId], references: [id])
+  asiento      Asiento?     @relation(fields: [asientoId], references: [id])
+
+  @@index([organizacionId, afiliadoId, fecha, id])
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, origen])
+  @@index([organizacionId, obligacionId])
+  @@index([organizacionId, ordenId])
+  @@index([organizacionId, cuotaId])
+  @@index([organizacionId, pagoId])
+}

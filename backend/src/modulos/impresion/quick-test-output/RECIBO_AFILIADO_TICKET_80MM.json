@@ -1,0 +1,16 @@
+{
+  "tipo": "RECIBO_AFILIADO",
+  "formato": "TICKET_80MM",
+  "numero": "REC-SMOKE-001",
+  "tercero": {
+    "nombre": "María González",
+    "cuit": "27-98765432-1"
+  },
+  "items": [
+    {
+      "desc": "Cuota mensual",
+      "importe": 15000
+    }
+  ],
+  "notas": "Smoke test - Recibo ticket"
+}
