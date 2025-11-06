@@ -11,8 +11,11 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -28,7 +31,8 @@ jobs:
 
       - name: SSH agent
         uses: webfactory/ssh-agent@v0.9.0
-        with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Trust VPS host key
         run: |
@@ -52,7 +56,7 @@ jobs:
 
       - name: Install prod deps + migrate + PM2 (remote)
         run: |
-          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
           set -e
           cd ${{ secrets.VPS_PATH_BASE }}/backend
           npm ci --omit=dev
@@ -67,3 +71,4 @@ jobs:
             pm2 save
           fi
           EOF
+
