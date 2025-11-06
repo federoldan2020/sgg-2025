@@ -1,0 +1,77 @@
+name: Deploy Frontend (Next.js)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend-next.yml"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build (standalone)
+        working-directory: frontend
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.VPS_PORT }} udap.fourdev.com.ar >> ~/.ssh/known_hosts
+
+      - name: Ensure folders on VPS
+        run: |
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "mkdir -p ${{ secrets.VPS_PATH_BASE }}/frontend/.next/static ${{ secrets.VPS_PATH_BASE }}/frontend/public"
+
+      - name: Upload standalone runtime
+        run: |
+          rsync -az --delete -e "ssh -p ${{ secrets.VPS_PORT }}" \
+            frontend/.next/standalone/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/frontend/
+
+      - name: Upload static & public
+        run: |
+          rsync -az --delete -e "ssh -p ${{ secrets.VPS_PORT }}" \
+            frontend/.next/static/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/frontend/.next/static/
+          rsync -az --delete -e "ssh -p ${{ secrets.VPS_PORT }}" \
+            frontend/public/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/frontend/public/
+
+      - name: Start/Reload PM2 (Next)
+        run: |
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
+          set -e
+          cd ${{ secrets.VPS_PATH_BASE }}/frontend
+          if pm2 list | grep -q "sgg-frontend"; then
+            pm2 reload sgg-frontend
+          else
+            PORT=${{ secrets.FRONTEND_PORT }} pm2 start server.js --name sgg-frontend
+            pm2 save
+          fi
+          EOF
+
