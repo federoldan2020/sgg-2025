@@ -1,0 +1,69 @@
+name: Deploy Backend (Nest)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend-nest.yml"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Build
+        working-directory: backend
+        run: npm run build
+
+      - name: SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
+
+      - name: Trust VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.VPS_PORT }} udap.fourdev.com.ar >> ~/.ssh/known_hosts
+
+      - name: Upload dist & package files (+prisma si existe)
+        run: |
+          rsync -az --delete -e "ssh -p ${{ secrets.VPS_PORT }}" \
+            backend/dist/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/backend/dist/
+          rsync -az -e "ssh -p ${{ secrets.VPS_PORT }}" \
+            backend/package.json backend/package-lock.json \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/backend/
+          if [ -d backend/prisma ]; then
+            rsync -az -e "ssh -p ${{ secrets.VPS_PORT }}" \
+              backend/prisma/ \
+              ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/backend/prisma/
+          fi
+
+      - name: Install prod deps + migrate + PM2 (remote)
+        run: |
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          set -e
+          cd ${{ secrets.VPS_PATH_BASE }}/backend
+          npm ci --omit=dev
+          if [ -f prisma/schema.prisma ]; then
+            npx prisma migrate deploy || true
+            npx prisma generate || true
+          fi
+          if pm2 list | grep -q "sgg-backend"; then
+            pm2 reload sgg-backend
+          else
+            PORT=${{ secrets.BACKEND_PORT }} pm2 start "npm run start:prod" --name sgg-backend
+            pm2 save
+          fi
+          EOF
