@@ -1,0 +1,23 @@
+name: Check SSH to VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.VPS_PORT }} udap.fourdev.com.ar >> ~/.ssh/known_hosts
+
+      - name: Run whoami on VPS
+        run: |
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "whoami && hostname && ls -la ${{ secrets.VPS_PATH_BASE }}"
