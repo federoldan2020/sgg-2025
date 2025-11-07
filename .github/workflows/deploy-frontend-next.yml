@@ -7,14 +7,19 @@ on:
       - "frontend/**"
       - ".github/workflows/deploy-frontend-next.yml"
 
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node 20 + cache
         uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -25,11 +30,16 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build (standalone)
+      - name: Build (standalone, sin Turbopack/LightningCSS)
         working-directory: frontend
         env:
+          NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: "1"
-        run: npm run build
+          NEXT_DISABLE_LIGHTNINGCSS: "1"  # evita binario nativo lightningcss en CI
+        run: |
+          # Asegura Tailwind/PostCSS si aplica (opcional)
+          node -e "try{require('tailwindcss');require('postcss');require('autoprefixer')}catch(e){}"
+          npm run build
 
       - name: SSH agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -62,16 +72,43 @@ jobs:
             frontend/public/ \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/frontend/public/
 
-      - name: Start/Reload PM2 (Next)
+      - name: Write .env.production on VPS (opcional)
         run: |
-          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
           set -e
           cd ${{ secrets.VPS_PATH_BASE }}/frontend
+          cat > .env.production <<EOT
+          NODE_ENV=production
+          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_TENANT_ID=${{ secrets.NEXT_PUBLIC_TENANT_ID }}
+          EOT
+          EOF
+
+      - name: Start/Reload PM2 (Next standalone con Node 20/NVM)
+        run: |
+          ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          set -e
+          export NVM_DIR="/home/${USER}/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          nvm use 20 >/dev/null
+
+          APP_DIR="${{ secrets.VPS_PATH_BASE }}/frontend"
+
+          # Asegura permisos sanos (opcional)
+          chmod -R u=rwX,go=rX "$APP_DIR"
+
+          # server.js queda en la raíz de standalone que subimos a APP_DIR
           if pm2 list | grep -q "sgg-frontend"; then
             pm2 reload sgg-frontend
           else
-            PORT=${{ secrets.FRONTEND_PORT }} pm2 start server.js --name sgg-frontend
+            PORT=${{ secrets.FRONTEND_PORT }} pm2 start "$APP_DIR/server.js" \
+              --name sgg-frontend \
+              --cwd "$APP_DIR" \
+              --time
             pm2 save
           fi
+
+          # (opcional) healthcheck rápido si tenés /api/health o /:
+          # curl -fsSL https://udap.fourdev.com.ar || (pm2 logs sgg-frontend --lines 200 && exit 1)
           EOF
 
