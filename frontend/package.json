@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",                   
+    "dev": "next dev",
     "build": "next build",
     "build:ci": "NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "next start -p ${PORT:-3010}",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node -e \"require('lightningcss') && console.log('lightningcss OK')\""
   },
   "dependencies": {
     "next": "15.5.3",
@@ -17,7 +18,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
     "sweetalert2": "^11.23.0",
-    "lightningcss": "^1.27.0"           
+    "lightningcss": "^1.27.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -27,7 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
     "typescript": "^5",
-    "@tailwindcss/postcss": "^4",       
-    "tailwindcss": "^4"                 
+    "@tailwindcss/postcss": "^4",
+    "tailwindcss": "^4"
   }
 }
