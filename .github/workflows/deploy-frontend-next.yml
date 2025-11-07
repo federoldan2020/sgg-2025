@@ -30,6 +30,16 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # --- Diagnóstico útil (deja logs en el job) ---
+      - name: Print env & versions
+        working-directory: frontend
+        run: |
+          node -e "console.log('platform:', process.platform, 'arch:', process.arch, 'node:', process.version)"
+          node -e "console.log('next:', require('next/package.json').version)"
+          npm ls lightningcss || true
+          node -e "try{console.log('lc node path:', require.resolve('lightningcss/node'))}catch(e){console.error('resolve lightningcss/node FAILED'); process.exitCode=0}"
+
+      # Fuerza descarga/instalación del binario nativo de lightningcss para Linux del runner
       - name: Rebuild lightningcss binary
         working-directory: frontend
         run: npm rebuild lightningcss --update-binary --verbose
