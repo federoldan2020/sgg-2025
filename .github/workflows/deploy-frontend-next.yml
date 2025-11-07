@@ -30,17 +30,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # 👇 Fuerza la descarga del binario nativo de lightningcss para Linux
       - name: Rebuild lightningcss binary
         working-directory: frontend
-        run: npm rebuild lightningcss --update-binary --verbose || true
+        run: npm rebuild lightningcss --update-binary --verbose
 
       - name: Build (standalone)
         working-directory: frontend
         env:
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: "1"
-          NEXT_DISABLE_LIGHTNINGCSS: "1" # cinturón & tirantes
         run: npm run build
 
       - name: SSH agent
@@ -74,7 +72,7 @@ jobs:
             frontend/public/ \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH_BASE }}/frontend/public/
 
-      - name: Write .env.production on VPS (opcional)
+      - name: Write .env.production on VPS
         run: |
           ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
           set -e
