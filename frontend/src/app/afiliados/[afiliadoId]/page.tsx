@@ -1,4 +1,7 @@
-type Props = { params: { afiliadoId: string } };
+type Props = {
+  params: Promise<{ afiliadoId: string }>;
+};
+
 
 const tabs = [
   { id: "resumen", label: "Resumen" },
@@ -7,8 +10,8 @@ const tabs = [
   { id: "eventos", label: "Eventos" },
 ] as const;
 
-export default function AfiliadoDetallePage({ params }: Props) {
-  const { afiliadoId } = params;
+export default async function AfiliadoDetallePage({ params }: Props) {
+  const { afiliadoId } = await params;
 
   return (
     <section>
