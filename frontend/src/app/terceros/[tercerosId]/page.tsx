@@ -75,8 +75,8 @@ const fmtMoney = (n?: number | null) =>
 
 export default function TerceroViewPage() {
   const router = useRouter();
-  const params = useParams<{ tercerosId: string }>();
-  const id = params?.tercerosId;
+  const { tercerosId } = useParams<{ tercerosId: string }>();
+  const id = tercerosId;
 
   const [data, setData] = useState<TerceroView | null>(null);
   const [msg, setMsg] = useState<string | null>(null);

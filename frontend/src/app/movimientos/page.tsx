@@ -65,13 +65,13 @@ const padronesActivos = async (afiliadoId: string) =>
     method: "GET",
   });
 
-const listarMovimientos = async (params: {
+const listarMovimientos = (params: {
   afiliadoId: string;
   padronId?: string;
   desde?: string;
   hasta?: string;
   take?: number;
-}) => {
+}): Promise<CtaCteResp> => {
   const qs = new URLSearchParams();
   qs.set("afiliadoId", params.afiliadoId);
   if (params.padronId) qs.set("padronId", params.padronId);

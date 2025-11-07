@@ -1,5 +1,8 @@
+
 "use client";
+
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { api, getErrorMessage } from "@/servicios/api";
 
 type Linea = { id: string; cuenta: string; debe: number; haber: number };
@@ -14,27 +17,37 @@ type Detalle = {
   totalHaber: number;
 };
 
-export default function AsientoDetallePage({
-  params,
-}: {
-  params: { asientosId: string };
-}) {
+export default function AsientoDetallePage() {
+  const { asientosId } = useParams<{ asientosId: string }>();
   const [det, setDet] = useState<Detalle | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!asientosId) return;
     (async () => {
       try {
-        const r = await api<Detalle>(`/contabilidad/asientos/${params.asientosId}`);
+        const r = await api<Detalle>(`/contabilidad/asientos/${asientosId}`);
         setDet(r);
       } catch (e) {
         setMsg(getErrorMessage(e));
       }
     })();
-  }, [params.asientosId]);
+  }, [asientosId]);
 
-  if (msg) return <main style={{ padding: 24 }}><p style={{ color:'crimson' }}>{msg}</p></main>;
-  if (!det) return <main style={{ padding: 24 }}><p>Cargando…</p></main>;
+  if (msg) {
+    return (
+      <main style={{ padding: 24 }}>
+        <p style={{ color: "crimson" }}>{msg}</p>
+      </main>
+    );
+  }
+  if (!det) {
+    return (
+      <main style={{ padding: 24 }}>
+        <p>Cargando…</p>
+      </main>
+    );
+  }
 
   return (
     <main style={{ padding: 24 }}>

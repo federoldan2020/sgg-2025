@@ -75,8 +75,7 @@ function toISODate(d?: string | Date | null) {
 /** ======================= Page ======================= */
 export default function CoseguroAfiliadoPage() {
   // ✅ Ruta: /coseguro/[afiliadoId]
-  const { afiliadoId: afiliadoIdParam } = useParams<{ afiliadoId: string }>();
-  const afiliadoId = Number(afiliadoIdParam);
+  const { afiliadoId } = useParams<{ afiliadoId: string }>();
 
   /** Datos base */
   const [afiliado, setAfiliado] = useState<AfiliadoLite | null>(null);
@@ -104,7 +103,7 @@ export default function CoseguroAfiliadoPage() {
 
   /** Carga inicial */
   useEffect(() => {
-    if (!afiliadoId || Number.isNaN(afiliadoId)) return;
+    if (!afiliadoId) return;
     let cancelled = false;
 
     (async () => {

@@ -2,7 +2,6 @@ type Props = {
   params: Promise<{ afiliadoId: string }>;
 };
 
-
 const tabs = [
   { id: "resumen", label: "Resumen" },
   { id: "colaterales", label: "Colaterales" },

@@ -1,10 +1,11 @@
 // Server Component
 import OrdenesAfiliadoClient from './page.client';
 
-export default function Page({
+export default async function Page({
   params,
 }: {
-  params: { afiliadoId: string }; // acá Next ya resolvió el Promise
+  params: Promise<{ afiliadoId: string }>;
 }) {
-  return <OrdenesAfiliadoClient afiliadoId={params.afiliadoId} />;
+  const { afiliadoId } = await params;
+  return <OrdenesAfiliadoClient afiliadoId={afiliadoId} />;
 }

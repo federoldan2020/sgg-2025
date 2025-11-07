@@ -114,8 +114,7 @@ const getRolColor = (rol?: RolTercero) => {
 
 export default function CuentaExtractoPage() {
   const router = useRouter();
-  const params = useParams<{ cuentaId: string }>();
-  const cuentaId = params?.cuentaId;
+  const { cuentaId } = useParams<{ cuentaId: string }>();
 
   const today = fmtDate(new Date());
   const sixtyAgo = fmtDate(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000));
