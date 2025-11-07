@@ -2,7 +2,7 @@ name: Deploy Frontend (Next.js)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
       - "frontend/**"
       - ".github/workflows/deploy-frontend-next.yml"
@@ -30,16 +30,18 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build (standalone, sin Turbopack/LightningCSS)
+      # 👇 Fuerza la descarga del binario nativo de lightningcss para Linux
+      - name: Rebuild lightningcss binary
+        working-directory: frontend
+        run: npm rebuild lightningcss --update-binary --verbose || true
+
+      - name: Build (standalone)
         working-directory: frontend
         env:
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: "1"
-          NEXT_DISABLE_LIGHTNINGCSS: "1"  # evita binario nativo lightningcss en CI
-        run: |
-          # Asegura Tailwind/PostCSS si aplica (opcional)
-          node -e "try{require('tailwindcss');require('postcss');require('autoprefixer')}catch(e){}"
-          npm run build
+          NEXT_DISABLE_LIGHTNINGCSS: "1" # cinturón & tirantes
+        run: npm run build
 
       - name: SSH agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -94,10 +96,6 @@ jobs:
 
           APP_DIR="${{ secrets.VPS_PATH_BASE }}/frontend"
 
-          # Asegura permisos sanos (opcional)
-          chmod -R u=rwX,go=rX "$APP_DIR"
-
-          # server.js queda en la raíz de standalone que subimos a APP_DIR
           if pm2 list | grep -q "sgg-frontend"; then
             pm2 reload sgg-frontend
           else
@@ -107,8 +105,4 @@ jobs:
               --time
             pm2 save
           fi
-
-          # (opcional) healthcheck rápido si tenés /api/health o /:
-          # curl -fsSL https://udap.fourdev.com.ar || (pm2 logs sgg-frontend --lines 200 && exit 1)
           EOF
-
