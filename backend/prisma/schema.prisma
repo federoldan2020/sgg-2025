@@ -51,6 +51,98 @@ model Organizacion {
   NovedadCalendario      NovedadCalendario[]
   NovedadPendientePadron NovedadPendientePadron[]
   MovimientoAfiliado     MovimientoAfiliado[]
+  usuarios               Usuario[]
+  sesiones               SesionUsuario[]
+}
+
+/**
+ * ===================== Sistema de Usuarios y Autenticación =====================
+ */
+
+enum RolUsuario {
+  ADMIN
+  OPERACION
+  COSEGURO
+  NOMINA
+  CONTABILIDAD
+  TERCEROS
+  AFILIADOS
+  FINANZAS
+  TESORERIA
+  CAJA
+  SOLO_LECTURA
+}
+
+enum EstadoUsuario {
+  ACTIVO
+  INACTIVO
+  BLOQUEADO
+  PENDIENTE_ACTIVACION
+}
+
+model Usuario {
+  id             BigInt        @id @default(autoincrement())
+  organizacionId String
+  email          String
+  username       String?       // opcional, puede usar solo email
+  passwordHash   String
+  nombre         String
+  apellido       String
+  roles          RolUsuario[]
+  estado         EstadoUsuario @default(PENDIENTE_ACTIVACION)
+  
+  // Configuración de seguridad
+  ultimoLogin        DateTime?
+  intentosFallidos   Int       @default(0)
+  bloqueadoHasta     DateTime?
+  cambiarPassword    Boolean   @default(true) // forzar cambio en primer login
+  
+  // Metadatos
+  creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @updatedAt
+  creadoPor      BigInt?  // ID del usuario que lo creó
+  
+  // Configuración de acceso
+  sedeId         String?  // para limitar acceso por sede/delegación
+  
+  organizacion   Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  creador        Usuario?        @relation("UsuarioCreador", fields: [creadoPor], references: [id])
+  usuariosCreados Usuario[]      @relation("UsuarioCreador")
+  sesiones       SesionUsuario[]
+  
+  @@unique([organizacionId, email])
+  @@unique([organizacionId, username])
+  @@index([organizacionId, estado])
+  @@index([organizacionId, email])
+}
+
+model SesionUsuario {
+  id             String   @id @default(uuid())
+  usuarioId      BigInt
+  organizacionId String
+  
+  // Tokens JWT
+  refreshToken   String   @unique
+  tokenFamily    String   // para invalidar familia de tokens en caso de compromiso
+  
+  // Metadatos de sesión
+  ipAddress      String?
+  userAgent      String?
+  dispositivo    String?  // móvil, desktop, etc.
+  
+  // Control de expiración
+  creadoEn       DateTime @default(now())
+  expiraEn       DateTime
+  ultimoUso      DateTime @default(now())
+  activa         Boolean  @default(true)
+  
+  usuario        Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  
+  @@index([usuarioId, activa])
+  @@index([organizacionId, usuarioId])
+  @@index([refreshToken])
+  @@index([expiraEn])
 }
 
 // Propuesta modificacion afiliados y padrones

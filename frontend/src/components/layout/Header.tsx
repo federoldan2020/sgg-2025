@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import Breadcrumbs from "./Breadcrumbs";
 import CommandPalette from "./CommandPalette";
+import UserMenu from "../auth/UserMenu";
 
 type Props = {
   onToggleSidebar?: () => void; // Desktop collapse
@@ -53,9 +54,7 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
           readOnly
         />
         <CommandPalette />
-        <button className="user-button" aria-label="Perfil de usuario">
-          👤
-        </button>
+        <UserMenu />
       </div>
     </header>
   );

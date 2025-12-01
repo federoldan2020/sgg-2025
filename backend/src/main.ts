@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import type { Request, Response, NextFunction } from 'express';
+import { orgMiddleware } from './middleware/org.middleware';
 import { SerializeInterceptor } from './core/interceptores/serialize.interceptor';
 
 async function bootstrap(): Promise<void> {
@@ -9,11 +10,8 @@ async function bootstrap(): Promise<void> {
   app.enableCors();
   app.useGlobalInterceptors(new SerializeInterceptor());
 
-  app.use((req: Request, _res: Response, next: NextFunction) => {
-    const headerName = process.env.TENANT_HEADER || 'X-Organizacion-ID';
-    req.organizacionId = req.header(headerName) ?? undefined;
-    next();
-  });
+  // Middleware de organización (multitenant) con validación contra usuario autenticado
+  app.use(orgMiddleware as unknown as (req: Request, res: Response, next: NextFunction) => void);
 
   const port = Number(process.env.PORT || 3001);
   await app.listen(port);

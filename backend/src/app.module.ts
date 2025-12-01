@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AfiliadosController } from './modulos/afiliados/afiliados.controller';
 import { PadronesController } from './modulos/padrones/padrones.controller';
 import { ObligacionesController } from './modulos/obligaciones/obligaciones.controller';
@@ -20,9 +21,12 @@ import { PublicacionesModule } from './modulos/publicaciones/publicaciones.modul
 import { orgMiddleware } from './middleware/org.middleware';
 import { ComerciosModule } from './modulos/comercios/comercios.module';
 import { MovimientosModule } from './modulos/movimientos/movimientos.module';
+import { AuthModule } from './modulos/auth/auth.module';
+import { JwtAuthGuard } from './modulos/auth/guards/jwt-auth.guard';
 
 @Module({
   imports: [
+    AuthModule,
     AfiliadosModule,
     PadronesModule,
     CoseguroModule,
@@ -38,7 +42,6 @@ import { MovimientosModule } from './modulos/movimientos/movimientos.module';
     PublicacionesModule,
     ComerciosModule,
     MovimientosModule,
-    OrdenesModule,
   ],
   controllers: [
     AfiliadosController,
@@ -47,7 +50,12 @@ import { MovimientosModule } from './modulos/movimientos/movimientos.module';
     CajaController,
     AsientosController,
   ],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

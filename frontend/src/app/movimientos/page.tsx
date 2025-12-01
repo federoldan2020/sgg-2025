@@ -10,6 +10,10 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 /* ============================
  * Tipos (sin cambios)
@@ -881,137 +885,94 @@ function TablaMovimientos({ rows, loading }: { rows: Movimiento[]; loading: bool
     );
   }
 
-  /* ---------- Vista Tarjetas (mobile) ---------- */
+  /* ---------- Vista Tarjetas (mobile) con shadcn/ui ---------- */
   return (
     <div className="w-full">
-      <div className="block sm:hidden">
-        <ul className="divide-y divide-slate-100/70">
-          {rows.map((m) => {
-            const ref = m.ordenId
-              ? `ORD-${m.ordenId.slice(0, 8)}`
-              : m.cuotaId
-              ? `CUO-${m.cuotaId.slice(0, 8)}`
-              : m.obligacionId
-              ? `OBL-${m.obligacionId.slice(0, 8)}`
-              : m.pagoId
-              ? `PAG-${m.pagoId.slice(0, 8)}`
-              : m.asientoId
-              ? `AST-${m.asientoId.slice(0, 8)}`
-              : "—";
+      <div className="block sm:hidden space-y-3 p-4">
+        {rows.map((m) => {
+          const ref = m.ordenId
+            ? `ORD-${m.ordenId.slice(0, 8)}`
+            : m.cuotaId
+            ? `CUO-${m.cuotaId.slice(0, 8)}`
+            : m.obligacionId
+            ? `OBL-${m.obligacionId.slice(0, 8)}`
+            : m.pagoId
+            ? `PAG-${m.pagoId.slice(0, 8)}`
+            : m.asientoId
+            ? `AST-${m.asientoId.slice(0, 8)}`
+            : "—";
 
-            const isDeb = m.naturaleza === "debito";
+          const isDeb = m.naturaleza === "debito";
 
-            return (
-              <li
-                key={m.id}
-                className={cx(
-                  "px-4 py-4 transition-colors",
-                  "bg-white",
-                  "hover:bg-slate-50"
-                )}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cx(
-                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
-                          isDeb
-                            ? "bg-rose-50 text-rose-700 ring-rose-200"
-                            : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                        )}
-                      >
-                        {isDeb ? (
-                          <TrendingDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <TrendingUp className="h-3.5 w-3.5" />
-                        )}
-                        {isDeb ? "Débito" : "Crédito"}
-                      </span>
-                      <span className="text-xs font-medium text-slate-500">
-                        {fmtFecha(m.fecha)}
-                      </span>
-                    </div>
-                    <div className="mt-2 line-clamp-2 text-sm font-semibold text-slate-900">
-                      {m.concepto}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-600">
-                        {m.origen.replace(/_/g, " ")}
-                      </span>
-                      <button
-                        type="button"
-                        title="Copiar referencia"
-                        onClick={() =>
-                          ref !== "—" && navigator.clipboard?.writeText(ref)
-                        }
-                        className="inline-flex rounded-lg bg-white px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-                      >
-                        {ref}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div
-                      className={cx(
-                        "whitespace-nowrap text-sm font-black tabular-nums",
-                        isDeb ? "text-rose-600" : "text-emerald-600"
-                      )}
-                    >
-                      {isDeb ? "-" : "+"}
-                      {money(m.importe)}
-                    </div>
-                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                      Saldo:{" "}
-                      <span className="font-bold text-slate-900">
-                        {money(m.saldoPosterior ?? 0)}
-                      </span>
-                    </div>
-                  </div>
+          return (
+            <Card key={m.id}>
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <Badge variant={isDeb ? "destructive" : "default"} className="gap-1">
+                    {isDeb ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                    {isDeb ? "Débito" : "Crédito"}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">{fmtFecha(m.fecha)}</span>
                 </div>
-              </li>
-            );
-          })}
-          {rows.length === 0 && !loading && (
-            <li className="px-4 py-10">
-              <div className="flex flex-col items-center justify-center">
-                <div className="rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 p-4 shadow-inner">
-                  <Search className="h-8 w-8 text-slate-400" />
+                <CardTitle className="text-base line-clamp-2 mt-2">{m.concepto}</CardTitle>
+                <CardDescription className="flex gap-2 flex-wrap mt-1">
+                  <Badge variant="outline" className="text-[10px]">
+                    {m.origen.replace(/_/g, " ")}
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px] font-mono">
+                    {ref}
+                  </Badge>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Importe:</span>
+                  <span className={`text-lg font-bold ${isDeb ? "text-red-600" : "text-green-600"}`}>
+                    {isDeb ? "-" : "+"}
+                    {money(m.importe)}
+                  </span>
                 </div>
-                <p className="mt-4 text-base font-bold text-slate-900">
-                  Sin movimientos
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  No hay movimientos para los filtros seleccionados
-                </p>
-              </div>
-            </li>
-          )}
-        </ul>
+                <Separator className="my-2" />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Saldo:</span>
+                  <span className="text-sm font-semibold">{money(m.saldoPosterior ?? 0)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+        {rows.length === 0 && !loading && (
+          <div className="flex flex-col items-center justify-center py-10">
+            <div className="rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 p-4 shadow-inner">
+              <Search className="h-8 w-8 text-slate-400" />
+            </div>
+            <p className="mt-4 text-base font-bold text-slate-900">
+              Sin movimientos
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              No hay movimientos para los filtros seleccionados
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* ---------- Vista Tabla (desktop) ---------- */}
+      {/* ---------- Vista Tabla (desktop) con shadcn/ui ---------- */}
       <div className="hidden sm:block">
-        <div className="max-h-[60vh] overflow-auto">
-          <table
-            className="min-w-full"
-            aria-label="Tabla de movimientos"
-            aria-busy={loading}
-          >
-            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white/85 backdrop-blur-sm">
-              <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                <th className="px-7 py-4">Fecha</th>
-                <th className="px-7 py-4">Tipo</th>
-                <th className="px-7 py-4">Concepto</th>
-                <th className="px-7 py-4">Origen</th>
-                <th className="px-7 py-4 text-right">Importe</th>
-                <th className="px-7 py-4 text-right">Saldo</th>
-                <th className="px-7 py-4">Ref.</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/50">
-              {rows.map((m, idx) => {
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Concepto</TableHead>
+                <TableHead>Origen</TableHead>
+                <TableHead className="text-right">Importe</TableHead>
+                <TableHead className="text-right">Saldo</TableHead>
+                <TableHead>Ref.</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((m) => {
                 const ref = m.ordenId
                   ? `ORD-${m.ordenId.slice(0, 8)}`
                   : m.cuotaId
@@ -1027,131 +988,84 @@ function TablaMovimientos({ rows, loading }: { rows: Movimiento[]; loading: bool
                 const isDeb = m.naturaleza === "debito";
 
                 return (
-                  <tr
-                    key={m.id}
-                    className={cx(
-                      "transition-all hover:bg-slate-50/50",
-                      idx % 2 === 0 && "bg-white",
-                      idx % 2 !== 0 && "bg-slate-50/30"
-                    )}
-                  >
-                    <td className="whitespace-nowrap px-7 py-4 text-sm font-semibold text-slate-700">
-                      {fmtFecha(m.fecha)}
-                    </td>
-                    <td className="px-7 py-4">
-                      <span
-                        className={cx(
-                          "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1",
-                          isDeb
-                            ? "bg-rose-50 text-rose-700 ring-rose-200"
-                            : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                        )}
-                      >
-                        {isDeb ? (
-                          <TrendingDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <TrendingUp className="h-3.5 w-3.5" />
-                        )}
+                  <TableRow key={m.id}>
+                    <TableCell className="font-medium">{fmtFecha(m.fecha)}</TableCell>
+                    <TableCell>
+                      <Badge variant={isDeb ? "destructive" : "default"} className="gap-1">
+                        {isDeb ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
                         {isDeb ? "Débito" : "Crédito"}
-                      </span>
-                    </td>
-                    <td className="max-w-xs px-7 py-4">
-                      <span
-                        className="line-clamp-2 text-sm font-semibold text-slate-900"
-                        title={m.concepto}
-                      >
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-xs">
+                      <span className="line-clamp-2 font-semibold" title={m.concepto}>
                         {m.concepto}
                       </span>
-                    </td>
-                    <td className="px-7 py-4">
-                      <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase text-slate-600">
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
                         {m.origen.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td
-                      className={cx(
-                        "whitespace-nowrap px-7 py-4 text-right text-sm font-black tabular-nums",
-                        isDeb ? "text-rose-600" : "text-emerald-600"
-                      )}
-                    >
+                      </Badge>
+                    </TableCell>
+                    <TableCell className={`text-right font-bold tabular-nums ${isDeb ? "text-red-600" : "text-green-600"}`}>
                       {isDeb ? "-" : "+"}
                       {money(m.importe)}
-                    </td>
-                    <td className="whitespace-nowrap px-7 py-4 text-right text-sm font-bold tabular-nums text-slate-900">
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">
                       {money(m.saldoPosterior ?? 0)}
-                    </td>
-                    <td className="px-7 py-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          ref !== "—" && navigator.clipboard?.writeText(ref)
-                        }
-                        className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
-                        title="Copiar referencia"
-                      >
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-mono text-xs cursor-pointer"
+                        onClick={() => ref !== "—" && navigator.clipboard?.writeText(ref)}
+                        title="Copiar referencia">
                         {ref}
-                      </button>
-                    </td>
-                  </tr>
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
 
               {rows.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={7} className="px-7 py-20 text-center">
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center">
                     <div className="flex flex-col items-center justify-center">
-                      <div className="rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 p-4 shadow-inner">
-                        <Search className="h-8 w-8 text-slate-400" />
-                      </div>
-                      <p className="mt-4 text-base font-bold text-slate-900">
-                        Sin movimientos
-                      </p>
-                      <p className="mt-2 text-sm text-slate-600">
+                      <Search className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="font-semibold">Sin movimientos</p>
+                      <p className="text-sm text-muted-foreground">
                         No hay movimientos para los filtros seleccionados
                       </p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
+            </TableBody>
 
             {/* Footer: totales */}
             {rows.length > 0 && (
-              <tfoot className="sticky bottom-0 border-t-2 border-slate-200 bg-gradient-to-r from-white to-blue-50/30 backdrop-blur-sm">
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-7 py-5 text-right text-sm font-bold text-slate-900"
-                  >
-                    Totales del período
-                  </td>
-                  <td className="px-7 py-5 text-right font-mono text-sm">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-end gap-3 text-emerald-700">
-                        <span className="text-xs font-semibold">Créditos:</span>
-                        <span className="text-base font-black">
-                          +{money(totalCre)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-end gap-3 text-rose-700">
-                        <span className="text-xs font-semibold">Débitos:</span>
-                        <span className="text-base font-black">
-                          -{money(totalDeb)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-end gap-3 rounded-lg bg-white/80 px-3 py-2 font-black text-slate-900 shadow-sm ring-1 ring-slate-200">
-                        <span className="text-xs">Neto:</span>
-                        <span className="text-lg">
-                          {money(totalCre - totalDeb)}
-                        </span>
-                      </div>
+              <TableRow className="border-t-2 bg-muted/50">
+                <TableCell colSpan={4} className="text-right font-bold">
+                  Totales del período
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="space-y-1 font-mono text-sm">
+                    <div className="flex items-center justify-end gap-2 text-green-600">
+                      <span className="text-xs">Créditos:</span>
+                      <span className="font-bold">+{money(totalCre)}</span>
                     </div>
-                  </td>
-                  <td colSpan={2}></td>
-                </tr>
-              </tfoot>
+                    <div className="flex items-center justify-end gap-2 text-red-600">
+                      <span className="text-xs">Débitos:</span>
+                      <span className="font-bold">-{money(totalDeb)}</span>
+                    </div>
+                    <Separator className="my-1" />
+                    <div className="flex items-center justify-end gap-2 font-bold">
+                      <span className="text-xs">Neto:</span>
+                      <span className="text-base">{money(totalCre - totalDeb)}</span>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell colSpan={2}></TableCell>
+              </TableRow>
             )}
-          </table>
+          </Table>
         </div>
       </div>
     </div>

@@ -26,30 +26,43 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install deps
+      - name: Print runner env
+        run: |
+          echo "=== RUNNER ENV ==="
+          uname -a || true
+          node -v
+          npm -v
+
+      - name: Install deps (with scripts)
         working-directory: frontend
         run: npm ci
 
-      # --- Diagnóstico útil (deja logs en el job) ---
-      - name: Print env & versions
+      - name: Print libs versions
         working-directory: frontend
         run: |
-          node -e "console.log('platform:', process.platform, 'arch:', process.arch, 'node:', process.version)"
-          node -e "console.log('next:', require('next/package.json').version)"
-          npm ls lightningcss || true
-          node -e "try{console.log('lc node path:', require.resolve('lightningcss/node'))}catch(e){console.error('resolve lightningcss/node FAILED'); process.exitCode=0}"
-
-      # Fuerza descarga/instalación del binario nativo de lightningcss para Linux del runner
-      - name: Rebuild lightningcss binary
-        working-directory: frontend
-        run: npm rebuild lightningcss --update-binary --verbose
+          echo "=== LIBS ==="
+          echo "next:" $(node -p "require('next/package.json').version")
+          echo "tailwindcss:" $(node -p "require('tailwindcss/package.json').version")
+          echo "@tailwindcss/postcss:" $(node -p "require('@tailwindcss/postcss/package.json').version")
+          echo "lightningcss (pkg):" $(node -p "require('lightningcss/package.json').version")
+          echo "=== RESOLVE lightningcss/node ==="
+          node -e "try{console.log(require.resolve('lightningcss/node'))}catch(e){console.error('resolve lightningcss/node FAILED'); process.exit(1)}"
+          echo "=== LIST lightningcss/node ==="
+          ls -la node_modules/lightningcss/node || true
+          echo "=== FIND .node ==="
+          find node_modules/lightningcss -type f -name 'lightningcss.*.node' -ls || true
 
       - name: Build (standalone)
         working-directory: frontend
         env:
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: "1"
-        run: npm run build
+        run: |
+          npm run build
+          echo "=== .next structure ==="
+          ls -la .next || true
+          ls -la .next/standalone || true
+          ls -la .next/static || true
 
       - name: SSH agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -92,25 +105,38 @@ jobs:
           NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_TENANT_ID=${{ secrets.NEXT_PUBLIC_TENANT_ID }}
           EOT
+          echo "=== .env.production ==="
+          sed -n '1,80p' .env.production
           EOF
 
       - name: Start/Reload PM2 (Next standalone con Node 20/NVM)
         run: |
           ssh -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-          set -e
+          set -euo pipefail
           export NVM_DIR="/home/${USER}/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
           nvm use 20 >/dev/null
 
           APP_DIR="${{ secrets.VPS_PATH_BASE }}/frontend"
+          echo "=== LISTING DEPLOYED FILES ==="
+          ls -la "$APP_DIR" | sed -n '1,120p'
+          [ -f "$APP_DIR/server.js" ] && echo "server.js OK" || (echo "FALTA server.js"; exit 1)
 
           if pm2 list | grep -q "sgg-frontend"; then
+            echo "Reloading sgg-frontend..."
             pm2 reload sgg-frontend
           else
+            echo "Starting sgg-frontend on port ${{ secrets.FRONTEND_PORT }}..."
             PORT=${{ secrets.FRONTEND_PORT }} pm2 start "$APP_DIR/server.js" \
               --name sgg-frontend \
               --cwd "$APP_DIR" \
               --time
             pm2 save
           fi
+
+          echo "=== PM2 LIST ==="
+          pm2 list
+
+          echo "=== PM2 INFO sgg-frontend ==="
+          pm2 info sgg-frontend || true
           EOF

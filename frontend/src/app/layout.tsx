@@ -1,6 +1,7 @@
 import "@/app/globals.css";
 import type { Metadata } from "next";
 import AppLayout from "@/components/layout/AppLayout";
+import { AuthProvider } from "@/contexts/auth";
 
 export const metadata: Metadata = {
   title: "PGG 2025",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body>
-        <AppLayout>{children}</AppLayout>
+        <AuthProvider>
+          <AppLayout>{children}</AppLayout>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -21,9 +21,11 @@ import { UpdateAfiliadoDto } from './dto/update-afiliado.dto';
 import { AfiliadosQueryDto } from './dto/afiliados-query.dto';
 import { AfiliadosSuggestQueryDto } from './dto/afiliados-suggest.dto';
 import { BigIntParamPipe } from '../../common/pipes/bigint-param.pipe';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('afiliados')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+@Public() // Temporalmente público para testing
 export class AfiliadosController {
   constructor(private readonly service: AfiliadosService) {}
 

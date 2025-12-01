@@ -1,6 +1,7 @@
 // src/app/contabilidad/plan/page.tsx
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import AuthGate from "@/components/auth/AuthGate";
 import { api } from "@/servicios/api";
 
 type Nodo = {
@@ -170,7 +171,7 @@ const NodeView = ({
   );
 };
 
-export default function PlanCtasPage() {
+function PlanCtasInner() {
   const [arbol, setArbol] = useState<Nodo[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -465,5 +466,13 @@ export default function PlanCtasPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PlanCtasPage() {
+  return (
+    <AuthGate roles={["CONTABILIDAD", "ADMIN"]}>
+      <PlanCtasInner />
+    </AuthGate>
   );
 }

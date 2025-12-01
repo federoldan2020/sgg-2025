@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import AuthGate from "@/components/auth/AuthGate";
 import { useRouter } from "next/navigation";
 import {
   cajaService,
@@ -15,7 +16,7 @@ type MetodoRow = {
 };
 type AplicRow = { obligacionId: string; monto: string };
 
-export default function CajaCobrosPage() {
+function CajaCobrosInner() {
   const router = useRouter();
 
   useEffect(() => {
@@ -330,5 +331,13 @@ export default function CajaCobrosPage() {
         {loading ? "Procesando…" : "Confirmar Cobro"}
       </button>
     </div>
+  );
+}
+
+export default function CajaCobrosPage() {
+  return (
+    <AuthGate roles={["CAJA", "TESORERIA", "ADMIN"]}>
+      <CajaCobrosInner />
+    </AuthGate>
   );
 }

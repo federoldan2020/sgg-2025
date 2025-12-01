@@ -1,7 +1,12 @@
 // src/modulos/caja/caja.controller.ts
-import { Controller, Post, Body, Req, Get, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Req, Get, BadRequestException, UseGuards } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
+import { Public } from '../auth/decorators/public.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { Usuario } from '@prisma/client';
 const prisma = new PrismaClient();
 
 type MetodoDto = { metodo: string; monto: number; ref?: string };
@@ -13,6 +18,7 @@ export class CajaController {
   constructor(private readonly contab: ContabilidadService) {}
 
   /* ========= NUEVO: ESTADO ========= */
+  @Public() // Temporalmente público para testing
   @Get('estado')
   async estado(@Req() req: ReqOrg) {
     const org = req.organizacionId;
@@ -37,13 +43,19 @@ export class CajaController {
     return { abierta: !cierre, cajaId: last.id.toString(), sede: last.sede ?? null };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('abrir')
-  async abrir(@Req() req: ReqOrg, @Body() dto: { sede?: string }) {
+  async abrir(@Req() req: ReqOrg, @Body() dto: { sede?: string }, @CurrentUser() user: Usuario) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
+    // Restricción por sede: si el usuario tiene sede asignada, debe coincidir
+    if (user?.sedeId && (dto.sede ?? null) !== user.sedeId) {
+      throw new BadRequestException('Usuario restringido a su sede: no coincide con la sede solicitada');
+    }
     return prisma.caja.create({ data: { organizacionId: org, sede: dto.sede ?? null } });
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('cobrar')
   async cobrar(
     @Req() req: ReqOrg,
@@ -54,9 +66,18 @@ export class CajaController {
       metodos: MetodoDto[];
       aplicaciones: AplicacionDto[];
     },
+    @CurrentUser() user: Usuario,
   ) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
+    // Validar sede contra la caja
+    const caja = await prisma.caja.findUnique({ where: { id: BigInt(dto.cajaId) } });
+    if (!caja || caja.organizacionId !== org) {
+      throw new BadRequestException('Caja inválida');
+    }
+    if (user?.sedeId && (caja.sede ?? null) !== user.sedeId) {
+      throw new BadRequestException('Usuario restringido a su sede: no puede operar otra sede');
+    }
 
     const totalMetodos = dto.metodos.reduce((a, b) => a + Number(b.monto), 0);
     const totalAplic = dto.aplicaciones.reduce((a, b) => a + Number(b.monto), 0);
@@ -193,6 +214,7 @@ export class CajaController {
    * - Genera asiento de ajuste solo si hay diferencia
    */
   // src/modulos/caja/caja.controller.ts
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('cerrar')
   async cerrar(
     @Req() req: ReqOrg,
@@ -212,9 +234,23 @@ export class CajaController {
           referenciaId?: string | null;
           descripcion?: string | null;
         },
+    @CurrentUser() user: Usuario,
   ) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
+    // Validación por sede: si referenciaId apunta a caja, validar contra sede del usuario
+    const ref = (body as any).referenciaId as string | null | undefined;
+    if (user?.sedeId && ref && typeof ref === 'string' && ref.startsWith('caja-')) {
+      const cajaIdStr = ref.replace('caja-', '');
+      const cajaId = BigInt(cajaIdStr);
+      const caja = await prisma.caja.findUnique({ where: { id: cajaId } });
+      if (!caja || caja.organizacionId !== org) {
+        throw new BadRequestException('Referencia de caja inválida para cierre');
+      }
+      if ((caja.sede ?? null) !== user.sedeId) {
+        throw new BadRequestException('Usuario restringido a su sede: no puede cerrar otra sede');
+      }
+    }
 
     return prisma.$transaction(async (tx) => {
       // --- MODO 2: lote por método

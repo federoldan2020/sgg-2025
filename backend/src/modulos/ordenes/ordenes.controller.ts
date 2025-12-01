@@ -4,9 +4,11 @@ import type { OrdenCredito } from '@prisma/client';
 import { OrdenesService } from './ordenes.service';
 import { CrearOrdenCreditoDto, PreviewOrdenCreditoDto } from './dto';
 import { OrgId } from 'src/common/decorators/org-id.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('ordenes')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+@Public() // Temporalmente público para testing
 export class OrdenesController {
   constructor(private readonly svc: OrdenesService) {}
 

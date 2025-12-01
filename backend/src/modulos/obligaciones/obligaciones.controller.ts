@@ -1,8 +1,10 @@
 import { Controller, Post, Get, Body, Query, Req } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { Public } from '../auth/decorators/public.decorator';
 const prisma = new PrismaClient();
 
 @Controller('obligaciones')
+@Public() // Temporalmente público para testing
 export class ObligacionesController {
   @Post()
   async crear(

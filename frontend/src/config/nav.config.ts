@@ -8,6 +8,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/afiliados", label: "ABM" },
       { href: "/movimientos", label: "Movimientos" },
+      { href: "/afiliados/importar", label: "Importar afiliados" },
+      { href: "/padrones/importar", label: "Importar padrones" },
       // { href: "/afiliados/nuevo", label: "Alta de afiliado" },
       //  { href: "/padrones/nuevo", label: "Alta de padrón" },
     ],
@@ -108,6 +110,8 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Importar comercios",
       },
       { href: "/terceros/import", icon: "upload", label: "Importar Terceros" },
+      { href: "/afiliados/importar", icon: "upload", label: "Importar Afiliados" },
+      { href: "/padrones/importar", icon: "upload", label: "Importar Padrones" },
     ],
   },
 ];
