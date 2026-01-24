@@ -324,8 +324,8 @@ export class PrestacionesService {
         ...(practicaId !== undefined ? { practicaId } : {}),
         porcentaje: dto.porcentaje === undefined ? undefined : dto.porcentaje != null ? new Prisma.Decimal(dto.porcentaje) : null,
         tope: dto.tope === undefined ? undefined : dto.tope != null ? new Prisma.Decimal(dto.tope) : null,
-        vigenteDesde: dto.vigenteDesde ? parseDate(dto.vigenteDesde) : undefined,
-        vigenteHasta: dto.vigenteHasta === undefined ? undefined : parseDate(dto.vigenteHasta),
+        vigenteDesde: dto.vigenteDesde ? parseDate(dto.vigenteDesde) ?? undefined : undefined,
+        vigenteHasta: dto.vigenteHasta === undefined ? undefined : parseDate(dto.vigenteHasta) ?? undefined,
         activo: dto.activo ?? undefined,
       },
     });
