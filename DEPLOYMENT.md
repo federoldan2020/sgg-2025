@@ -27,22 +27,27 @@ ssh root@tu-ip-vps
 apt update && apt upgrade -y
 ```
 
-### 3. Crear usuario no-root
+### 3. Usuario (ya existe: deploy-sistemas)
+
 ```bash
-adduser deploy
-usermod -aG sudo deploy
+# Verificar que existe
+id deploy-sistemas
+
+# Asegurar permisos sudo
+sudo usermod -aG sudo deploy-sistemas
+sudo usermod -aG docker deploy-sistemas
 ```
 
 ### 4. Configurar SSH con clave pública
 ```bash
 # En tu máquina local
-ssh-keygen -t ed25519 -C "deploy@sgg"
+ssh-keygen -t ed25519 -C "deploy-sistemas@sgg"
 
 # Copiar clave al servidor
-ssh-copy-id -i ~/.ssh/id_ed25519.pub deploy@tu-ip-vps
+ssh-copy-id -i ~/.ssh/id_ed25519.pub deploy-sistemas@tu-ip-vps
 
 # Conectarse con el nuevo usuario
-ssh deploy@tu-ip-vps
+ssh deploy-sistemas@tu-ip-vps
 ```
 
 ### 5. Configurar firewall
@@ -82,7 +87,7 @@ sudo apt install -y git nginx certbot python3-certbot-nginx
 ```bash
 cd /var/www
 sudo mkdir sgg-2025
-sudo chown -R $USER:$USER sgg-2025
+sudo chown -R deploy-sistemas:deploy-sistemas sgg-2025
 cd sgg-2025
 
 git clone https://github.com/tu-usuario/sgg-2025.git .

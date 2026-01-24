@@ -17,8 +17,11 @@ Para configurar CI/CD, necesitas agregar estos secrets en GitHub:
 
 ### 2. VPS_USERNAME
 - **Descripción:** Usuario SSH en el VPS
-- **Ejemplo:** `deploy`
-- **Valor recomendado:** `deploy` (créalo con el script de setup)
+- **Valor:** `deploy-sistemas`
+- **Cómo verificarlo:**
+  ```bash
+  id deploy-sistemas
+  ```
 
 ### 3. VPS_SSH_KEY
 - **Descripción:** Clave privada SSH (completa, incluyendo BEGIN/END)
@@ -97,7 +100,7 @@ Antes de configurar GitHub Actions, prueba la conexión:
 
 ```bash
 # Probar conexión SSH
-ssh -i ~/.ssh/sgg_deploy deploy@TU_IP_VPS
+ssh -i ~/.ssh/id_ed25519 deploy-sistemas@TU_IP_VPS
 
 # Si funciona, estás listo para configurar GitHub Actions
 ```
@@ -107,24 +110,27 @@ ssh -i ~/.ssh/sgg_deploy deploy@TU_IP_VPS
 El VPS debe tener preparado:
 
 ```bash
-# 1. Usuario deploy creado
-sudo adduser deploy
-sudo usermod -aG sudo deploy
-sudo usermod -aG docker deploy
+# 1. Usuario deploy-sistemas con permisos
+id deploy-sistemas
+sudo usermod -aG sudo deploy-sistemas
+sudo usermod -aG docker deploy-sistemas  # Solo si usas Docker
 
 # 2. Directorio del proyecto
 sudo mkdir -p /var/www/sgg-2025
-sudo chown -R deploy:deploy /var/www/sgg-2025
+sudo chown -R deploy-sistemas:deploy-sistemas /var/www/sgg-2025
 
-# 3. Repositorio clonado
+# 3. Cambiar a ese usuario
+su - deploy-sistemas
 cd /var/www/sgg-2025
+
+# 4. Repositorio clonado
 git clone https://github.com/TU_USUARIO/sgg-2025.git .
 
-# 4. Archivo .env configurado
+# 5. Archivo .env configurado
 cp .env.example .env
 nano .env  # Editar con valores reales
 
-# 5. Clave SSH del usuario deploy configurada
+# 6. Clave SSH del usuario deploy-sistemas configurada
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
 nano ~/.ssh/authorized_keys  # Pegar clave pública
