@@ -152,10 +152,10 @@ nano .env
 
 ```env
 NODE_ENV=production
-PORT=3000
+PORT=3200
 
 # PostgreSQL - Conexión LOCAL
-DATABASE_URL=postgresql://sgg_user:TuPasswordSeguro123!@localhost:5432/sgg_db
+DATABASE_URL=postgresql://federoldan:valenciano99@localhost:5432/sgg_db
 
 # Redis - Conexión LOCAL
 REDIS_HOST=localhost
@@ -175,7 +175,7 @@ nano .env.production
 
 ```env
 NODE_ENV=production
-NEXT_PUBLIC_API_URL=https://api.tudominio.com
+NEXT_PUBLIC_API_URL=https://api.udap.fourdev.com
 ```
 
 ### 4. Instalar Dependencias y Build
@@ -190,6 +190,9 @@ npm run build
 
 # Crear usuario admin
 npm run crear-admin
+
+# Crear organización UDAP
+npm run crear-udap
 ```
 
 **Frontend:**
