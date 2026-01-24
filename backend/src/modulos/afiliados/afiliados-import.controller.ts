@@ -32,6 +32,20 @@ export class AfiliadosImportController {
   }
 
   /**
+   * Descarga plantilla XLSX vacía
+   */
+  @Get('template.xlsx')
+  async descargarPlantillaXlsx(@Res() res: Response) {
+    const xlsx = await this.importService.generarPlantillaXlsx();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla_afiliados.xlsx"');
+    res.send(xlsx);
+  }
+
+  /**
    * Descarga CSV de ejemplo con datos ficticios
    */
   @Get('ejemplo')
@@ -40,6 +54,20 @@ export class AfiliadosImportController {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="ejemplo_afiliados.csv"');
     res.send(csv);
+  }
+
+  /**
+   * Descarga XLSX de ejemplo con datos ficticios
+   */
+  @Get('ejemplo.xlsx')
+  async descargarEjemploXlsx(@Res() res: Response) {
+    const xlsx = await this.importService.generarEjemploXlsx();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="ejemplo_afiliados.xlsx"');
+    res.send(xlsx);
   }
 
   /**
@@ -52,13 +80,22 @@ export class AfiliadosImportController {
     @UploadedFile() file: Express.Multer.File,
     @Body() optionsDto: ImportOptionsDto,
   ) {
-    const organizacionId = req.organizacionId;
+    const organizacionId = req.organizacionId as string;
+    if (!organizacionId) {
+      throw new Error('X-Organizacion-ID requerido');
+    }
 
     if (!file) {
       throw new Error('Archivo requerido');
     }
 
-    return this.importService.preview(organizacionId, file.buffer, optionsDto);
+    return this.importService.preview(
+      organizacionId,
+      file.buffer,
+      optionsDto,
+      file.originalname,
+      file.mimetype,
+    );
   }
 
   /**
@@ -67,6 +104,9 @@ export class AfiliadosImportController {
   @Post('confirm')
   async confirmar(@Req() req: any, @Body() confirmDto: ConfirmImportDto) {
     const organizacionId = req.organizacionId as string;
+    if (!organizacionId) {
+      throw new Error('X-Organizacion-ID requerido');
+    }
     return this.importService.confirmar(
       organizacionId,
       confirmDto.previewId,

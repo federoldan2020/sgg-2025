@@ -1,9 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useEffect } from "react";
+import { Menu, Search } from "lucide-react";
 import Breadcrumbs from "./Breadcrumbs";
 import CommandPalette from "./CommandPalette";
 import UserMenu from "../auth/UserMenu";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 type Props = {
   onToggleSidebar?: () => void; // Desktop collapse
@@ -27,19 +31,30 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
   return (
     <header className="app-header">
       <div className="header-left">
-        <button
-          className="mobile-menu-btn mobile-only"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mobile-only"
           onClick={onOpenMobileNav}
           aria-label="Abrir menú"
         >
-          ☰
-        </button>
+          <Menu size={18} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden-mobile"
+          onClick={onToggleSidebar}
+          aria-label="Colapsar menú"
+        >
+          <Menu size={18} />
+        </Button>
         <Link href="/" className="app-brand">
           PGG 2025
         </Link>
-        <span className="system-label hidden-mobile">
+        <Badge variant="secondary" className="system-label hidden-mobile">
           Sistema Interno
-        </span>
+        </Badge>
       </div>
       
       <div className="header-center hidden-mobile">
@@ -47,12 +62,15 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
       </div>
       
       <div className="header-right">
-        <input
-          className="search-input hidden-mobile"
-          placeholder="Buscar... (Ctrl/⌘+K)"
-          aria-label="Buscar"
-          readOnly
-        />
+        <div className="search-input-container hidden-mobile">
+          <Search size={16} className="search-icon" />
+          <Input
+            className="search-input"
+            placeholder="Buscar... (Ctrl/⌘+K)"
+            aria-label="Buscar"
+            readOnly
+          />
+        </div>
         <CommandPalette />
         <UserMenu />
       </div>

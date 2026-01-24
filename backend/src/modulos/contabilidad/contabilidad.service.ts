@@ -777,6 +777,165 @@ export class ContabilidadService {
     return { ok: true, creados: ['sobrante/efectivo', 'faltante/efectivo'] };
   }
 
+  // ===================== Mapeos de Nómina (descuentos por planilla) =====================
+
+  /**
+   * Genera líneas de asiento para movimientos de nómina.
+   * Busca mapeo por origen='nomina' + conceptoCodigo (J17, J22, J38, K16)
+   */
+  async lineasNomina(
+    tx: Prisma.TransactionClient | null,
+    organizacionId: string,
+    params: { conceptoCodigo: string; monto: number },
+  ): Promise<LineaAsientoInput[] | null> {
+    const { conceptoCodigo, monto } = params;
+    const db = tx ?? prisma;
+
+    // Buscar mapeo específico por código
+    let mapeo = await db.cuentaMapeo.findFirst({
+      where: {
+        organizacionId,
+        origen: 'nomina',
+        activo: true,
+        conceptoCodigo,
+      },
+      select: { debeCodigo: true, haberCodigo: true },
+    });
+
+    // Fallback: mapeo genérico de nómina (sin concepto específico)
+    if (!mapeo) {
+      mapeo = await db.cuentaMapeo.findFirst({
+        where: {
+          organizacionId,
+          origen: 'nomina',
+          activo: true,
+          conceptoCodigo: null,
+        },
+        select: { debeCodigo: true, haberCodigo: true },
+      });
+    }
+
+    // Si no hay mapeo, retornar null (no se genera asiento)
+    if (!mapeo) return null;
+
+    return [
+      { cuenta: mapeo.debeCodigo, debe: monto, haber: 0 },
+      { cuenta: mapeo.haberCodigo, debe: 0, haber: monto },
+    ];
+  }
+
+  /**
+   * Crea un asiento contable para un movimiento de nómina.
+   * Usa dentro de transacción. Retorna null si no hay mapeo configurado.
+   */
+  async crearAsientoNomina(
+    tx: Prisma.TransactionClient,
+    params: {
+      organizacionId: string;
+      conceptoCodigo: string; // J17, J22, J38, K16
+      monto: number;
+      padron: string;
+      periodoContable: string;
+      movimientoId?: bigint;
+    },
+  ) {
+    const lineas = await this.lineasNomina(tx, params.organizacionId, {
+      conceptoCodigo: params.conceptoCodigo,
+      monto: params.monto,
+    });
+
+    if (!lineas) return null; // No hay mapeo configurado
+
+    const descripcion = `Descuento nómina ${params.conceptoCodigo} - Padrón ${params.padron} - ${params.periodoContable}`;
+
+    return this.crearAsiento(tx, {
+      organizacionId: params.organizacionId,
+      descripcion,
+      origen: 'nomina',
+      referenciaId: params.movimientoId?.toString() ?? null,
+      lineas,
+    });
+  }
+
+  /**
+   * Seed de mapeos contables para descuentos de nómina.
+   * - J17: Cuota Sindical
+   * - J22: Coseguro Diferencial Titular
+   * - J38: Coseguro Colateral Titular
+   * - K16: Descuento Crédito (genérica, modificar después)
+   * 
+   * NOTA: La cuenta del Debe (Banco) es la misma para todos.
+   * Las cuentas del Haber son específicas por tipo de descuento.
+   */
+  async seedMapeosNomina(
+    organizacionId: string,
+    body?: {
+      cuentas?: {
+        banco?: string;      // Cuenta de banco donde entra la transferencia
+        j17?: string;        // Ingresos Cuota Sindical
+        j22?: string;        // Cuota Coseg. Dif. Titular
+        j38?: string;        // Cuota Coseg. Colat. Titular
+        k16?: string;        // Descuento Crédito (genérica)
+      };
+    },
+  ) {
+    // Cuentas por defecto (ajustar según plan de cuentas real)
+    const cuentas = {
+      banco: body?.cuentas?.banco ?? '10150.010',      // Banco S.J. C.C. 17308/9
+      j17: body?.cuentas?.j17 ?? '40100.000',          // Ingresos Cuota Sindical
+      j22: body?.cuentas?.j22 ?? '40201.001',          // Cuota Coseg. Dif. Titular
+      j38: body?.cuentas?.j38 ?? '40203.001',          // Cuota Coseg. Colat. Titular
+      k16: body?.cuentas?.k16 ?? '40300.000',          // Descuento Crédito (GENÉRICA - MODIFICAR)
+    };
+
+    const mapeos = [
+      {
+        origen: 'nomina',
+        conceptoCodigo: 'J17',
+        metodoPago: null,
+        debeCodigo: cuentas.banco,
+        haberCodigo: cuentas.j17,
+        descripcion: 'Descuento nómina - Cuota Sindical',
+      },
+      {
+        origen: 'nomina',
+        conceptoCodigo: 'J22',
+        metodoPago: null,
+        debeCodigo: cuentas.banco,
+        haberCodigo: cuentas.j22,
+        descripcion: 'Descuento nómina - Coseguro Diferencial Titular',
+      },
+      {
+        origen: 'nomina',
+        conceptoCodigo: 'J38',
+        metodoPago: null,
+        debeCodigo: cuentas.banco,
+        haberCodigo: cuentas.j38,
+        descripcion: 'Descuento nómina - Coseguro Colateral Titular',
+      },
+      {
+        origen: 'nomina',
+        conceptoCodigo: 'K16',
+        metodoPago: null,
+        debeCodigo: cuentas.banco,
+        haberCodigo: cuentas.k16,
+        descripcion: 'Descuento nómina - Crédito (cuenta genérica, MODIFICAR)',
+      },
+    ];
+
+    const creados: string[] = [];
+    for (const m of mapeos) {
+      await this.upsertMapeo(organizacionId, m);
+      creados.push(m.conceptoCodigo ?? 'generico');
+    }
+
+    return {
+      ok: true,
+      creados,
+      nota: 'La cuenta de K16 es genérica (40300.000). Modificar desde /contabilidad/mapeos según corresponda.',
+    };
+  }
+
   // ===================== Hooks Terceros → Asientos =====================
 
   // Busca mapeo por origen + concepto con fallback por rol (concepto_ROL → concepto → null)
@@ -1083,13 +1242,14 @@ export class ContabilidadService {
     const rol = body?.rol ?? null;
 
     // ⚠️ Ajustá estos defaults a tu plan: son ejemplos razonables
+    const gastoDefault = rol === 'AFILIADO' ? '20600.000' : '51101.000';
     const cuentas = {
       puente: body?.cuentas?.puente ?? '19999.000',
       cxp: body?.cuentas?.cxp ?? '21101.000',
-      gasto: body?.cuentas?.gasto ?? '51101.000',
+      gasto: body?.cuentas?.gasto ?? gastoDefault,
       ivaCredito: body?.cuentas?.ivaCredito ?? '11109.000',
-      exento: body?.cuentas?.exento ?? '51101.000',
-      noGravado: body?.cuentas?.noGravado ?? '51101.000',
+      exento: body?.cuentas?.exento ?? gastoDefault,
+      noGravado: body?.cuentas?.noGravado ?? gastoDefault,
       otros: body?.cuentas?.otros ?? '51900.000',
       gastoAdmin: body?.cuentas?.gastoAdmin ?? '51910.000',
       impInterno: body?.cuentas?.impInterno ?? '51920.000',

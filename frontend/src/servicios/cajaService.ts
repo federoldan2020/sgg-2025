@@ -14,7 +14,11 @@ export type MetodoPagoReq = {
   ref?: string | null;
 };
 
-export type AplicacionReq = { obligacionId: number; monto: number };
+export type AplicacionReq = {
+  obligacionId?: number;
+  cuotaId?: number;
+  monto: number;
+};
 
 export type CobrarReq = {
   cajaId: number;
@@ -34,9 +38,15 @@ export type CierreItem = {
 export type AfiliadoSuggest = { id: string; dni: string; display: string };
 export type ObligPend = {
   id: string;
+  obligacionId?: string;
+  cuotaId?: string;
+  ordenId?: string;
+  tipo?: 'obligacion' | 'cuota';
   padronLabel: string;
   concepto: string;
   saldo: number;
+  periodo?: string;
+  monto?: number;
 };
 
 /* ===== Servicio ===== */
@@ -74,8 +84,14 @@ export const cajaService = {
   suggestAfiliados: (q: string) =>
     api<AfiliadoSuggest[]>(`/afiliados/suggest?q=${encodeURIComponent(q)}`),
 
-  pendientesAfiliado: (afiliadoId: string) =>
-    api<ObligPend[]>(
-      `/obligaciones/pendientes?afiliadoId=${encodeURIComponent(afiliadoId)}`
+  pendientesAfiliado: (afiliadoId: string, padronId?: string) => {
+    const params = new URLSearchParams({ afiliadoId });
+    if (padronId) params.set('padronId', padronId);
+    return api<ObligPend[]>(`/obligaciones/pendientes?${params.toString()}`);
+  },
+  
+  padronesAfiliado: (afiliadoId: string) =>
+    api<Array<{ id: string; padron: string | null; sistema: string | null; centro: number | null }>>(
+      `/padrones?afiliadoId=${encodeURIComponent(afiliadoId)}`
     ),
 };

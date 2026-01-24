@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ORG, getErrorMessage } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table } from "@/components/ui/table";
 
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
 
@@ -201,8 +204,8 @@ export default function CuentasIndexPage() {
               </p>
             </div>
             {terceroSel && (
-              <button
-                className="btn btn-ghost"
+              <Button
+                variant="ghost"
                 onClick={clearSelection}
                 title="Limpiar selección"
               >
@@ -220,7 +223,7 @@ export default function CuentasIndexPage() {
                   <path d="m19 6-3-3H8L5 6" />
                 </svg>
                 Limpiar
-              </button>
+              </Button>
             )}
           </div>
 
@@ -243,7 +246,7 @@ export default function CuentasIndexPage() {
                     <circle cx="11" cy="11" r="8" />
                     <path d="m21 21-4.35-4.35" />
                   </svg>
-                  <input
+                  <Input
                     className="form-input form-input-with-icon"
                     value={q}
                     onChange={(e) => {
@@ -255,7 +258,9 @@ export default function CuentasIndexPage() {
                     placeholder="CUIT, nombre o razón social..."
                   />
                   {q && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="form-input-clear"
                       onClick={clearSelection}
                       title="Limpiar búsqueda"
@@ -273,7 +278,7 @@ export default function CuentasIndexPage() {
                         <line x1="18" y1="6" x2="6" y2="18" />
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -332,10 +337,7 @@ export default function CuentasIndexPage() {
 
             <div className="form-group">
               <label className="form-label">&nbsp;</label>
-              <button
-                className={`btn btn-lg ${
-                  loading || !terceroSel ? "btn-disabled" : "btn-primary"
-                }`}
+              <Button
                 onClick={() => void cargarCuentas(terceroSel, rol || "")}
                 disabled={!terceroSel || loading}
               >
@@ -374,7 +376,7 @@ export default function CuentasIndexPage() {
                     Ver Cuentas
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -501,7 +503,7 @@ export default function CuentasIndexPage() {
               </div>
 
               <div className="table-container">
-                <table className="data-table cuentas-table">
+                <Table className="data-table cuentas-table">
                   <thead>
                     <tr>
                       <th>ID Cuenta</th>
@@ -551,10 +553,8 @@ export default function CuentasIndexPage() {
                           </span>
                         </td>
                         <td className="table-col-actions">
-                          <Link
-                            href={`/finanzas/cuentas/${cuenta.id}`}
-                            className="btn btn-primary btn-sm"
-                          >
+                          <Button asChild size="sm">
+                            <Link href={`/finanzas/cuentas/${cuenta.id}`}>
                             <svg
                               width="14"
                               height="14"
@@ -572,12 +572,13 @@ export default function CuentasIndexPage() {
                               <polyline points="10,9 9,9 8,9" />
                             </svg>
                             Ver Extracto
-                          </Link>
+                            </Link>
+                          </Button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </Table>
               </div>
             </>
           ) : (

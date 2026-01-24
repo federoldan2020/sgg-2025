@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import AuthGate from "@/components/auth/AuthGate";
 import { api } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Nodo = {
   id: string | number;
@@ -115,7 +117,9 @@ const NodeView = ({
       >
         <div className="account-expand">
           {tieneHijos ? (
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setOpen((v) => !v)}
               className={`expand-button ${open ? "expanded" : ""}`}
               aria-label={open ? "Contraer" : "Expandir"}
@@ -133,7 +137,7 @@ const NodeView = ({
               >
                 <polyline points="9,18 15,12 9,6" />
               </svg>
-            </button>
+            </Button>
           ) : (
             <div className="expand-spacer" />
           )}
@@ -240,7 +244,8 @@ function PlanCtasInner() {
           </p>
         </div>
         <div className="page-actions">
-          <a href="/contabilidad/plan/importar" className="btn btn-secondary">
+          <Button asChild variant="secondary">
+            <a href="/contabilidad/plan/importar">
             <svg
               width="16"
               height="16"
@@ -256,7 +261,8 @@ function PlanCtasInner() {
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             Importar Plan
-          </a>
+            </a>
+          </Button>
         </div>
       </div>
 
@@ -305,14 +311,16 @@ function PlanCtasInner() {
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
-                <input
+                <Input
                   className="search-input"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Buscar por código o nombre de cuenta..."
                 />
                 {q && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={handleClearSearch}
                     className="search-clear"
                     title="Limpiar búsqueda"
@@ -330,14 +338,14 @@ function PlanCtasInner() {
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
 
-            <button
+            <Button
+              variant="secondary"
               onClick={handleExpandAll}
-              className="btn btn-secondary"
               title={expandAll ? "Contraer todas" : "Expandir todas"}
             >
               <svg
@@ -367,7 +375,7 @@ function PlanCtasInner() {
                 )}
               </svg>
               {expandAll ? "Contraer Todas" : "Expandir Todas"}
-            </button>
+            </Button>
           </div>
 
           {!loading && (
@@ -433,7 +441,8 @@ function PlanCtasInner() {
                 No hay cuentas configuradas en el sistema. Importa un plan de
                 cuentas para comenzar.
               </div>
-              <a href="/contabilidad/plan/importar" className="btn btn-primary">
+              <Button asChild>
+                <a href="/contabilidad/plan/importar">
                 <svg
                   width="16"
                   height="16"
@@ -449,7 +458,8 @@ function PlanCtasInner() {
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 Importar Plan de Cuentas
-              </a>
+                </a>
+              </Button>
             </div>
           ) : (
             <div className="empty-state">
@@ -458,9 +468,9 @@ function PlanCtasInner() {
               <div className="empty-state-text">
                 No se encontraron cuentas que coincidan con &quot;{q}&quot;
               </div>
-              <button onClick={handleClearSearch} className="btn btn-secondary">
+              <Button variant="secondary" onClick={handleClearSearch}>
                 Limpiar búsqueda
-              </button>
+              </Button>
             </div>
           )}
         </div>

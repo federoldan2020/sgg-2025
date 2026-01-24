@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PadronesImportService } from './padrones-import.service';
 import { type ImportOptionsDto, type ImportPreviewResponse, type ImportResultResponse } from './dto/import-padrones.dto';
 

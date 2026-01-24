@@ -1,6 +1,6 @@
 // src/modulos/terceros-finanzas/comprobantes.service.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaClient, Prisma, EstadoComprobanteTercero, RolTercero } from '@prisma/client';
+import { PrismaClient, Prisma, EstadoComprobanteTercero, RolTercero, ReintegroEstado, TipoComprobanteTercero } from '@prisma/client';
 import { CuentasService } from './cuentas.service';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { D, add } from './money';
@@ -479,7 +479,98 @@ export class ComprobantesService {
       };
     });
 
-    // 4) (Opcional) dejamos sólo los que todavía tienen saldo > 0
-    return rows.filter((r) => r.saldo > 0.000001);
+    // 4) Si el rol es AFILIADO, agregar reintegros aprobados como comprobantes pendientes
+    if (opts.rol === RolTercero.AFILIADO) {
+      // Obtener el tercero para extraer el código y obtener el afiliadoId
+      const tercero = await prisma.tercero.findUnique({
+        where: { id: opts.terceroId },
+        select: { codigo: true },
+      });
+
+      if (tercero?.codigo && tercero.codigo.startsWith('AFI-')) {
+        const afiliadoIdStr = tercero.codigo.replace('AFI-', '');
+        try {
+          const afiliadoId = BigInt(afiliadoIdStr);
+
+          // Buscar reintegros aprobados que aún no tienen un comprobante tercero asociado
+          // Un reintegro tiene comprobante tercero si tiene un pago con ordenPagoId (que crea el comprobante)
+          const reintegrosAprobados = await prisma.reintegroSolicitud.findMany({
+            where: {
+              organizacionId,
+              afiliadoId,
+              estado: ReintegroEstado.APROBADO,
+              // Solo reintegros que no tienen pagos con ordenPagoId (que crean comprobante tercero)
+              pagos: {
+                none: {
+                  ordenPagoId: { not: null },
+                },
+              },
+            },
+            orderBy: [{ fechaFactura: 'asc' }, { id: 'asc' }],
+            take: limit,
+            select: {
+              id: true,
+              fechaFactura: true,
+              importeTotal: true,
+              importeReintegro: true,
+              importeAprobado: true,
+              tipo: true,
+              pagos: {
+                where: {
+                  ordenPagoId: null,
+                },
+                select: {
+                  monto: true,
+                },
+              },
+            },
+          });
+
+          // Convertir reintegros a formato de comprobantes pendientes
+          const reintegrosRows = reintegrosAprobados.map((r) => {
+            // Usar importeReintegro si existe, sino importeAprobado, sino importeTotal
+            const montoReintegro =
+              r.importeReintegro != null
+                ? Number(r.importeReintegro)
+                : r.importeAprobado != null
+                  ? Number(r.importeAprobado)
+                  : Number(r.importeTotal);
+
+            // Calcular aplicado previo desde pagos sin ordenPagoId
+            const aplicadoPrevio = (r.pagos ?? []).reduce(
+              (acc, p) => acc + Number(p.monto ?? 0),
+              0,
+            );
+            const saldo = Math.max(0, montoReintegro - aplicadoPrevio);
+
+            return {
+              id: `REINTEGRO-${r.id.toString()}`,
+              tipo: TipoComprobanteTercero.PRESTACION,
+              clase: null,
+              numero: `REINT-${r.id.toString()}`,
+              fecha: r.fechaFactura.toISOString(),
+              total: montoReintegro,
+              aplicadoPrevio,
+              saldo,
+            };
+          });
+
+          // Combinar con los comprobantes existentes
+          rows.push(...reintegrosRows);
+        } catch {
+          // Si no se puede parsear el afiliadoId, ignorar
+        }
+      }
+    }
+
+    // 5) Ordenar por fecha y filtrar solo los que tienen saldo > 0
+    return rows
+      .filter((r) => r.saldo > 0.000001)
+      .sort((a, b) => {
+        const fechaA = new Date(a.fecha).getTime();
+        const fechaB = new Date(b.fecha).getTime();
+        if (fechaA !== fechaB) return fechaA - fechaB;
+        return a.id.localeCompare(b.id);
+      });
   }
 }

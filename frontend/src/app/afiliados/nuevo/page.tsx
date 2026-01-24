@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api, getErrorMessage } from "@/servicios/api";
+import { InputFecha } from "@/components/InputFecha";
 import type {
   CrearAfiliadoDto,
   CrearAfiliadoResp,
@@ -13,6 +15,10 @@ const SEXOS: Sexo[] = ["M", "F", "X"];
 const TIPOS: AfiliadoTipo[] = ["TITULAR", "FAMILIAR", "JUBILADO", "OTRO"];
 
 export default function NuevoAfiliadoPage() {
+  const searchParams = useSearchParams();
+  const afiliadoId = searchParams.get("afiliadoId");
+  const isEdit = Boolean(afiliadoId);
+
   // Requeridos
   const [dni, setDni] = useState("");
   const [apellido, setApellido] = useState("");
@@ -59,6 +65,48 @@ export default function NuevoAfiliadoPage() {
       !loading
     );
   }, [dni, apellido, nombre, loading]);
+
+  useEffect(() => {
+    if (!isEdit || !afiliadoId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const a = await api<any>(`/afiliados/${afiliadoId}`, { method: "GET" });
+        if (cancelled) return;
+        setDni(String(a.dni ?? ""));
+        setApellido(a.apellido ?? "");
+        setNombre(a.nombre ?? "");
+        setCuit(a.cuit ?? "");
+        setSexo((a.sexo as Sexo) ?? "");
+        setTipo((a.tipo as AfiliadoTipo) ?? "");
+        setTelefono(a.telefono ?? "");
+        setCelular(a.celular ?? "");
+        setCalle(a.calle ?? "");
+        setNumero(a.numero ?? "");
+        setOrientacion(a.orientacion ?? "");
+        setBarrio(a.barrio ?? "");
+        setPiso(a.piso ?? "");
+        setDepto(a.depto ?? "");
+        setMonoblock(a.monoblock ?? "");
+        setCasa(a.casa ?? "");
+        setManzana(a.manzana ?? "");
+        setLocalidad(a.localidad ?? "");
+        setFechaNacimiento(a.fechaNacimiento ?? "");
+        setNumeroSocio(a.numeroSocio ?? "");
+        setCupo(a.cupo != null ? String(a.cupo) : "");
+        setSaldo(a.saldo != null ? String(a.saldo) : "");
+        setObservaciones(a.observaciones ?? "");
+      } catch (e: unknown) {
+        setMsg(`ERROR:${getErrorMessage(e)}`);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, afiliadoId]);
 
   const limpiar = () => {
     setDni("");
@@ -127,13 +175,20 @@ export default function NuevoAfiliadoPage() {
         observaciones: opt(observaciones),
       };
 
-      const r = await api<CrearAfiliadoResp>("/afiliados", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      setMsg(`SUCCESS:Afiliado creado exitosamente (ID ${String(r.id)})`);
-      limpiar();
+      if (isEdit && afiliadoId) {
+        await api(`/afiliados/${afiliadoId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        setMsg("SUCCESS:Afiliado actualizado correctamente.");
+      } else {
+        const r = await api<CrearAfiliadoResp>("/afiliados", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setMsg(`SUCCESS:Afiliado creado exitosamente (ID ${String(r.id)})`);
+        limpiar();
+      }
     } catch (e: unknown) {
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
@@ -167,9 +222,13 @@ export default function NuevoAfiliadoPage() {
       {/* Page Header */}
       <div className="page-header">
         <div className="page-title-section">
-          <h1 className="page-title">Nuevo Afiliado</h1>
+          <h1 className="page-title">
+            {isEdit ? "Editar Afiliado" : "Nuevo Afiliado"}
+          </h1>
           <p className="page-subtitle">
-            Complete la información del nuevo afiliado en el sistema
+            {isEdit
+              ? "Actualice la información del afiliado"
+              : "Complete la información del nuevo afiliado en el sistema"}
           </p>
         </div>
       </div>
@@ -220,6 +279,7 @@ export default function NuevoAfiliadoPage() {
                 onChange={(e) => setDni(e.target.value.replace(/\D+/g, ""))}
                 placeholder="Ejemplo: 12345678"
                 required
+                disabled={isEdit}
               />
             </div>
 
@@ -267,11 +327,11 @@ export default function NuevoAfiliadoPage() {
 
             <div className="form-group">
               <label className="form-label">Fecha de Nacimiento</label>
-              <input
-                className="form-input"
-                type="date"
+              <InputFecha
                 value={fechaNacimiento}
-                onChange={(e) => setFechaNacimiento(e.target.value)}
+                onChange={(iso) => setFechaNacimiento(iso)}
+                placeholder="dd/mm/aaaa"
+                className="form-input"
               />
             </div>
 
@@ -555,12 +615,12 @@ export default function NuevoAfiliadoPage() {
                 {loading ? (
                   <>
                     <div className="spinner" style={{ width: 16, height: 16 }} />
-                    Creando...
+                    {isEdit ? "Guardando..." : "Creando..."}
                   </>
                 ) : (
                   <>
                     <Save size={16} />
-                    Crear Afiliado
+                    {isEdit ? "Guardar cambios" : "Crear Afiliado"}
                   </>
                 )}
               </button>

@@ -35,18 +35,32 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/coseguro/colaterales", label: "Colaterales" },
       { href: "/coseguro/configurar", label: "Configurar" },
       { href: "/coseguro/resumen", label: "Resumen (consulta)" },
+      { href: "/coseguro/reintegros", label: "Reintegros" },
+      { href: "/coseguro/reintegros/politicas", label: "Reintegros - Políticas" },
     ],
   },
 
-  /* ===== Nómina ===== */
+  /* ===== Novedades (envío a nómina) ===== */
   {
-    titulo: "Nómina",
+    titulo: "Novedades",
     roles: ["NOMINA", "ADMIN"],
     items: [
-      { href: "/novedades/generar", label: "Generar novedades" },
-      { href: "/nomina/conciliar/nuevo", label: "Conciliar devolución" },
-      { href: "/novedades/fechas", label: "Fecha de Corte" },
-      { href: "/novedades/", label: "Monitor de novedades" },
+      { href: "/novedades/", label: "Monitor" },
+      { href: "/novedades/generar", label: "Generar Novedades" },
+      { href: "/novedades/generadas", label: "Generaciones" },
+      { href: "/novedades/manuales", label: "Novedades Manuales" },
+      { href: "/novedades/fechas", label: "Fechas de Corte" },
+      { href: "/novedades/conciliar", label: "Conciliación" },
+    ],
+  },
+
+  /* ===== Conciliación de Nómina (recepción de descuentos) ===== */
+  {
+    titulo: "Conciliación de Nómina",
+    roles: ["NOMINA", "ADMIN"],
+    items: [
+      { href: "/nomina/conciliar/nuevo", label: "Conciliar Devolución" },
+      { href: "/nomina/conciliar", label: "Conciliaciones" },
     ],
   },
 

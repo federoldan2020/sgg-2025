@@ -100,7 +100,83 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log('Seed OK (ORG_DEMO, Conceptos, Parentescos, Reglas)');
+  // ================= Mapeos Contables Nómina =================
+  // Cuentas por defecto (ajustar según plan real)
+  const mapeosNomina = [
+    {
+      origen: 'nomina',
+      conceptoCodigo: 'J17',
+      metodoPago: null,
+      debeCodigo: '10150.010',    // Banco S.J. C.C. 17308/9
+      haberCodigo: '40100.000',   // Ingresos Cuota Sindical
+      descripcion: 'Descuento nómina - Cuota Sindical',
+    },
+    {
+      origen: 'nomina',
+      conceptoCodigo: 'J22',
+      metodoPago: null,
+      debeCodigo: '10150.010',
+      haberCodigo: '40201.001',   // Cuota Coseg. Dif. Titular
+      descripcion: 'Descuento nómina - Coseguro Diferencial Titular',
+    },
+    {
+      origen: 'nomina',
+      conceptoCodigo: 'J38',
+      metodoPago: null,
+      debeCodigo: '10150.010',
+      haberCodigo: '40203.001',   // Cuota Coseg. Colat. Titular
+      descripcion: 'Descuento nómina - Coseguro Colateral Titular',
+    },
+    {
+      origen: 'nomina',
+      conceptoCodigo: 'K16',
+      metodoPago: null,
+      debeCodigo: '10150.010',
+      haberCodigo: '40300.000',   // Descuento Crédito (GENÉRICA - MODIFICAR)
+      descripcion: 'Descuento nómina - Crédito (cuenta genérica, MODIFICAR)',
+    },
+  ];
+
+  for (const m of mapeosNomina) {
+    const existente = await prisma.cuentaMapeo.findFirst({
+      where: {
+        organizacionId: org.id,
+        origen: m.origen,
+        conceptoCodigo: m.conceptoCodigo,
+        metodoPago: null,
+        moneda: null,
+      },
+      select: { id: true },
+    });
+
+    if (existente) {
+      await prisma.cuentaMapeo.update({
+        where: { id: existente.id },
+        data: {
+          debeCodigo: m.debeCodigo,
+          haberCodigo: m.haberCodigo,
+          descripcion: m.descripcion,
+          activo: true,
+        },
+      });
+    } else {
+      await prisma.cuentaMapeo.create({
+        data: {
+          organizacionId: org.id,
+          origen: m.origen,
+          conceptoCodigo: m.conceptoCodigo,
+          metodoPago: null,
+          moneda: null,
+          debeCodigo: m.debeCodigo,
+          haberCodigo: m.haberCodigo,
+          descripcion: m.descripcion,
+          activo: true,
+        },
+      });
+    }
+  }
+
+  console.log('Seed OK (ORG_DEMO, Conceptos, Parentescos, Reglas, Mapeos Nómina)');
 }
 
 void main()

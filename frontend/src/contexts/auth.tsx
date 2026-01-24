@@ -43,9 +43,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Al iniciar, intentar hidratar sesión
+    // Al iniciar, intentar hidratar sesión (solo una vez)
     void refreshProfile();
-  }, [refreshProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Array vacío para ejecutar solo al montar
 
   const login = useCallback(async (email: string, password: string) => {
     const ok = await authLogin({ email, password });

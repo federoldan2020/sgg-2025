@@ -9,6 +9,10 @@ import {
   ComprobanteFormato,
   ComprobanteEstado,
   EstadoOrdenPago,
+  TipoComprobanteTercero,
+  EstadoComprobanteTercero,
+  ReintegroMedioPago,
+  ReintegroPagoEstado,
 } from '@prisma/client';
 import { CuentasService } from './cuentas.service';
 import { D } from './money';
@@ -71,6 +75,7 @@ export class OrdenesPagoService {
   private async buildItemsDesdeAplicaciones(
     tx: Prisma.TransactionClient,
     apps: { comprobanteId: string | number | bigint; montoAplicado: number | string }[],
+    comprobantesCreados?: Map<string, bigint>, // Mapa de IDs originales -> IDs de comprobantes creados
   ) {
     if (!apps?.length)
       return [] as Array<{
@@ -81,21 +86,70 @@ export class OrdenesPagoService {
         orden: number;
       }>;
 
-    const ids = apps.map((a) => BigInt(String(a.comprobanteId)));
-    const comps = await tx.comprobanteTercero.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, tipo: true, clase: true, puntoVenta: true, numero: true, fecha: true },
-    });
+    // Separar IDs normales de IDs especiales (REINTEGRO-*)
+    const idsNormales: bigint[] = [];
+    const appsConIdsReales: Array<{ app: typeof apps[0]; idReal: bigint }> = [];
+
+    for (const app of apps) {
+      const comprobanteIdStr = String(app.comprobanteId);
+      
+      if (comprobanteIdStr.startsWith('REINTEGRO-')) {
+        // Es un ID especial de reintegro, buscar el comprobante creado
+        if (comprobantesCreados?.has(comprobanteIdStr)) {
+          const idReal = comprobantesCreados.get(comprobanteIdStr)!;
+          appsConIdsReales.push({ app, idReal });
+          idsNormales.push(idReal);
+        } else {
+          // Si no está en el mapa, usar el ID como está (no debería pasar)
+          appsConIdsReales.push({ app, idReal: BigInt(0) });
+        }
+      } else {
+        // ID normal, convertir a BigInt
+        try {
+          const idReal = BigInt(comprobanteIdStr);
+          idsNormales.push(idReal);
+          appsConIdsReales.push({ app, idReal });
+        } catch {
+          // Si falla la conversión, usar 0 (no debería pasar)
+          appsConIdsReales.push({ app, idReal: BigInt(0) });
+        }
+      }
+    }
+
+    // Buscar los comprobantes
+    const comps = idsNormales.length > 0
+      ? await tx.comprobanteTercero.findMany({
+          where: { id: { in: idsNormales } },
+          select: { id: true, tipo: true, clase: true, puntoVenta: true, numero: true, fecha: true, observaciones: true },
+        })
+      : [];
 
     const byId = new Map(comps.map((c) => [c.id.toString(), c]));
 
-    return apps.map((a, idx) => {
-      const key = BigInt(String(a.comprobanteId)).toString();
+    return appsConIdsReales.map(({ app, idReal }, idx) => {
+      const key = idReal.toString();
       const c = byId.get(key);
-      const etiqueta = c
-        ? `${c.tipo}${c.clase ? ' ' + c.clase : ''} ${this.fmtAfip(c.puntoVenta, c.numero)} (${c.fecha.toLocaleDateString('es-AR')})`
-        : `Comprobante ${a.comprobanteId}`;
-      const monto = Number(a.montoAplicado);
+      
+      // Si es un reintegro y no encontramos el comprobante, usar información del reintegro
+      const comprobanteIdStr = String(app.comprobanteId);
+      let etiqueta: string;
+      
+      if (comprobanteIdStr.startsWith('REINTEGRO-')) {
+        if (c) {
+          // Usar la información del comprobante creado
+          etiqueta = c.observaciones || `Reintegro ${comprobanteIdStr.replace('REINTEGRO-', '')}`;
+        } else {
+          // Fallback: usar el ID del reintegro
+          etiqueta = `Reintegro ${comprobanteIdStr.replace('REINTEGRO-', '')}`;
+        }
+      } else {
+        // Comprobante normal
+        etiqueta = c
+          ? `${c.tipo}${c.clase ? ' ' + c.clase : ''} ${this.fmtAfip(c.puntoVenta, c.numero)} (${c.fecha.toLocaleDateString('es-AR')})`
+          : `Comprobante ${app.comprobanteId}`;
+      }
+      
+      const monto = Number(app.montoAplicado);
       return { desc: etiqueta, cantidad: 1, pUnit: monto, importe: monto, orden: idx + 1 };
     });
   }
@@ -253,8 +307,101 @@ export class OrdenesPagoService {
       }
 
       // === 4) Aplicaciones + marcar “pagado” si corresponde ===
+      const comprobantesCreados = new Map<string, bigint>();
+      const reintegrosCache = new Map<bigint, { id: bigint; afiliadoId: bigint; importeTotal: Prisma.Decimal; importeReintegro: Prisma.Decimal | null; importeAprobado: Prisma.Decimal | null }>();
+      const reintegrosParaPagar = new Map<bigint, { reintegroId: bigint; montoAplicado: Prisma.Decimal }>();
       for (const a of dto.aplicaciones) {
-        const compId = BigInt(String(a.comprobanteId));
+        let compId: bigint;
+        const comprobanteIdStr = String(a.comprobanteId);
+
+        // Si el comprobanteId empieza con "REINTEGRO-", es un reintegro que necesita crear comprobante tercero
+        if (comprobanteIdStr.startsWith('REINTEGRO-')) {
+          const reintegroIdStr = comprobanteIdStr.replace('REINTEGRO-', '');
+          const reintegroId = BigInt(reintegroIdStr);
+
+          // Obtener el reintegro (usar cache si existe)
+          let reintegro = reintegrosCache.get(reintegroId);
+          if (!reintegro) {
+            const reintegroData = await tx.reintegroSolicitud.findFirst({
+              where: {
+                id: reintegroId,
+                organizacionId: dto.organizacionId,
+                estado: 'APROBADO',
+              },
+              select: {
+                id: true,
+                afiliadoId: true,
+                importeTotal: true,
+                importeReintegro: true,
+                importeAprobado: true,
+              },
+            });
+            if (!reintegroData) {
+              throw new Error(`Reintegro ${reintegroId} no encontrado o no está aprobado`);
+            }
+            reintegro = reintegroData;
+            reintegrosCache.set(reintegroId, reintegro);
+          }
+
+          // Verificar que el reintegro pertenece al afiliado del tercero
+          // Obtener afiliadoId del tercero (código AFI-{id})
+          const terceroInfo = await tx.tercero.findUnique({
+            where: { id: terceroId },
+            select: { codigo: true },
+          });
+
+          if (!terceroInfo?.codigo || !terceroInfo.codigo.startsWith('AFI-')) {
+            throw new Error('El tercero no es un afiliado válido');
+          }
+
+          const terceroAfiliadoId = BigInt(terceroInfo.codigo.replace('AFI-', ''));
+          if (reintegro.afiliadoId !== terceroAfiliadoId) {
+            throw new Error(`El reintegro no pertenece al afiliado del tercero`);
+          }
+
+          // Calcular monto del reintegro
+          const montoReintegro =
+            reintegro.importeReintegro != null
+              ? Number(reintegro.importeReintegro)
+              : reintegro.importeAprobado != null
+                ? Number(reintegro.importeAprobado)
+                : Number(reintegro.importeTotal);
+
+          // Crear ComprobanteTercero para el reintegro
+          const nuevoComp = await tx.comprobanteTercero.create({
+            data: {
+              organizacionId: dto.organizacionId,
+              terceroId,
+              cuentaId,
+              rol: dto.rol,
+              tipo: TipoComprobanteTercero.PRESTACION,
+              estado: EstadoComprobanteTercero.emitido,
+              total: new Prisma.Decimal(montoReintegro),
+              netoNoGravado: new Prisma.Decimal(montoReintegro),
+              observaciones: `Reintegro solicitud #${reintegro.id.toString()}`,
+              lineas: {
+                create: [
+                  {
+                    descripcion: `Reintegro solicitud #${reintegro.id.toString()}`,
+                    cantidad: new Prisma.Decimal(1),
+                    precioUnitario: new Prisma.Decimal(montoReintegro),
+                    alicuotaIVA: new Prisma.Decimal(0),
+                    importeNeto: new Prisma.Decimal(montoReintegro),
+                    importeIVA: new Prisma.Decimal(0),
+                    importeTotal: new Prisma.Decimal(montoReintegro),
+                  },
+                ],
+              },
+            },
+            select: { id: true },
+          });
+
+          compId = nuevoComp.id;
+          // Guardar el mapeo para usar después en buildItemsDesdeAplicaciones
+          comprobantesCreados.set(comprobanteIdStr, compId);
+        } else {
+          compId = BigInt(comprobanteIdStr);
+        }
         const comp = await tx.comprobanteTercero.findUnique({
           where: { id: compId },
           select: { id: true, estado: true, cuentaId: true, total: true },
@@ -281,6 +428,24 @@ export class OrdenesPagoService {
         if (sum.greaterThanOrEqualTo(comp.total)) {
           await tx.comprobanteTercero.update({ where: { id: compId }, data: { estado: 'pagado' } });
         }
+
+        // Si es un reintegro, guardar información para crear el pago después (necesitamos el comprobanteId del Comprobante)
+        if (comprobanteIdStr.startsWith('REINTEGRO-')) {
+          const reintegroIdStr = comprobanteIdStr.replace('REINTEGRO-', '');
+          const reintegroId = BigInt(reintegroIdStr);
+          
+          // Guardar información del reintegro para procesar después de crear el Comprobante
+          if (!reintegrosParaPagar.has(reintegroId)) {
+            reintegrosParaPagar.set(reintegroId, {
+              reintegroId,
+              montoAplicado: new Prisma.Decimal(a.montoAplicado),
+            });
+          } else {
+            // Si ya existe, sumar el monto
+            const existente = reintegrosParaPagar.get(reintegroId)!;
+            existente.montoAplicado = existente.montoAplicado.add(new Prisma.Decimal(a.montoAplicado));
+          }
+        }
       }
 
       // === 5) Movimiento cuenta + Contabilidad ===
@@ -299,7 +464,7 @@ export class OrdenesPagoService {
       });
 
       // === 6) Comprobante impreso (usa el MISMO número) ===
-      const itemsImpresion = await this.buildItemsDesdeAplicaciones(tx, dto.aplicaciones);
+      const itemsImpresion = await this.buildItemsDesdeAplicaciones(tx, dto.aplicaciones, comprobantesCreados);
       const formato: 'A4' | 'TICKET_80MM' = 'A4';
       const copias = 2;
 
@@ -374,6 +539,61 @@ export class OrdenesPagoService {
             importe: new Prisma.Decimal(it.importe ?? 0),
           })),
         });
+      }
+
+      // === 7) Crear registros de pago de reintegros (después de crear el Comprobante) ===
+      if (reintegrosParaPagar.size > 0) {
+        // Determinar el medio de pago principal (usar el primero de los métodos)
+        const metodoPrincipal = dto.metodos[0]?.metodo?.toUpperCase() || 'TRANSFERENCIA';
+        let medioPago: ReintegroMedioPago = ReintegroMedioPago.TRANSFERENCIA;
+        if (metodoPrincipal === 'CHEQUE') medioPago = ReintegroMedioPago.CHEQUE;
+        else if (metodoPrincipal === 'EFECTIVO') medioPago = ReintegroMedioPago.EFECTIVO;
+        else if (metodoPrincipal === 'OTRO') medioPago = ReintegroMedioPago.OTRO;
+
+        for (const [reintegroId, info] of reintegrosParaPagar.entries()) {
+          // Obtener el reintegro del cache
+          const reintegro = reintegrosCache.get(reintegroId);
+          if (!reintegro) {
+            throw new Error(`Reintegro ${reintegroId} no encontrado en cache`);
+          }
+
+          // Crear registro de pago del reintegro con el ID del Comprobante
+          await tx.reintegroPago.create({
+            data: {
+              solicitudId: reintegroId,
+              ordenPagoId: orden.id,
+              comprobanteId: comp.id, // ID del Comprobante (String), no del ComprobanteTercero
+              monto: info.montoAplicado,
+              medioPago,
+              fechaPago: fecha,
+              estadoPago: ReintegroPagoEstado.PAGADO,
+            },
+          });
+
+          // Verificar si el reintegro está completamente pagado
+          const pagosReintegro = await tx.reintegroPago.aggregate({
+            where: {
+              solicitudId: reintegroId,
+              estadoPago: ReintegroPagoEstado.PAGADO,
+            },
+            _sum: { monto: true },
+          });
+
+          const totalPagado = new Prisma.Decimal(pagosReintegro._sum.monto ?? 0);
+          const montoReintegro = reintegro.importeReintegro != null
+            ? reintegro.importeReintegro
+            : reintegro.importeAprobado != null
+              ? reintegro.importeAprobado
+              : reintegro.importeTotal;
+
+          // Si el total pagado es igual o mayor al monto del reintegro, marcar como PAGADO
+          if (totalPagado.greaterThanOrEqualTo(montoReintegro)) {
+            await tx.reintegroSolicitud.update({
+              where: { id: reintegroId },
+              data: { estado: 'PAGADO' },
+            });
+          }
+        }
       }
 
       return {

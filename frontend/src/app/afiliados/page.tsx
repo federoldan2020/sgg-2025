@@ -4,6 +4,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
+import { InputFecha } from "@/components/InputFecha";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // ---------------- Types esperados del backend ----------------
 type AfiliadoListItem = {
@@ -268,7 +279,7 @@ export default function AfiliadosListadoPage() {
       body.centro = Number(editData.centro) || undefined;
     if (editData.sector.trim())
       body.sector = Number(editData.sector) || undefined;
-    if (editData.sistema.trim()) body.sistema = editData.sistema as any; // 'ESC' | 'SG' | 'SGR'
+    if (editData.sistema.trim()) body.sistema = editData.sistema as any; // 'ESC' | 'SG' | 'SGR' | 'JUV'
 
     try {
       setBusy(true);
@@ -380,9 +391,9 @@ export default function AfiliadosListadoPage() {
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
-              <input
+              <Input
                 className="search-input"
-                placeholder="Buscar por DNI o apellido..."
+                placeholder="Buscar por DNI, apellido, nombre o padrón (ej: 642574-1)..."
                 aria-label="Buscar afiliados"
                 value={q}
                 onChange={(e) => {
@@ -391,7 +402,9 @@ export default function AfiliadosListadoPage() {
                 }}
               />
               {q && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
                     setQ("");
                     setPage(1);
@@ -412,7 +425,7 @@ export default function AfiliadosListadoPage() {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -463,9 +476,9 @@ export default function AfiliadosListadoPage() {
             </div>
 
             {(hasActiveFilters as any) && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={handleClearFilters}
-                className="btn btn-secondary"
                 title="Limpiar todos los filtros"
               >
                 <svg
@@ -485,7 +498,7 @@ export default function AfiliadosListadoPage() {
                   <line x1="14" y1="11" x2="14" y2="17" />
                 </svg>
                 Limpiar filtros
-              </button>
+              </Button>
             )}
           </div>
 
@@ -782,10 +795,8 @@ export default function AfiliadosListadoPage() {
                           className="btn-group"
                           style={{ display: "inline-flex", gap: 8 }}
                         >
-                          <a
-                            href={`/afiliados/${r.id}`}
-                            className="btn btn-secondary btn-sm"
-                          >
+                          <Button asChild variant="secondary" size="sm">
+                            <a href={`/afiliados/${r.id}`}>
                             <svg
                               width="14"
                               height="14"
@@ -800,10 +811,12 @@ export default function AfiliadosListadoPage() {
                               <circle cx="12" cy="12" r="3" />
                             </svg>
                             Ver detalle
-                          </a>
+                            </a>
+                          </Button>
 
-                          <button
-                            className="btn btn-secondary btn-sm"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             title="Dar de baja afiliado o uno de sus padrones"
                             onClick={() => abrirBaja(r)}
                             disabled={r.padrones.length === 0}
@@ -821,10 +834,11 @@ export default function AfiliadosListadoPage() {
                               <polyline points="20,6 9,17 4,12" />
                             </svg>
                             Baja
-                          </button>
+                          </Button>
 
-                          <button
-                            className="btn btn-secondary btn-sm"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             title="Modificar datos de un padrón del afiliado"
                             onClick={() => abrirEditar(r)}
                             disabled={r.padrones.length === 0}
@@ -843,7 +857,7 @@ export default function AfiliadosListadoPage() {
                               <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
                             </svg>
                             Modificar
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -863,7 +877,9 @@ export default function AfiliadosListadoPage() {
               </span>
             </div>
             <div className="pagination-controls">
-              <button
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage(1)}
                 disabled={!canPrev}
@@ -882,8 +898,10 @@ export default function AfiliadosListadoPage() {
                   <polyline points="11,17 6,12 11,7" />
                   <polyline points="18,17 13,12 18,7" />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={!canPrev}
@@ -901,9 +919,11 @@ export default function AfiliadosListadoPage() {
                 >
                   <polyline points="15,18 9,12 15,6" />
                 </svg>
-              </button>
+              </Button>
               <span className="pagination-current">{page}</span>
-              <button
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={!canNext}
@@ -921,8 +941,10 @@ export default function AfiliadosListadoPage() {
                 >
                   <polyline points="9,18 15,12 9,6" />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage(totalPages)}
                 disabled={!canNext}
@@ -941,7 +963,7 @@ export default function AfiliadosListadoPage() {
                   <polyline points="13,17 18,12 13,7" />
                   <polyline points="6,17 11,12 6,7" />
                 </svg>
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1127,10 +1149,10 @@ export default function AfiliadosListadoPage() {
                   >
                     Fecha de baja
                   </label>
-                  <input
-                    type="date"
+                  <InputFecha
                     value={bajaFecha}
-                    onChange={(e) => setBajaFecha(e.target.value)}
+                    onChange={(iso) => setBajaFecha(iso)}
+                    placeholder="dd/mm/aaaa"
                     className="filter-select"
                   />
                 </div>
@@ -1309,6 +1331,7 @@ export default function AfiliadosListadoPage() {
                     <option value="ESC">ESC</option>
                     <option value="SG">SG</option>
                     <option value="SGR">SGR</option>
+                    <option value="JUV">JUV</option>
                   </select>
                 </div>
               </div>

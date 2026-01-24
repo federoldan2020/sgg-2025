@@ -4,6 +4,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table } from "@/components/ui/table";
 
 /** ======================= Tipos del backend (listado) ======================= */
 type AfiliadoListItem = {
@@ -351,7 +354,8 @@ export default function CosegurosListadoPage() {
           </p>
         </div>
         <div className="page-actions">
-          <a href="/padrones/nuevo" className="btn btn-primary">
+          <Button asChild>
+            <a href="/padrones/nuevo">
             <svg
               width="16"
               height="16"
@@ -368,7 +372,8 @@ export default function CosegurosListadoPage() {
               <line x1="22" y1="11" x2="16" y2="11" />
             </svg>
             Nuevo Afiliado
-          </a>
+            </a>
+          </Button>
         </div>
       </div>
 
@@ -434,7 +439,7 @@ export default function CosegurosListadoPage() {
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
-              <input
+              <Input
                 className="search-input"
                 placeholder="Buscar por DNI o apellido..."
                 aria-label="Buscar afiliados"
@@ -445,7 +450,9 @@ export default function CosegurosListadoPage() {
                 }}
               />
               {q && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
                     setQ("");
                     setPage(1);
@@ -466,7 +473,7 @@ export default function CosegurosListadoPage() {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -517,9 +524,9 @@ export default function CosegurosListadoPage() {
             </div>
 
             {hasActiveFilters && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={handleClearFilters}
-                className="btn btn-secondary"
                 title="Limpiar todos los filtros"
               >
                 <svg
@@ -539,7 +546,7 @@ export default function CosegurosListadoPage() {
                   <line x1="14" y1="11" x2="14" y2="17" />
                 </svg>
                 Limpiar filtros
-              </button>
+              </Button>
             )}
           </div>
 
@@ -625,17 +632,14 @@ export default function CosegurosListadoPage() {
                   : "Activá coseguro desde el detalle del afiliado o desde este listado"}
               </div>
               {hasActiveFilters && (
-                <button
-                  onClick={handleClearFilters}
-                  className="btn btn-secondary"
-                >
+                <Button variant="secondary" onClick={handleClearFilters}>
                   Limpiar filtros
-                </button>
+                </Button>
               )}
             </div>
           ) : (
             <div className="table-container">
-              <table className="data-table">
+              <Table className="data-table">
                 <thead>
                   <tr>
                     <th>Afiliado</th>
@@ -726,8 +730,9 @@ export default function CosegurosListadoPage() {
                           className="btn-group"
                           style={{ display: "inline-flex", gap: 8 }}
                         >
-                          <button
-                            className="btn btn-secondary btn-sm"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             title="Configurar coseguro (activar / padrones J22/J38)"
                             onClick={() => void abrirConfigurar(r)}
                             disabled={r.padrones.length === 0}
@@ -752,12 +757,9 @@ export default function CosegurosListadoPage() {
                               <path d="m16.95 7.05 2.83-2.83" />
                             </svg>
                             Configurar
-                          </button>
-                          <a
-                            href={`/coseguro/${r.id}`}
-                            className="btn btn-secondary btn-sm"
-                            title="Gestionar coseguro y colaterales"
-                          >
+                          </Button>
+                          <Button asChild variant="secondary" size="sm" title="Gestionar coseguro y colaterales">
+                            <a href={`/coseguro/${r.id}`}>
                             <svg
                               width="14"
                               height="14"
@@ -772,13 +774,14 @@ export default function CosegurosListadoPage() {
                               <circle cx="12" cy="12" r="3" />
                             </svg>
                             Gestionar
-                          </a>
+                            </a>
+                          </Button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </div>
@@ -792,7 +795,9 @@ export default function CosegurosListadoPage() {
               </span>
             </div>
             <div className="pagination-controls">
-              <button
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage(1)}
                 disabled={!canPrev}
@@ -811,8 +816,10 @@ export default function CosegurosListadoPage() {
                   <polyline points="11,17 6,12 11,7" />
                   <polyline points="18,17 13,12 18,7" />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={!canPrev}
@@ -830,9 +837,11 @@ export default function CosegurosListadoPage() {
                 >
                   <polyline points="15,18 9,12 15,6" />
                 </svg>
-              </button>
+              </Button>
               <span className="pagination-current">{page}</span>
-              <button
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={!canNext}
@@ -850,8 +859,10 @@ export default function CosegurosListadoPage() {
                 >
                   <polyline points="9,18 15,12 9,6" />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage(totalPages)}
                 disabled={!canNext}
@@ -870,7 +881,7 @@ export default function CosegurosListadoPage() {
                   <polyline points="13,17 18,12 13,7" />
                   <polyline points="6,17 11,12 6,7" />
                 </svg>
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1086,28 +1097,29 @@ export default function CosegurosListadoPage() {
                   marginTop: 6,
                 }}
               >
-                <a
-                  href={`/coseguro/${cfgOpen.row.id}`}
-                  className="btn btn-secondary"
+                <Button
+                  asChild
+                  variant="secondary"
                   title="Abrir gestión completa de coseguro y colaterales"
                 >
-                  Abrir gestión completa
-                </a>
+                  <a href={`/coseguro/${cfgOpen.row.id}`}>
+                    Abrir gestión completa
+                  </a>
+                </Button>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    className="btn btn-secondary"
+                  <Button
+                    variant="secondary"
                     onClick={() => setCfgOpen({ open: false })}
                     disabled={cfgBusy}
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className="btn btn-primary"
+                  </Button>
+                  <Button
                     onClick={() => void guardarCfg()}
                     disabled={cfgBusy}
                   >
                     {cfgBusy ? "Guardando..." : "Guardar"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

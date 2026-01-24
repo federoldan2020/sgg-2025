@@ -1,41 +1,80 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
+import {
+  Banknote,
+  Book,
+  Calendar,
+  CreditCard,
+  FilePlus,
+  FileSpreadsheet,
+  FileText,
+  FileUp,
+  Files,
+  GitMerge,
+  Home,
+  Landmark,
+  ListChecks,
+  Monitor,
+  ChevronLeft,
+  X,
+  Receipt,
+  Settings,
+  Upload,
+  Users,
+  Users2,
+  Wallet,
+  Activity,
+  ClipboardEdit,
+  CheckCircle,
+  LayoutDashboard,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { NAV_GROUPS } from "@/config/nav.config";
 import { filterByRoles } from "@/lib/acl";
 import { isActive } from "@/lib/path";
 import type { Role } from "../../tipos/nav";
 
+type IconMap = Record<string, React.ComponentType<{ className?: string }>>;
 
-// Función para obtener iconos simples basados en el nombre del item
-function getNavIcon(label: string): string {
-  const iconMap: Record<string, string> = {
-    // Dashboard/Inicio
-    Inicio: "🏠",
-    Dashboard: "📊",
-    Resumen: "📋",
+// Íconos profesionales (Lucide) basados en el label del item
+const ICONS: IconMap = {
+  Inicio: Home,
+  Dashboard: LayoutDashboard,
+  Resumen: Monitor,
+  ABM: Users,
+  Movimientos: Activity,
+  "Importar afiliados": Upload,
+  "Importar padrones": Upload,
+  Caja: Wallet,
+  "Nueva orden de crédito": CreditCard,
+  "Órdenes por afiliado": FileText,
+  Colaterales: Users2,
+  Configurar: Settings,
+  "Resumen (consulta)": Monitor,
+  Monitor: Monitor,
+  "Generar Novedades": FilePlus,
+  Generaciones: Files,
+  "Novedades Manuales": ClipboardEdit,
+  "Fechas de Corte": Calendar,
+  "Conciliar Devolución": CheckCircle,
+  Conciliaciones: ListChecks,
+  "Cargar comprobante": FileUp,
+  Comprobantes: FileText,
+  "Nueva orden de pago": Banknote,
+  "Órdenes de pago": Landmark,
+  "Cuentas de terceros": Users2,
+  "Plan de cuentas": Book,
+  "Asientos contables": Receipt,
+  Mapeos: GitMerge,
+  "Importar plan (CSV)": FileSpreadsheet,
+  Terceros: Users,
+};
 
-    // Gestión de afiliados
-    Afiliados: "👥",
-    "Alta de afiliado": "➕",
-    "Alta de padrón": "📝",
-    "Órdenes por afiliado": "📄",
-
-    // Financiero
-    Caja: "💰",
-    "Nueva orden de crédito": "💳",
-    Colaterales: "🏦",
-
-    // Configuración
-    Configurar: "⚙️",
-    Configuración: "⚙️",
-    Novedades: "📢",
-
-    // Por defecto
-    default: "📄",
-  };
-
-  return iconMap[label] || iconMap.default;
+function getNavIcon(label: string) {
+  const Icon = ICONS[label] || FileText;
+  return <Icon className="nav-icon-svg" />;
 }
 
 type Props = {
@@ -132,26 +171,14 @@ export default function SidebarNav({
                   : "Colapsar menú (Ctrl/⌘+B)"
               }
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={`sidebar-toggle-icon ${
-                  collapsed ? "collapsed" : ""
-                }`}
-              >
-                <path d="m15 18-6-6 6-6" />
-              </svg>
+              <ChevronLeft
+                className={`sidebar-toggle-icon ${collapsed ? "collapsed" : ""}`}
+              />
             </button>
           </div>
 
           <nav aria-label="Menú principal" ref={navRef} className="sidebar-nav">
-            {groups.map((g) => (
+            {groups.map((g, idx) => (
               <div key={g.titulo} className="nav-group">
                 <div
                   className="nav-title"
@@ -164,26 +191,37 @@ export default function SidebarNav({
                     const active = isActive(it.href, pathname, it.exact);
                     return (
                       <li key={it.href}>
-                        <Link
-                          href={it.href}
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="sm"
                           className={`nav-link ${active ? "active" : ""}`}
-                          aria-current={active ? "page" : undefined}
-                          title={
-                            collapsed ? `${it.label} - ${g.titulo}` : it.label
-                          }
                         >
-                          <span className="nav-icon">
-                            {getNavIcon(it.label)}
-                          </span>
-                          {!collapsed && (
-                            <span className="nav-text">{it.label}</span>
-                          )}
-                          {active && <span className="nav-indicator" />}
-                        </Link>
+                          <Link
+                            href={it.href}
+                            aria-current={active ? "page" : undefined}
+                            title={
+                              collapsed ? `${it.label} - ${g.titulo}` : it.label
+                            }
+                          >
+                            <span className="nav-icon">
+                              {getNavIcon(it.label)}
+                            </span>
+                            {!collapsed && (
+                              <span className="nav-text">{it.label}</span>
+                            )}
+                            {active && <span className="nav-indicator" />}
+                          </Link>
+                        </Button>
                       </li>
                     );
                   })}
                 </ul>
+                {idx < groups.length - 1 && !collapsed && (
+                  <div className="nav-separator">
+                    <Separator />
+                  </div>
+                )}
               </div>
             ))}
           </nav>
@@ -224,25 +262,15 @@ export default function SidebarNav({
                   <span className="brand-year">2025</span>
                 </div>
               </div>
-              <button
+              <Button
                 className="mobile-close-btn"
+                variant="ghost"
+                size="icon"
                 onClick={() => setMobileOpen && setMobileOpen(false)}
                 aria-label="Cerrar menú"
               >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
+                <X size={18} />
+              </Button>
             </div>
 
             <nav aria-label="Menú principal" className="sidebar-nav">
@@ -254,20 +282,26 @@ export default function SidebarNav({
                       const active = isActive(it.href, pathname, it.exact);
                       return (
                         <li key={it.href}>
-                          <Link
-                            href={it.href}
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
                             className={`nav-link ${active ? "active" : ""}`}
-                            aria-current={active ? "page" : undefined}
-                            onClick={() =>
-                              setMobileOpen && setMobileOpen(false)
-                            }
                           >
-                            <span className="nav-icon">
-                              {getNavIcon(it.label)}
-                            </span>
-                            <span className="nav-text">{it.label}</span>
-                            {active && <span className="nav-indicator" />}
-                          </Link>
+                            <Link
+                              href={it.href}
+                              aria-current={active ? "page" : undefined}
+                              onClick={() =>
+                                setMobileOpen && setMobileOpen(false)
+                              }
+                            >
+                              <span className="nav-icon">
+                                {getNavIcon(it.label)}
+                              </span>
+                              <span className="nav-text">{it.label}</span>
+                              {active && <span className="nav-indicator" />}
+                            </Link>
+                          </Button>
                         </li>
                       );
                     })}

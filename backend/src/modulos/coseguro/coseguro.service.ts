@@ -92,6 +92,8 @@ export class CoseguroService {
           estado: true,
           fechaAlta: true,
           fechaBaja: true,
+          suspendidoEn: true,
+          motivoSuspension: true,
           imputacionPadronIdCoseguro: true,
         },
       }),
@@ -108,6 +110,8 @@ export class CoseguroService {
           estado: (coseguro.estado as 'activo' | 'baja') ?? 'baja',
           fechaAlta: coseguro.fechaAlta?.toISOString().slice(0, 10) ?? null,
           fechaBaja: coseguro.fechaBaja?.toISOString().slice(0, 10) ?? null,
+          suspendidoEn: coseguro.suspendidoEn?.toISOString().slice(0, 10) ?? null,
+          motivoSuspension: coseguro.motivoSuspension ?? null,
           padronCoseguroId: coseguro.imputacionPadronIdCoseguro ?? null,
         };
 
@@ -393,6 +397,88 @@ export class CoseguroService {
       nuevoPrecio,
       ocurridoEn: ocurridoEn ?? new Date(),
       observacion: 'Modificación precio coseguro (manual)',
+    });
+
+    return { ok: true };
+  }
+
+  /** Suspender afiliado en coseguro (no afecta J22/J38). */
+  async suspenderCoseguro(
+    organizacionId: string,
+    afiliadoId: IdLike,
+    motivo?: string,
+    suspendidoPorId?: string,
+    ocurridoEn?: Date,
+  ) {
+    const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
+    const fecha = ocurridoEn ?? new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      const existente = await tx.coseguroAfiliado.findFirst({
+        where: { organizacionId, afiliadoId: afId },
+        select: { id: true },
+      });
+      if (!existente) {
+        await tx.coseguroAfiliado.create({
+          data: {
+            organizacionId,
+            afiliadoId: afId,
+            estado: 'baja',
+            fechaAlta: fecha,
+            fechaBaja: fecha,
+            suspendidoEn: fecha,
+            motivoSuspension: motivo?.trim() || null,
+            suspendidoPorId: suspendidoPorId?.trim() || null,
+          },
+        });
+      } else {
+        await tx.coseguroAfiliado.update({
+          where: { id: existente.id },
+          data: {
+            suspendidoEn: fecha,
+            motivoSuspension: motivo?.trim() || null,
+            suspendidoPorId: suspendidoPorId?.trim() || null,
+          },
+        });
+      }
+    });
+
+    return { ok: true };
+  }
+
+  /** Rehabilitar afiliado en coseguro (limpia suspension). */
+  async rehabilitarCoseguro(
+    organizacionId: string,
+    afiliadoId: IdLike,
+    ocurridoEn?: Date,
+  ) {
+    const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
+    const fecha = ocurridoEn ?? new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      const existente = await tx.coseguroAfiliado.findFirst({
+        where: { organizacionId, afiliadoId: afId },
+        select: { id: true, fechaAlta: true },
+      });
+      if (!existente) {
+        await tx.coseguroAfiliado.create({
+          data: {
+            organizacionId,
+            afiliadoId: afId,
+            estado: 'baja',
+            fechaAlta: fecha,
+            fechaBaja: fecha,
+            suspendidoEn: null,
+            motivoSuspension: null,
+            suspendidoPorId: null,
+          },
+        });
+      } else {
+        await tx.coseguroAfiliado.update({
+          where: { id: existente.id },
+          data: { suspendidoEn: null, motivoSuspension: null, suspendidoPorId: null },
+        });
+      }
     });
 
     return { ok: true };

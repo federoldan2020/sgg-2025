@@ -10,7 +10,13 @@ import {
   Param,
   Body,
   Patch,
+  Delete,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
 import type { Request, Response } from 'express';
 import { NovedadesService } from './novedades.service';
 
@@ -128,39 +134,76 @@ export class NovedadesController {
     res.send(contenido);
   }
 
-  // ===================== EXISTENTES =====================
+  // ===================== GENERACIÓN DE NOVEDADES =====================
 
+  /**
+   * POST /novedades/generar
+   * Genera novedades automáticamente desde pendientes y manuales para un período/sistema
+   * Query: periodo=YYYY-MM&sistema=ES|SG&generadoPor=usuario&onDuplicate=error|replace
+   */
   @Post('generar')
-  async generar(
+  async generarNovedades(
     @Req() req: Request,
     @Query('periodo') periodo: string,
-    @Query('onDuplicate') onDuplicate?: 'error' | 'replace' | 'skip',
+    @Query('sistema') sistema: 'ES' | 'SG',
+    @Query('generadoPor') generadoPor?: string,
+    @Query('onDuplicate') onDuplicate?: 'error' | 'replace',
   ) {
     const organizacionId = req.organizacionId!;
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
       throw new Error('Periodo inválido (se espera YYYY-MM)');
     }
-    const lote = await this.svc.generarLote(organizacionId, periodo, {
+    if (!['ES', 'SG'].includes(sistema)) {
+      throw new Error('Sistema inválido (ES|SG)');
+    }
+
+    return this.svc.generarNovedades(organizacionId, periodo, sistema, {
+      generadoPor,
       onDuplicate: onDuplicate ?? 'error',
     });
-    return { id: String(lote.id), periodo: lote.periodo, estado: lote.estado };
   }
 
-  @Get('lote-txt')
-  async descargarTxt(
+  /**
+   * GET /novedades/generadas
+   * Lista las generaciones de novedades
+   * Query: periodo=YYYY-MM&sistema=ES|SG&page=1&limit=20
+   */
+  @Get('generadas')
+  async listarNovedadesGeneradas(
     @Req() req: Request,
-    @Res() res: Response,
-    @Query('loteId') loteId: string,
-    @Query('sistema') sistema: 'ES' | 'SG',
+    @Query('periodo') periodo?: string,
+    @Query('sistema') sistema?: 'ES' | 'SG' | '',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const organizacionId = req.organizacionId!;
-    if (!loteId) throw new Error('loteId requerido');
-    if (!['ES', 'SG'].includes(sistema)) throw new Error('sistema inválido (ES|SG)');
+    const p = Number.isFinite(Number(page)) ? Number(page) : 1;
+    const l = Number.isFinite(Number(limit)) ? Number(limit) : 20;
 
-    const { nombre, contenido } = await this.svc.construirTxt(
+    return this.svc.listarNovedadesGeneradas(organizacionId, {
+      periodo,
+      sistema: (sistema as 'ES' | 'SG' | '') || undefined,
+      page: p,
+      limit: l,
+    });
+  }
+
+  /**
+   * GET /novedades/generadas/:id/txt
+   * Descarga el TXT de una generación de novedades
+   */
+  @Get('generadas/:id/txt')
+  async descargarTxtGenerado(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('id') id: string,
+  ) {
+    const organizacionId = req.organizacionId!;
+    if (!id) throw new Error('id requerido');
+
+    const { nombre, contenido } = await this.svc.descargarTxtGenerado(
       organizacionId,
-      BigInt(loteId),
-      sistema,
+      BigInt(id),
     );
 
     res.setHeader('Content-Type', 'text/plain; charset=latin1');
@@ -168,18 +211,130 @@ export class NovedadesController {
     res.status(200).send(contenido);
   }
 
-  @Get('lote-preview')
-  async preview(
+  /**
+   * DELETE /novedades/generadas/:id
+   * Elimina una generación de novedades
+   */
+  @Delete('generadas/:id')
+  async eliminarNovedadGenerada(@Req() req: Request, @Param('id') id: string) {
+    const organizacionId = req.organizacionId!;
+    if (!id) throw new Error('id requerido');
+
+    return this.svc.eliminarNovedadGenerada(organizacionId, BigInt(id));
+  }
+
+  // ===================== NOVEDADES MANUALES =====================
+
+  /**
+   * GET /novedades/manuales
+   * Lista las novedades manuales
+   * Query: periodo=YYYY-MM&codigo=P40&q=texto&page=1&limit=20
+   */
+  @Get('manuales')
+  async listarNovedadesManuales(
     @Req() req: Request,
-    @Query('loteId') loteId: string,
-    @Query('sistema') sistema?: 'ES' | 'SG',
+    @Query('periodo') periodo?: string,
+    @Query('codigo') codigo?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const organizacionId = req.organizacionId!;
-    if (!loteId) throw new Error('loteId requerido');
-    if (sistema && !['ES', 'SG'].includes(sistema)) {
-      throw new Error('sistema inválido (ES|SG)');
-    }
-    return this.svc.previewLote(organizacionId, BigInt(loteId), { sistema });
+    const p = Number.isFinite(Number(page)) ? Number(page) : 1;
+    const l = Number.isFinite(Number(limit)) ? Number(limit) : 20;
+
+    return this.svc.listarNovedadesManuales(organizacionId, {
+      periodo,
+      codigo,
+      q,
+      page: p,
+      limit: l,
+    });
+  }
+
+  /**
+   * POST /novedades/manuales
+   * Crea una novedad manual
+   * Body: { periodo, afiliadoId, padronId?, padronRaw, centro?, codigo, importe, observacion?, creadoPor? }
+   */
+  @Post('manuales')
+  async crearNovedadManual(
+    @Req() req: Request,
+    @Body()
+    body: {
+      periodo: string;
+      afiliadoId: number | string;
+      padronId?: number | string | null;
+      padronRaw: string;
+      centro?: number | null;
+      codigo: string;
+      importe: number | string;
+      observacion?: string | null;
+      creadoPor?: string | null;
+    },
+  ) {
+    const organizacionId = req.organizacionId!;
+    const afiliadoId = typeof body.afiliadoId === 'string' ? Number(body.afiliadoId) : body.afiliadoId;
+    const padronId =
+      body.padronId != null ? (typeof body.padronId === 'string' ? Number(body.padronId) : body.padronId) : null;
+    return this.svc.crearNovedadManual({
+      organizacionId,
+      periodo: body.periodo,
+      afiliadoId,
+      padronId,
+      padronRaw: body.padronRaw,
+      centro: body.centro,
+      codigo: body.codigo,
+      importe: body.importe,
+      observacion: body.observacion,
+      creadoPor: body.creadoPor,
+    });
+  }
+
+  /**
+   * PATCH /novedades/manuales/:id
+   * Actualiza una novedad manual
+   * Body: { padronId?, padronRaw?, centro?, codigo?, importe?, observacion? }
+   */
+  @Patch('manuales/:id')
+  async actualizarNovedadManual(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      padronId?: number | string | null;
+      padronRaw?: string;
+      centro?: number | null;
+      codigo?: string;
+      importe?: number | string;
+      observacion?: string | null;
+    },
+  ) {
+    const organizacionId = req.organizacionId!;
+    if (!id) throw new Error('id requerido');
+
+    const padronId =
+      body.padronId != null ? (typeof body.padronId === 'string' ? Number(body.padronId) : body.padronId) : undefined;
+    return this.svc.actualizarNovedadManual(organizacionId, BigInt(id), {
+      padronId,
+      padronRaw: body.padronRaw,
+      centro: body.centro,
+      codigo: body.codigo,
+      importe: body.importe,
+      observacion: body.observacion,
+    });
+  }
+
+  /**
+   * DELETE /novedades/manuales/:id
+   * Elimina una novedad manual
+   */
+  @Delete('manuales/:id')
+  async eliminarNovedadManual(@Req() req: Request, @Param('id') id: string) {
+    const organizacionId = req.organizacionId!;
+    if (!id) throw new Error('id requerido');
+
+    return this.svc.eliminarNovedadManual(organizacionId, BigInt(id));
   }
 
   /** GET /novedades/coseguro/precio-vigente?fecha=YYYY-MM-DD */
@@ -261,5 +416,66 @@ export class NovedadesController {
     if (!fecha) throw new Error('fecha requerida (YYYY-MM-DD)');
     const data = await this.svc.resolverPeriodoPorFecha(organizacionId, fecha);
     return data;
+  }
+
+  // ===================== CONCILIACIÓN DE NOVEDADES =====================
+
+  /**
+   * POST /novedades/conciliar
+   * Sube un archivo TXT de conciliación de cómputos y procesa los montos efectivamente descontados
+   * Query: periodo=YYYY-MM (opcional, si no se proporciona se extrae del archivo)
+   * Response: Streaming con Server-Sent Events para progreso en tiempo real
+   */
+  @Post('conciliar')
+  @UseInterceptors(FileInterceptor('file'))
+  async procesarConciliacion(
+    @Req() req: Request,
+    @Res({ passthrough: false }) res: Response,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('periodo') periodo?: string,
+  ) {
+    const organizacionId = req.organizacionId!;
+    if (!file) {
+      throw new BadRequestException('Archivo requerido');
+    }
+
+    const buf = file.buffer;
+    if (!buf || buf.length === 0) {
+      throw new BadRequestException('Archivo vacío');
+    }
+
+    // Configurar Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Deshabilitar buffering en nginx
+
+    const enviarEvento = (evento: string, datos: any) => {
+      res.write(`event: ${evento}\n`);
+      res.write(`data: ${JSON.stringify(datos)}\n\n`);
+    };
+
+    try {
+      const resultado = await this.svc.procesarConciliacionConProgreso(
+        organizacionId,
+        buf,
+        periodo,
+        (progreso) => {
+          enviarEvento('progreso', progreso);
+          // Forzar flush para que el navegador reciba los eventos inmediatamente
+          if (res.flushHeaders) {
+            res.flushHeaders();
+          }
+        },
+      );
+
+      enviarEvento('completado', resultado);
+      res.end();
+    } catch (error) {
+      enviarEvento('error', {
+        mensaje: error instanceof Error ? error.message : 'Error desconocido',
+      });
+      res.end();
+    }
   }
 }

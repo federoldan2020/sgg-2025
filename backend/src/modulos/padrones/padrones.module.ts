@@ -7,11 +7,12 @@ import { PadronesService } from './padrones.service';
 import { PrismaService } from '../../common/prisma.service';
 import { PadronesImportController } from './padrones-import.controller';
 import { PadronesImportService } from './padrones-import.service';
-import { NovedadesService } from '../novedades/novedades.service';
+import { NovedadesModule } from '../novedades/novedades.module';
 
 @Module({
+  imports: [NovedadesModule],
   controllers: [PadronesController, PadronesImportController],
-  providers: [PadronesService, PrismaService, NovedadesService, PadronesImportService],
+  providers: [PadronesService, PrismaService, PadronesImportService],
   exports: [PadronesService, PadronesImportService],
 })
 export class PadronesModule {}

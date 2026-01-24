@@ -49,45 +49,84 @@ export class PadronesImportService {
     return rows.join('\n');
   }
 
-  async preview(organizacionId: string, fileBuffer: Buffer, options: ImportOptionsDto): Promise<ImportPreviewResponse> {
+  async preview(
+    organizacionId: string,
+    fileBuffer: Buffer,
+    options: ImportOptionsDto,
+  ): Promise<ImportPreviewResponse> {
     const previewId = randomUUID();
 
     const csvText = fileBuffer.toString('utf-8');
-    const parsed = Papa.parse<PadronCsvRow>(csvText, { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim() });
-    if (parsed.errors.length > 0) throw new Error(`Error al parsear CSV: ${parsed.errors[0].message}`);
+    const parsed = Papa.parse<PadronCsvRow>(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) => h.trim(),
+    });
+    if (parsed.errors.length > 0)
+      throw new Error(`Error al parsear CSV: ${parsed.errors[0].message}`);
     const rows = parsed.data;
     this.previews.set(previewId, { rows, options });
 
     // Buscar afiliados por DNI y padrones existentes
     const dnis = rows.map((r) => BigInt(r.dni)).filter((d) => !isNaN(Number(d)));
-    const afiliados = await this.prisma.afiliado.findMany({ where: { organizacionId, dni: { in: dnis } }, select: { id: true, dni: true } });
+    const afiliados = await this.prisma.afiliado.findMany({
+      where: { organizacionId, dni: { in: dnis } },
+      select: { id: true, dni: true },
+    });
     const afiliadoByDni = new Map(afiliados.map((a) => [a.dni.toString(), a]));
 
-    const padronIds = rows.map((r) => r.padron).filter(Boolean) as string[];
-    const padronesExist = await this.prisma.padron.findMany({ where: { organizacionId, padron: { in: padronIds } }, select: { id: true, padron: true } });
+    const padronIds = rows.map((r) => r.padron).filter(Boolean);
+    const padronesExist = await this.prisma.padron.findMany({
+      where: { organizacionId, padron: { in: padronIds } },
+      select: { id: true, padron: true },
+    });
     const padronMap = new Map(padronesExist.map((p) => [p.padron, p]));
 
     const operaciones: OperacionPreview[] = [];
-    let errores = 0, warnings = 0, aCrear = 0, aActualizar = 0;
+    let errores = 0;
+    const warnings = 0;
+    let aCrear = 0;
+    let aActualizar = 0;
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const fila = i + 2;
 
       if (!row.dni || !/^\d{7,8}$/.test(row.dni)) {
-        operaciones.push({ fila, operacion: 'ERROR', padron: row.padron, dni: row.dni || '', status: 'ERROR', mensaje: 'DNI inválido' });
+        operaciones.push({
+          fila,
+          operacion: 'ERROR',
+          padron: row.padron,
+          dni: row.dni || '',
+          status: 'ERROR',
+          mensaje: 'DNI inválido',
+        });
         errores++;
         continue;
       }
       if (!row.padron || row.padron.trim() === '') {
-        operaciones.push({ fila, operacion: 'ERROR', padron: row.padron || '', dni: row.dni, status: 'ERROR', mensaje: 'Padrón es obligatorio' });
+        operaciones.push({
+          fila,
+          operacion: 'ERROR',
+          padron: row.padron || '',
+          dni: row.dni,
+          status: 'ERROR',
+          mensaje: 'Padrón es obligatorio',
+        });
         errores++;
         continue;
       }
 
       const af = afiliadoByDni.get(row.dni);
       if (!af) {
-        operaciones.push({ fila, operacion: 'ERROR', padron: row.padron, dni: row.dni, status: 'ERROR', mensaje: 'Afiliado (DNI) no existe' });
+        operaciones.push({
+          fila,
+          operacion: 'ERROR',
+          padron: row.padron,
+          dni: row.dni,
+          status: 'ERROR',
+          mensaje: 'Afiliado (DNI) no existe',
+        });
         errores++;
         continue;
       }
@@ -97,24 +136,55 @@ export class PadronesImportService {
 
       if (existe) {
         if (modo === ImportMode.CREATE_ONLY) {
-          operaciones.push({ fila, operacion: 'ERROR', padron: row.padron, dni: row.dni, status: 'ERROR', mensaje: 'Ya existe (CREATE_ONLY)' });
+          operaciones.push({
+            fila,
+            operacion: 'ERROR',
+            padron: row.padron,
+            dni: row.dni,
+            status: 'ERROR',
+            mensaje: 'Ya existe (CREATE_ONLY)',
+          });
           errores++;
           continue;
         }
-        operaciones.push({ fila, operacion: 'ACTUALIZAR', padron: row.padron, dni: row.dni, status: 'OK' });
+        operaciones.push({
+          fila,
+          operacion: 'ACTUALIZAR',
+          padron: row.padron,
+          dni: row.dni,
+          status: 'OK',
+        });
         aActualizar++;
       } else {
         if (modo === ImportMode.UPDATE_ONLY) {
-          operaciones.push({ fila, operacion: 'ERROR', padron: row.padron, dni: row.dni, status: 'ERROR', mensaje: 'No existe (UPDATE_ONLY)' });
+          operaciones.push({
+            fila,
+            operacion: 'ERROR',
+            padron: row.padron,
+            dni: row.dni,
+            status: 'ERROR',
+            mensaje: 'No existe (UPDATE_ONLY)',
+          });
           errores++;
           continue;
         }
-        operaciones.push({ fila, operacion: 'CREAR', padron: row.padron, dni: row.dni, status: 'OK' });
+        operaciones.push({
+          fila,
+          operacion: 'CREAR',
+          padron: row.padron,
+          dni: row.dni,
+          status: 'OK',
+        });
         aCrear++;
       }
     }
 
-    return { previewId, resumen: { total: rows.length, aCrear, aActualizar, errores, warnings }, operaciones, puedeConfirmar: errores === 0 };
+    return {
+      previewId,
+      resumen: { total: rows.length, aCrear, aActualizar, errores, warnings },
+      operaciones,
+      puedeConfirmar: errores === 0,
+    };
   }
 
   async confirmar(organizacionId: string, previewId: string): Promise<ImportResultResponse> {
@@ -123,7 +193,8 @@ export class PadronesImportService {
     const { rows, options } = cached;
 
     const result = await this.prisma.$transaction(async (tx) => {
-      let creados = 0, actualizados = 0;
+      let creados = 0,
+        actualizados = 0;
       const errores: Array<{ fila: number; mensaje: string }> = [];
 
       for (let i = 0; i < rows.length; i++) {
@@ -131,10 +202,17 @@ export class PadronesImportService {
         const fila = i + 2;
 
         try {
-          const afiliado = await tx.afiliado.findFirst({ where: { organizacionId, dni: BigInt(row.dni) } });
-          if (!afiliado) { errores.push({ fila, mensaje: 'Afiliado inexistente' }); continue; }
+          const afiliado = await tx.afiliado.findFirst({
+            where: { organizacionId, dni: BigInt(row.dni) },
+          });
+          if (!afiliado) {
+            errores.push({ fila, mensaje: 'Afiliado inexistente' });
+            continue;
+          }
 
-          const existe = await tx.padron.findFirst({ where: { organizacionId, padron: row.padron } });
+          const existe = await tx.padron.findFirst({
+            where: { organizacionId, padron: row.padron },
+          });
           const data: any = {
             organizacionId,
             afiliadoId: afiliado.id,
@@ -158,11 +236,17 @@ export class PadronesImportService {
           const modo = (row._modo as ImportMode) || options.mode || ImportMode.UPSERT;
 
           if (existe) {
-            if (modo === ImportMode.CREATE_ONLY) { errores.push({ fila, mensaje: 'Ya existe (CREATE_ONLY)' }); continue; }
+            if (modo === ImportMode.CREATE_ONLY) {
+              errores.push({ fila, mensaje: 'Ya existe (CREATE_ONLY)' });
+              continue;
+            }
             await tx.padron.update({ where: { id: existe.id }, data });
             actualizados++;
           } else {
-            if (modo === ImportMode.UPDATE_ONLY) { errores.push({ fila, mensaje: 'No existe (UPDATE_ONLY)' }); continue; }
+            if (modo === ImportMode.UPDATE_ONLY) {
+              errores.push({ fila, mensaje: 'No existe (UPDATE_ONLY)' });
+              continue;
+            }
             await tx.padron.create({ data });
             creados++;
           }
@@ -175,6 +259,15 @@ export class PadronesImportService {
     });
 
     this.previews.delete(previewId);
-    return { exitoso: result.errores.length === 0, resumen: { total: rows.length, creados: result.creados, actualizados: result.actualizados, errores: result.errores.length }, errores: result.errores.length ? result.errores : undefined };
+    return {
+      exitoso: result.errores.length === 0,
+      resumen: {
+        total: rows.length,
+        creados: result.creados,
+        actualizados: result.actualizados,
+        errores: result.errores.length,
+      },
+      errores: result.errores.length ? result.errores : undefined,
+    };
   }
 }

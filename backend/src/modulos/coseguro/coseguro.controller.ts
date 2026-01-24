@@ -149,6 +149,36 @@ export class CoseguroController {
     );
   }
 
+  /** Suspender afiliado en coseguro (por deuda/incumplimiento) */
+  @Post('afiliados/:afiliadoId/suspender')
+  async suspenderCoseguro(
+    @Headers() headers: Record<string, any>,
+    @Param('afiliadoId') afiliadoId: string,
+    @Body() body?: { motivo?: string; suspendidoPorId?: string; ocurridoEn?: string },
+  ) {
+    const organizacionId = requireOrgId(headers);
+    const ocurridoEn = body?.ocurridoEn ? new Date(body.ocurridoEn) : undefined;
+    return this.service.suspenderCoseguro(
+      organizacionId,
+      afiliadoId,
+      body?.motivo,
+      body?.suspendidoPorId,
+      ocurridoEn,
+    );
+  }
+
+  /** Rehabilitar afiliado en coseguro */
+  @Post('afiliados/:afiliadoId/rehabilitar')
+  async rehabilitarCoseguro(
+    @Headers() headers: Record<string, any>,
+    @Param('afiliadoId') afiliadoId: string,
+    @Body() body?: { ocurridoEn?: string },
+  ) {
+    const organizacionId = requireOrgId(headers);
+    const ocurridoEn = body?.ocurridoEn ? new Date(body.ocurridoEn) : undefined;
+    return this.service.rehabilitarCoseguro(organizacionId, afiliadoId, ocurridoEn);
+  }
+
   // ============================================================
   // Compat temporal (/coseguro/:afiliadoId/precio)
   // ============================================================

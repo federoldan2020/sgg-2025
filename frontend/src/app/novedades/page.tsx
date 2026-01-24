@@ -2,6 +2,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
+import { formatearFechaArgentina } from "@/utiles/formatos";
 import styles from "../../components/novedades/MonitorNovedades.module.css";
 
 type ResumenItem = {
@@ -20,9 +21,8 @@ type ResumenItem = {
 type Paged<T> = { items: T[]; total: number; page: number; limit: number };
 
 function toLocalAR(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("es-AR", { hour12: false });
+  if (!iso) return "—";
+  return formatearFechaArgentina(iso);
 }
 
 function qs(params: Record<string, any>) {

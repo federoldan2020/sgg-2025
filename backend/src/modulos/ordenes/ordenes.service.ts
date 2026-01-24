@@ -51,6 +51,37 @@ export class OrdenesService {
     return new Date(y, m - 1, 1, 12, 0, 0, 0);
   }
 
+  /**
+   * Normaliza un período a formato "YYYY-MM" para almacenamiento.
+   * Soporta: "YYYY-MM", "MM/AA", "MM/AAAA"
+   */
+  private normalizarPeriodo(periodo?: string | null): string | null {
+    if (!periodo) return null;
+    
+    // Formato "YYYY-MM" (ya está normalizado)
+    if (/^\d{4}-\d{2}$/.test(periodo)) {
+      return periodo;
+    }
+    
+    // Formato "MM/AA" (año de 2 dígitos)
+    if (/^\d{2}\/\d{2}$/.test(periodo)) {
+      const [mm, aa] = periodo.split('/');
+      const año2digitos = Number(aa);
+      // Asumir años 2000-2099
+      const año = año2digitos < 50 ? 2000 + año2digitos : 1900 + año2digitos;
+      return `${año}-${mm}`;
+    }
+    
+    // Formato "MM/AAAA" (año de 4 dígitos)
+    if (/^\d{2}\/\d{4}$/.test(periodo)) {
+      const [mm, aaaa] = periodo.split('/');
+      return `${aaaa}-${mm}`;
+    }
+    
+    // Si no coincide con ningún formato, retornar null
+    return null;
+  }
+
   // ====== helpers dinero ======
   private splitAmount(total: number, n: number): string[] {
     const base = Math.floor((total / n) * 100) / 100; // piso a 2 dec
@@ -237,13 +268,16 @@ export class OrdenesService {
 
       // ===== Cuenta Corriente: DEBITO en periodoPrimera =====
       // ===== Cuenta Corriente: DEBITOS por cada cuota =====
+      // OPCIÓN A: Usar fecha física de creación + periodoContable para agrupación
       for (const c of pv.cuotas) {
+        const periodoContable = this.normalizarPeriodo(c.periodoVenc);
         await this.movs.postMovimiento({
           tx: tx as unknown as PrismaClient,
           organizacionId,
           afiliadoId,
           padronId,
-          fecha: this.periodoToFirstDay(c.periodoVenc), // 👈 un mes por cuota
+          fecha: new Date(), // 👈 Fecha física de creación (orden cronológico correcto)
+          periodoContable, // 👈 Período contable para agrupar por período cuando se necesite
           naturaleza: 'debito',
           origen: 'orden_credito',
           concepto: `ORD#${orden.id.toString()} cuota ${c.numero}/${pv.cantidadCuotas} (${c.periodoVenc}) - ${comercio.razonSocial}`,
@@ -262,6 +296,123 @@ export class OrdenesService {
     });
   }
 
+  // ====== DETALLES DE PAGOS DE UNA ORDEN ======
+  async detallesPagosOrden(organizacionId: string, ordenIdNum: number) {
+    const ordenId = BigInt(ordenIdNum);
+    
+    const orden = await this.prisma.ordenCredito.findUnique({
+      where: {
+        id: ordenId,
+        organizacionId,
+      },
+      include: {
+        cuotas: {
+          orderBy: { numero: 'asc' },
+        },
+      },
+    });
+
+    if (!orden) throw new NotFoundException('Orden no encontrada');
+
+    // Obtener IDs de todas las cuotas
+    const cuotaIds = orden.cuotas.map((c) => c.id);
+    
+    // Obtener movimientos de crédito (pagos) para todas las cuotas
+    // Incluye pagos de caja y pagos de nómina (descuentos K16)
+    const movimientos = cuotaIds.length > 0
+      ? await this.prisma.movimientoAfiliado.findMany({
+          where: {
+            organizacionId,
+            cuotaId: { in: cuotaIds },
+            naturaleza: 'credito',
+            origen: { in: ['pago_caja', 'nomina'] },
+          },
+          select: {
+            id: true,
+            fecha: true,
+            importe: true,
+            concepto: true,
+            cuotaId: true,
+            pagoId: true,
+            origen: true,
+            periodoContable: true,
+          },
+          orderBy: { fecha: 'asc' },
+        })
+      : [];
+
+    // Obtener pagos únicos para obtener sus fechas y totales
+    const pagoIds = [...new Set(movimientos.filter((m) => m.pagoId).map((m) => m.pagoId!))];
+    const pagosMap = pagoIds.length > 0
+      ? new Map(
+          (await this.prisma.pago.findMany({
+            where: { id: { in: pagoIds } },
+            select: { id: true, fecha: true, total: true },
+          })).map((p) => [p.id.toString(), p])
+        )
+      : new Map();
+
+    // Formatear respuesta con detalles de pagos por cuota
+    const cuotasConDetalles = orden.cuotas.map((cuota) => {
+      const movimientosCuota = movimientos.filter((m) => m.cuotaId?.toString() === cuota.id.toString());
+      const pagos = movimientosCuota.map((mov) => {
+        const pago = mov.pagoId ? pagosMap.get(mov.pagoId.toString()) : null;
+        return {
+          id: mov.id.toString(),
+          fecha: mov.fecha,
+          importe: Number(mov.importe),
+          concepto: mov.concepto,
+          pagoId: mov.pagoId?.toString(),
+          pagoFecha: pago?.fecha,
+          pagoTotal: pago ? Number(pago.total) : null,
+          origen: mov.origen, // 'pago_caja' o 'nomina'
+          periodoContable: mov.periodoContable, // Para nómina: período al que corresponde
+        };
+      });
+
+      const totalPagado = pagos.reduce((sum, p) => sum + p.importe, 0);
+      const porcentajePagado = cuota.importe ? (totalPagado / Number(cuota.importe)) * 100 : 0;
+      const estado = Number(cuota.saldo) <= 0.01 
+        ? 'pagada' 
+        : totalPagado > 0 
+        ? 'parcialmente_pagada' 
+        : 'pendiente';
+
+      return {
+        id: cuota.id.toString(),
+        numero: cuota.numero,
+        periodoVenc: cuota.periodoVenc,
+        importe: Number(cuota.importe),
+        cancelado: Number(cuota.cancelado),
+        saldo: Number(cuota.saldo),
+        estado: cuota.estado,
+        totalPagado,
+        porcentajePagado,
+        estadoCalculado: estado,
+        pagos,
+      };
+    });
+
+    const totalOrden = Number(orden.importeTotal);
+    const totalPagadoOrden = cuotasConDetalles.reduce((sum, c) => sum + c.totalPagado, 0);
+    const porcentajePagadoOrden = totalOrden > 0 ? (totalPagadoOrden / totalOrden) * 100 : 0;
+
+    return {
+      orden: {
+        id: orden.id.toString(),
+        descripcion: orden.descripcion,
+        fechaAlta: orden.fechaAlta,
+        importeTotal: totalOrden,
+        saldoTotal: Number(orden.saldoTotal),
+        cantidadCuotas: orden.cantidadCuotas,
+        estado: orden.estado,
+        totalPagado: totalPagadoOrden,
+        porcentajePagado: porcentajePagadoOrden,
+      },
+      cuotas: cuotasConDetalles,
+    };
+  }
+
   // ====== LISTAR ======
   async listarPorAfiliado(organizacionId: string, afiliadoIdNum: number) {
     const afiliadoId = BigInt(afiliadoIdNum);
@@ -270,5 +421,149 @@ export class OrdenesService {
       orderBy: { id: 'desc' },
       include: { cuotas: { orderBy: { numero: 'asc' } } },
     });
+  }
+
+  // ====== DETALLE CON PAGOS ======
+  /**
+   * Obtiene el detalle completo de una orden incluyendo todos los pagos realizados
+   * para cada cuota, permitiendo ver el historial de pagos parciales y completos.
+   */
+  async detalleOrdenConPagos(organizacionId: string, ordenId: bigint) {
+    const orden = await this.prisma.ordenCredito.findUnique({
+      where: {
+        id: ordenId,
+        organizacionId,
+      },
+      include: {
+        cuotas: {
+          orderBy: { numero: 'asc' },
+        },
+        comercio: {
+          select: {
+            razonSocial: true,
+          },
+        },
+      },
+    });
+
+    if (!orden) throw new NotFoundException('Orden no encontrada');
+
+    // Obtener movimientos de crédito (pagos) para todas las cuotas de esta orden
+    const cuotaIds = orden.cuotas.map((c) => c.id);
+    const movimientos = cuotaIds.length > 0
+      ? await this.prisma.movimientoAfiliado.findMany({
+          where: {
+            organizacionId,
+            cuotaId: { in: cuotaIds },
+            naturaleza: 'credito', // Solo pagos (créditos)
+            origen: 'pago_caja',
+          },
+          select: {
+            id: true,
+            fecha: true,
+            importe: true,
+            concepto: true,
+            cuotaId: true,
+            pagoId: true,
+          },
+          orderBy: { fecha: 'asc' },
+        })
+      : [];
+
+    // Obtener pagos únicos
+    const pagoIds = [...new Set(movimientos.filter((m) => m.pagoId).map((m) => m.pagoId!))];
+    const pagos = pagoIds.length > 0
+      ? await this.prisma.pago.findMany({
+          where: { id: { in: pagoIds } },
+          include: {
+            metodos: {
+              select: {
+                metodo: true,
+                monto: true,
+              },
+            },
+          },
+        })
+      : [];
+    const mapaPagos = new Map(pagos.map((p) => [p.id.toString(), p]));
+
+    // Agrupar movimientos por cuotaId
+    const movimientosPorCuota = new Map<string, typeof movimientos>();
+    for (const mov of movimientos) {
+      if (mov.cuotaId) {
+        const key = mov.cuotaId.toString();
+        if (!movimientosPorCuota.has(key)) {
+          movimientosPorCuota.set(key, []);
+        }
+        movimientosPorCuota.get(key)!.push(mov);
+      }
+    }
+
+    // Enriquecer cuotas con información de pagos
+    const cuotasConPagos = orden.cuotas.map((cuota) => {
+      const movs = movimientosPorCuota.get(cuota.id.toString()) || [];
+      const pagosCuota = movs.map((mov) => {
+        const pago = mov.pagoId ? mapaPagos.get(mov.pagoId.toString()) : null;
+        return {
+          movimientoId: mov.id.toString(),
+          fecha: mov.fecha,
+          importe: Number(mov.importe),
+          concepto: mov.concepto,
+          pago: pago
+            ? {
+                id: pago.id.toString(),
+                fecha: pago.fecha,
+                total: Number(pago.total),
+                metodos: pago.metodos.map((m) => ({
+                  metodo: m.metodo,
+                  monto: Number(m.monto),
+                })),
+              }
+            : null,
+        };
+      });
+
+      const totalPagado = pagosCuota.reduce((sum, p) => sum + p.importe, 0);
+      const porcentajePagado = Number(cuota.importe) > 0 
+        ? (totalPagado / Number(cuota.importe)) * 100 
+        : 0;
+
+      return {
+        ...cuota,
+        importe: Number(cuota.importe),
+        cancelado: Number(cuota.cancelado),
+        saldo: Number(cuota.saldo),
+        pagos: pagosCuota,
+        totalPagado,
+        porcentajePagado: Math.round(porcentajePagado * 100) / 100,
+        estadoPago: 
+          Number(cuota.saldo) <= 0.01 ? 'pagada' :
+          totalPagado > 0 ? 'parcialmente_pagada' :
+          'pendiente',
+      };
+    });
+
+    const totalOrden = Number(orden.importeTotal);
+    const totalPagadoOrden = cuotasConPagos.reduce((sum, c) => sum + c.totalPagado, 0);
+    const porcentajePagadoOrden = totalOrden > 0 
+      ? (totalPagadoOrden / totalOrden) * 100 
+      : 0;
+
+    return {
+      ...orden,
+      importeTotal: totalOrden,
+      saldoTotal: Number(orden.saldoTotal),
+      cuotas: cuotasConPagos,
+      resumen: {
+        totalOrden,
+        totalPagado: totalPagadoOrden,
+        saldoPendiente: Number(orden.saldoTotal),
+        porcentajePagado: Math.round(porcentajePagadoOrden * 100) / 100,
+        estadoGeneral: 
+          Number(orden.saldoTotal) <= 0.01 ? 'cancelada' :
+          totalPagadoOrden > 0 ? 'en_curso' :
+          'pendiente',
+      },
+    };
   }
 }

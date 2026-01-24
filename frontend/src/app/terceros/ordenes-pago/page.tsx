@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ORG, getErrorMessage } from "@/servicios/api";
+import { formatearFechaArgentina } from "@/utiles/formatos";
 
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
 type Estado = "borrador" | "confirmado" | "anulado";
@@ -33,7 +34,7 @@ const fmtMoney = (n: number | null | undefined) =>
   });
 
 const fmtDate = (s?: string | null) =>
-  s ? new Date(s).toLocaleDateString("es-AR") : "—";
+  s ? formatearFechaArgentina(s) : "—";
 
 const getEstadoIcon = (estado: Estado) => {
   switch (estado) {

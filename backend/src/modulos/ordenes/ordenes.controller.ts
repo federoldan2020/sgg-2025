@@ -30,4 +30,17 @@ export class OrdenesController {
   async listar(@OrgId() organizacionId: string, @Param('afiliadoId') afiliadoId: string) {
     return await this.svc.listarPorAfiliado(organizacionId, Number(afiliadoId));
   }
+
+  @Get('detalle/:ordenId')
+  async detalleOrden(
+    @OrgId() organizacionId: string,
+    @Param('ordenId') ordenId: string,
+  ) {
+    return await this.svc.detalleOrdenConPagos(organizacionId, BigInt(ordenId));
+  }
+
+  @Get('detalles-pagos/:ordenId')
+  async detallesPagos(@OrgId() organizacionId: string, @Param('ordenId') ordenId: string) {
+    return await this.svc.detallesPagosOrden(organizacionId, Number(ordenId));
+  }
 }

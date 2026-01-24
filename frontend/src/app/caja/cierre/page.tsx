@@ -3,6 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cajaService } from "@/servicios/cajaService";
 import { getErrorMessage, referenciaCierreCaja } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type Row = { metodo: string; teorico: string; declarado: string };
 
@@ -52,66 +63,109 @@ export default function CierreCajaPage() {
           <h1 className="text-2xl font-semibold">Cierre de Caja</h1>
           <p className="text-sm text-muted-foreground">Caja #{cajaId ?? "-"}</p>
         </div>
-        <button className="btn" onClick={() => router.push("/caja")}>Volver a cobros</button>
+        <Button variant="outline" onClick={() => router.push("/caja")}>
+          Volver a cobros
+        </Button>
       </div>
 
-      {msg && <div className={`text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>{msg}</div>}
+      {msg && (
+        <div className={`text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
+          {msg}
+        </div>
+      )}
 
-      <div className="overflow-auto border rounded">
-        <table className="min-w-full text-sm">
-          <thead className="bg-neutral-50">
-            <tr>
-              <th className="p-2 text-left">Método</th>
-              <th className="p-2 text-right">Teórico</th>
-              <th className="p-2 text-right">Declarado</th>
-              <th className="p-2 text-right">Δ</th>
-              <th className="p-2 text-center">—</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="rounded-md border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Método</TableHead>
+              <TableHead className="text-right">Teórico</TableHead>
+              <TableHead className="text-right">Declarado</TableHead>
+              <TableHead className="text-right">Δ</TableHead>
+              <TableHead className="text-center">—</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((r, i) => {
               const d = toNum(r.declarado) - toNum(r.teorico);
               return (
-                <tr key={i} className="border-t">
-                  <td className="p-2">
-                    <select className="border rounded px-2 py-1" value={r.metodo}
-                            onChange={(e) => { const v = [...rows]; v[i].metodo = e.target.value; setRows(v); }}>
+                <TableRow key={i}>
+                  <TableCell>
+                    <select
+                      className="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+                      value={r.metodo}
+                      onChange={(e) => {
+                        const v = [...rows];
+                        v[i].metodo = e.target.value;
+                        setRows(v);
+                      }}
+                    >
                       <option value="efectivo">Efectivo</option>
                       <option value="tarjeta">Tarjeta</option>
                       <option value="mercadopago">MercadoPago</option>
                       <option value="otro">Otro</option>
                     </select>
-                  </td>
-                  <td className="p-2 text-right">
-                    <input className="w-32 text-right border rounded px-2 py-1" type="number" step="0.01"
-                           value={r.teorico} onChange={(e) => { const v = [...rows]; v[i].teorico = e.target.value; setRows(v); }} />
-                  </td>
-                  <td className="p-2 text-right">
-                    <input className="w-32 text-right border rounded px-2 py-1" type="number" step="0.01"
-                           value={r.declarado} onChange={(e) => { const v = [...rows]; v[i].declarado = e.target.value; setRows(v); }} />
-                  </td>
-                  <td className={`p-2 text-right ${Math.abs(d) > 0.01 ? "text-red-600" : "text-green-700"}`}>$ {fmt(d)}</td>
-                  <td className="p-2 text-center">
-                    <button className="btn btn-ghost btn-sm" onClick={() => setRows(rows.filter((_, j) => j !== i))}
-                            disabled={rows.length <= 1}>Eliminar</button>
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      className="w-32 text-right"
+                      type="number"
+                      step="0.01"
+                      value={r.teorico}
+                      onChange={(e) => {
+                        const v = [...rows];
+                        v[i].teorico = e.target.value;
+                        setRows(v);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      className="w-32 text-right"
+                      type="number"
+                      step="0.01"
+                      value={r.declarado}
+                      onChange={(e) => {
+                        const v = [...rows];
+                        v[i].declarado = e.target.value;
+                        setRows(v);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className={`text-right ${Math.abs(d) > 0.01 ? "text-red-600" : "text-green-700"}`}>
+                    $ {fmt(d)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRows(rows.filter((_, j) => j !== i))}
+                      disabled={rows.length <= 1}
+                    >
+                      Eliminar
+                    </Button>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t bg-neutral-50">
-              <td className="p-2" colSpan={3}><b>Total diferencia</b></td>
-              <td className="p-2 text-right"><b>$ {fmt(diffTotal)}</b></td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+          </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={3}>
+                <b>Total diferencia</b>
+              </TableCell>
+              <TableCell className="text-right">
+                <b>$ {fmt(diffTotal)}</b>
+              </TableCell>
+              <TableCell />
+            </TableRow>
+          </TableFooter>
+        </Table>
       </div>
 
-      <button className="btn btn-warning" onClick={cerrar} disabled={closing}>
+      <Button variant="destructive" onClick={cerrar} disabled={closing}>
         {closing ? "Cerrando…" : "Confirmar Cierre"}
-      </button>
+      </Button>
     </div>
   );
 }

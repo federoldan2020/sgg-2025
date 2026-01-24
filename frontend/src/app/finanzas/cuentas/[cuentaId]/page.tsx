@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getErrorMessage, ORG } from "@/servicios/api";
+import { formatearFechaArgentina } from "@/utiles/formatos";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table } from "@/components/ui/table";
 
 /* ===== Tipos (compatibles con tu back) ===== */
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
@@ -206,7 +210,8 @@ export default function CuentaExtractoPage() {
       <div className="page-header">
         <div className="page-title-section">
           <div className="breadcrumb-nav">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => router.back()}
               className="back-button"
               title="Volver"
@@ -224,7 +229,7 @@ export default function CuentaExtractoPage() {
                 <polyline points="15,18 9,12 15,6" />
               </svg>
               Volver
-            </button>
+            </Button>
             <svg
               width="16"
               height="16"
@@ -343,10 +348,8 @@ export default function CuentaExtractoPage() {
                 Selecciona el rango de fechas
               </p>
             </div>
-            <button
-              className={`btn ${
-                movimientos.length ? "btn-secondary" : "btn-disabled"
-              }`}
+            <Button
+              variant="secondary"
               onClick={exportCSV}
               disabled={!movimientos.length}
               title="Descargar extracto en CSV"
@@ -366,13 +369,13 @@ export default function CuentaExtractoPage() {
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               Exportar CSV
-            </button>
+            </Button>
           </div>
 
           <div className="form-grid form-grid-4">
             <div className="form-group">
               <label className="form-label">Fecha Desde</label>
-              <input
+              <Input
                 className="form-input"
                 type="date"
                 value={desde}
@@ -381,7 +384,7 @@ export default function CuentaExtractoPage() {
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Hasta</label>
-              <input
+              <Input
                 className="form-input"
                 type="date"
                 value={hasta}
@@ -390,10 +393,7 @@ export default function CuentaExtractoPage() {
             </div>
             <div className="form-group">
               <label className="form-label">&nbsp;</label>
-              <button
-                className={`btn btn-lg ${
-                  loading ? "btn-disabled" : "btn-primary"
-                }`}
+              <Button
                 onClick={() => setApplyTick((t) => t + 1)}
                 disabled={loading || !cuentaId}
               >
@@ -431,7 +431,7 @@ export default function CuentaExtractoPage() {
                     Aplicar Filtros
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -442,8 +442,7 @@ export default function CuentaExtractoPage() {
             <div className="resumen-header">
               <h3 className="resumen-title">Resumen del Período</h3>
               <div className="periodo-fechas">
-                {new Date(desde).toLocaleDateString("es-AR")} -{" "}
-                {new Date(hasta).toLocaleDateString("es-AR")}
+                {formatearFechaArgentina(desde)} - {formatearFechaArgentina(hasta)}
               </div>
             </div>
             <div className="resumen-grid">
@@ -570,7 +569,7 @@ export default function CuentaExtractoPage() {
             </div>
           ) : (
             <div className="table-container">
-              <table className="data-table movimientos-table">
+              <Table className="data-table movimientos-table">
                 <thead>
                   <tr>
                     <th>Fecha</th>
@@ -590,7 +589,7 @@ export default function CuentaExtractoPage() {
                       <tr key={m.id} className={`movimiento-row ${m.tipo}`}>
                         <td>
                           <span className="fecha-badge">
-                            {new Date(m.fecha).toLocaleDateString("es-AR")}
+                            {formatearFechaArgentina(m.fecha)}
                           </span>
                         </td>
                         <td>
@@ -635,7 +634,7 @@ export default function CuentaExtractoPage() {
                     );
                   })}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </div>

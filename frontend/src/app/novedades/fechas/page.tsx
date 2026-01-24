@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type CorteResp = { periodo: string; diaCorte: number };
 type ResolveResp = {
@@ -79,107 +81,72 @@ export default function CortePage() {
   };
 
   return (
-    <main style={{ padding: 24, display: "grid", gap: 16 }}>
-      <h1 style={{ margin: 0 }}>Fecha de corte (por periodo)</h1>
+    <main className="p-6 space-y-6">
+      <h1 className="text-xl font-semibold">Fecha de corte (por periodo)</h1>
 
-      <section style={{ display: "grid", gap: 12 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label style={{ display: "block", fontSize: 12, color: "#666" }}>
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
               Periodo (YYYY-MM)
             </label>
-            <input
+            <Input
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value)}
               placeholder="YYYY-MM"
-              style={{
-                padding: "6px 8px",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-              }}
+              className="w-40"
             />
           </div>
 
-          <div>
-            <label style={{ display: "block", fontSize: 12, color: "#666" }}>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
               Día de corte
             </label>
-            <input
+            <Input
               type="number"
               min={1}
               max={31}
               value={diaCorte}
               onChange={(e) => setDiaCorte(Number(e.target.value))}
-              style={{
-                width: 100,
-                padding: "6px 8px",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-              }}
+              className="w-28"
             />
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={cargar} style={{ padding: "6px 10px" }}>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={cargar}>
               Recargar
-            </button>
-            <button
-              onClick={guardar}
-              disabled={loading}
-              style={{ padding: "6px 10px" }}
-            >
+            </Button>
+            <Button onClick={guardar} disabled={loading}>
               {loading ? "Guardando…" : "Guardar"}
-            </button>
+            </Button>
           </div>
         </div>
 
         {msg && (
-          <div style={{ color: msg === "Guardado" ? "#067D00" : "#A30000" }}>
+          <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             {msg}
           </div>
         )}
       </section>
 
       {/* Tester de resolución */}
-      <section
-        style={{ border: "1px solid #eee", borderRadius: 10, padding: 12 }}
-      >
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>
-          Probar resolución de periodo
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <label style={{ fontSize: 12, color: "#666" }}>Fecha de evento</label>
-          <input
+      <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <div className="text-sm font-semibold">Probar resolución de periodo</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-xs font-medium text-muted-foreground">Fecha de evento</label>
+          <Input
             type="date"
             value={fechaTest}
             onChange={(e) => setFechaTest(e.target.value)}
-            style={{
-              padding: "6px 8px",
-              border: "1px solid #ddd",
-              borderRadius: 6,
-            }}
+            className="w-44"
           />
-          <button onClick={probar} style={{ padding: "6px 10px" }}>
+          <Button variant="outline" onClick={probar}>
             Probar
-          </button>
+          </Button>
         </div>
 
         {testOut && (
-          <div style={{ marginTop: 10, fontSize: 14 }}>
+          <div className="text-sm space-y-1">
             <div>
               <b>Fecha:</b> {testOut.fechaEvento}
             </div>
@@ -190,8 +157,7 @@ export default function CortePage() {
               <b>Periodo base:</b> {testOut.periodoBase}
             </div>
             <div>
-              <b>Periodo destino:</b>{" "}
-              <span style={{ fontWeight: 700 }}>{testOut.periodoDestino}</span>
+              <b>Periodo destino:</b> <span className="font-semibold">{testOut.periodoDestino}</span>
             </div>
           </div>
         )}

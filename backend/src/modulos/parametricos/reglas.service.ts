@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import prisma from '../../prisma';
+import { PrismaService } from '../../common/prisma.service';
 import type {
   CrearReglaBaseDto,
   EditarReglaBaseDto,
@@ -10,16 +10,18 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ReglasService {
+  constructor(private prisma: PrismaService) {}
+
   // ===== BASE COSEGURO =====
   listarBase(orgId: string) {
-    return prisma.reglaPrecioCoseguro.findMany({
+    return this.prisma.reglaPrecioCoseguro.findMany({
       where: { organizacionId: orgId },
       orderBy: [{ activo: 'desc' }, { vigenteDesde: 'desc' }],
     });
   }
 
   crearBase(orgId: string, dto: CrearReglaBaseDto) {
-    return prisma.reglaPrecioCoseguro.create({
+    return this.prisma.reglaPrecioCoseguro.create({
       data: {
         organizacionId: orgId,
         vigenteDesde: new Date(dto.vigenteDesde),
@@ -32,7 +34,7 @@ export class ReglasService {
 
   editarBase(orgId: string, id: string, dto: EditarReglaBaseDto) {
     const rid = BigInt(id);
-    return prisma.reglaPrecioCoseguro.update({
+    return this.prisma.reglaPrecioCoseguro.update({
       where: { id: rid },
       data: {
         vigenteHasta:
@@ -48,12 +50,12 @@ export class ReglasService {
   }
 
   eliminarBase(orgId: string, id: string) {
-    return prisma.reglaPrecioCoseguro.delete({ where: { id: BigInt(id) } });
+    return this.prisma.reglaPrecioCoseguro.delete({ where: { id: BigInt(id) } });
   }
 
   // ===== COLATERALES (por parentesco + tramo) =====
   async listarColaterales(orgId: string) {
-    return prisma.reglaPrecioColateral.findMany({
+    return this.prisma.reglaPrecioColateral.findMany({
       where: { organizacionId: orgId },
       include: { parentesco: true },
       orderBy: [
@@ -66,7 +68,7 @@ export class ReglasService {
   }
 
   async crearColateral(orgId: string, dto: CrearReglaColateralDto) {
-    const par = await prisma.parentesco.findUnique({
+    const par = await this.prisma.parentesco.findUnique({
       where: {
         organizacionId_codigo_parentesco: { organizacionId: orgId, codigo: dto.parentescoCodigo },
       },
@@ -74,7 +76,7 @@ export class ReglasService {
     });
     if (!par) throw new Error('Parentesco inexistente');
 
-    return prisma.reglaPrecioColateral.create({
+    return this.prisma.reglaPrecioColateral.create({
       data: {
         organizacionId: orgId,
         parentescoId: par.id,
@@ -90,7 +92,7 @@ export class ReglasService {
 
   editarColateral(orgId: string, id: string, dto: EditarReglaColateralDto) {
     const rid = BigInt(id);
-    return prisma.reglaPrecioColateral.update({
+    return this.prisma.reglaPrecioColateral.update({
       where: { id: rid },
       data: {
         cantidadDesde: dto.cantidadDesde ?? undefined,
@@ -109,6 +111,6 @@ export class ReglasService {
   }
 
   eliminarColateral(orgId: string, id: string) {
-    return prisma.reglaPrecioColateral.delete({ where: { id: BigInt(id) } });
+    return this.prisma.reglaPrecioColateral.delete({ where: { id: BigInt(id) } });
   }
 }

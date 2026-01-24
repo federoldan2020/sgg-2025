@@ -32,12 +32,18 @@ model Organizacion {
   reglasPrecioCoseguro   ReglaPrecioCoseguro[]
   reglasPrecioColateral  ReglaPrecioColateral[]
   coseguros              CoseguroAfiliado[]
+  reintegros             ReintegroSolicitud[]
+  reintegroPoliticas     ReintegroPolitica[]
+  prestacionTipos        PrestacionTipo[]
+  prestacionSubtipos     PrestacionSubtipo[]
+  prestacionPracticas    PrestacionPractica[]
+  prestacionReglas       PrestacionRegla[]
   OrdenCredito           OrdenCredito[]
   OrganizacionConfig     OrganizacionConfig[]
-  NovedadLote            NovedadLote[]
-  NovedadItem            NovedadItem[]
+  NovedadGenerada        NovedadGenerada[]
+  NovedadGeneradaItem    NovedadGeneradaItem[]
+  Novedad                Novedad[]
   CreditoAfiliado        CreditoAfiliado[]
-  LoteNovedad            LoteNovedad[]
   LoteNomina             LoteNomina[]
   CreditoFavor           CreditoFavor[]
   CuentaContable         CuentaContable[]
@@ -84,32 +90,32 @@ model Usuario {
   id             BigInt        @id @default(autoincrement())
   organizacionId String
   email          String
-  username       String?       // opcional, puede usar solo email
+  username       String? // opcional, puede usar solo email
   passwordHash   String
   nombre         String
   apellido       String
   roles          RolUsuario[]
   estado         EstadoUsuario @default(PENDIENTE_ACTIVACION)
-  
+
   // Configuración de seguridad
-  ultimoLogin        DateTime?
-  intentosFallidos   Int       @default(0)
-  bloqueadoHasta     DateTime?
-  cambiarPassword    Boolean   @default(true) // forzar cambio en primer login
-  
+  ultimoLogin      DateTime?
+  intentosFallidos Int       @default(0)
+  bloqueadoHasta   DateTime?
+  cambiarPassword  Boolean   @default(true) // forzar cambio en primer login
+
   // Metadatos
-  creadoEn       DateTime @default(now())
-  actualizadoEn  DateTime @updatedAt
-  creadoPor      BigInt?  // ID del usuario que lo creó
-  
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  creadoPor     BigInt? // ID del usuario que lo creó
+
   // Configuración de acceso
-  sedeId         String?  // para limitar acceso por sede/delegación
-  
-  organizacion   Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  creador        Usuario?        @relation("UsuarioCreador", fields: [creadoPor], references: [id])
-  usuariosCreados Usuario[]      @relation("UsuarioCreador")
-  sesiones       SesionUsuario[]
-  
+  sedeId String? // para limitar acceso por sede/delegación
+
+  organizacion    Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  creador         Usuario?        @relation("UsuarioCreador", fields: [creadoPor], references: [id])
+  usuariosCreados Usuario[]       @relation("UsuarioCreador")
+  sesiones        SesionUsuario[]
+
   @@unique([organizacionId, email])
   @@unique([organizacionId, username])
   @@index([organizacionId, estado])
@@ -117,28 +123,28 @@ model Usuario {
 }
 
 model SesionUsuario {
-  id             String   @id @default(uuid())
+  id             String @id @default(uuid())
   usuarioId      BigInt
   organizacionId String
-  
+
   // Tokens JWT
-  refreshToken   String   @unique
-  tokenFamily    String   // para invalidar familia de tokens en caso de compromiso
-  
+  refreshToken String @unique
+  tokenFamily  String // para invalidar familia de tokens en caso de compromiso
+
   // Metadatos de sesión
-  ipAddress      String?
-  userAgent      String?
-  dispositivo    String?  // móvil, desktop, etc.
-  
+  ipAddress   String?
+  userAgent   String?
+  dispositivo String? // móvil, desktop, etc.
+
   // Control de expiración
-  creadoEn       DateTime @default(now())
-  expiraEn       DateTime
-  ultimoUso      DateTime @default(now())
-  activa         Boolean  @default(true)
-  
-  usuario        Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  
+  creadoEn  DateTime @default(now())
+  expiraEn  DateTime
+  ultimoUso DateTime @default(now())
+  activa    Boolean  @default(true)
+
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
   @@index([usuarioId, activa])
   @@index([organizacionId, usuarioId])
   @@index([refreshToken])
@@ -164,6 +170,7 @@ enum Sistema {
   ESC
   SGR
   SG
+  JUV
 }
 
 // ===================== Afiliado (extendido) =====================
@@ -205,18 +212,19 @@ model Afiliado {
   // ---- Relaciones
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
-  padrones           Padron[]
-  obligaciones       Obligacion[]
-  pagos              Pago[]
-  coseguro           CoseguroAfiliado?
-  OrdenCredito       OrdenCredito[]
-  NovedadItem        NovedadItem[]
-  CreditoAfiliado    CreditoAfiliado[]
-  NovedadDetalle     NovedadDetalle[]
-  NominaDetalle      NominaDetalle[]
-  CreditoFavor       CreditoFavor[]
-  Colateral          Colateral[]
-  MovimientoAfiliado MovimientoAfiliado[]
+  padrones            Padron[]
+  obligaciones        Obligacion[]
+  pagos               Pago[]
+  coseguro            CoseguroAfiliado?
+  OrdenCredito        OrdenCredito[]
+  NovedadGeneradaItem NovedadGeneradaItem[]
+  Novedad             Novedad[]
+  CreditoAfiliado     CreditoAfiliado[]
+  NominaDetalle       NominaDetalle[]
+  CreditoFavor        CreditoFavor[]
+  Colateral           Colateral[]
+  MovimientoAfiliado  MovimientoAfiliado[]
+  ReintegroSolicitud  ReintegroSolicitud[]
 
   // ---- Índices / Uniques
   @@unique([organizacionId, dni], name: "organizacionId_dni")
@@ -262,13 +270,14 @@ model Padron {
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
   obligaciones Obligacion[]
+  reintegros   ReintegroSolicitud[]
 
   // Sprint 2: back-relations nombrados (2 referencias desde CoseguroAfiliado)
   coseguroImputaciones    CoseguroAfiliado[]       @relation("CoseguroImputacion")
   colateralesImputaciones CoseguroAfiliado[]       @relation("ColateralesImputacion")
   OrdenCredito            OrdenCredito[]
-  NovedadItem             NovedadItem[]
-  NovedadDetalle          NovedadDetalle[]
+  NovedadGeneradaItem     NovedadGeneradaItem[]
+  Novedad                 Novedad[]
   NominaDetalle           NominaDetalle[]
   NovedadPendientePadron  NovedadPendientePadron[]
   MovimientoAfiliado      MovimientoAfiliado[]
@@ -294,7 +303,6 @@ model Concepto {
 
   // Relaciones
   obligaciones Obligacion[]
-  NovedadItem  NovedadItem[]
 
   @@unique([organizacionId, codigo], name: "organizacionId_codigo")
   @@index([organizacionId])
@@ -323,22 +331,19 @@ model Obligacion {
   concepto     Concepto     @relation(fields: [conceptoId], references: [id])
 
   // Relaciones
-  aplicaciones      Aplicacion[]
-  OrdenCredito      OrdenCredito[]
-  OrdenCreditoCuota OrdenCreditoCuota[]
+  aplicaciones       Aplicacion[]
+  OrdenCredito       OrdenCredito[]
+  OrdenCreditoCuota  OrdenCreditoCuota[]
+  MovimientoAfiliado MovimientoAfiliado[]
 
-  // Sprint 3 – tracking de envío/conciliación de nómina
-  novedadLoteId       BigInt?
+  // Sprint 3 – tracking de envío/conciliación de nómina (será actualizado en conciliación)
   bloqueada           Boolean   @default(false)
   conciliacionEstado  String    @default("pendiente") // pendiente | descontado | no_descontado | parcial | ajustado
   conciliacionImporte Decimal?  @db.Decimal(12, 2)
   conciliacionFecha   DateTime?
 
-  novedadLote        NovedadLote?         @relation(fields: [novedadLoteId], references: [id])
-  NovedadItemDetalle NovedadItemDetalle[]
-  AplicacionCredito  AplicacionCredito[]
+  AplicacionCredito AplicacionCredito[]
 
-  @@index([organizacionId, novedadLoteId])
   @@index([organizacionId, afiliadoId])
   @@index([organizacionId, conceptoId])
   @@index([organizacionId, periodo])
@@ -479,6 +484,9 @@ model CoseguroAfiliado {
   fechaAlta                     DateTime  @db.Date
   fechaBaja                     DateTime? @db.Date
   estado                        String    @default("activo")
+  suspendidoEn                  DateTime? @db.Date
+  motivoSuspension              String?
+  suspendidoPorId               String?
   imputacionPadronIdCoseguro    BigInt?
   imputacionPadronIdColaterales BigInt?
 
@@ -508,6 +516,7 @@ model Colateral {
   afiliado   Afiliado          @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
   coseguro   CoseguroAfiliado? @relation(fields: [coseguroId], references: [id], onDelete: Cascade) // 👈 AQUÍ EL CAMBIO
   parentesco Parentesco        @relation(fields: [parentescoId], references: [id])
+  reintegros ReintegroSolicitud[]
 
   @@unique([afiliadoId, dni])
   @@index([afiliadoId, esColateral])
@@ -565,6 +574,263 @@ enum PublicacionEstado {
   draft
   publicada
   cancelada
+}
+
+/**
+ * ===================== Reintegros =====================
+ */
+
+enum ReintegroTipo {
+  MEDICAMENTO
+  PRACTICA
+}
+
+enum ReintegroEstado {
+  BORRADOR
+  PRESENTADO
+  EN_REVISION
+  OBSERVADO
+  APROBADO
+  RECHAZADO
+  A_PAGAR
+  PAGADO
+  CERRADO
+}
+
+enum ReintegroPersonaTipo {
+  TITULAR
+  FAMILIAR
+}
+
+enum ReintegroAdjuntoTipo {
+  FACTURA
+  RECETA
+  ORDEN
+  INFORME
+  OTRO
+}
+
+enum ReintegroMedioPago {
+  EFECTIVO
+  TRANSFERENCIA
+  CHEQUE
+  OTRO
+}
+
+enum ReintegroPagoEstado {
+  PENDIENTE
+  PAGADO
+  ANULADO
+}
+
+model ReintegroSolicitud {
+  id             BigInt              @id @default(autoincrement())
+  organizacionId String
+  personaTipo    ReintegroPersonaTipo
+  afiliadoId     BigInt
+  familiarId     BigInt?
+  tipo           ReintegroTipo
+  estado         ReintegroEstado     @default(BORRADOR)
+  fechaFactura   DateTime            @db.Date
+  fechaPresentacion DateTime?        @db.Date
+  importeTotal   Decimal             @db.Decimal(14, 2)
+  importeReintegro Decimal?          @db.Decimal(14, 2)
+  importeAprobado Decimal?           @db.Decimal(14, 2)
+  padronId       BigInt?
+  observaciones  String?             @db.Text
+  creadoPorId    String?
+  creadoAt       DateTime            @default(now())
+  actualizadoAt  DateTime            @updatedAt
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  familiar     Colateral?   @relation(fields: [familiarId], references: [id])
+  padron       Padron?      @relation(fields: [padronId], references: [id])
+  items        ReintegroItem[]
+  adjuntos     ReintegroAdjunto[]
+  historial    ReintegroHistorialEstado[]
+  pagos        ReintegroPago[]
+
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, estado])
+  @@index([organizacionId, tipo])
+  @@index([fechaFactura])
+}
+
+model ReintegroItem {
+  id             BigInt         @id @default(autoincrement())
+  solicitudId    BigInt
+  prestacionId   BigInt?
+  descripcion    String
+  cantidad       Int
+  importe        Decimal        @db.Decimal(14, 2)
+  porcentaje     Decimal?       @db.Decimal(5, 2)
+  importeAprobado Decimal?      @db.Decimal(14, 2)
+  codigoNomenclador String?
+  tipoItem       ReintegroTipo
+
+  solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  prestacion PrestacionPractica? @relation(fields: [prestacionId], references: [id])
+
+  @@index([solicitudId])
+  @@index([prestacionId])
+}
+
+model ReintegroAdjunto {
+  id           BigInt              @id @default(autoincrement())
+  solicitudId  BigInt
+  tipoAdjunto  ReintegroAdjuntoTipo
+  url          String
+  hash         String?
+  mime         String?
+  size         Int?
+  fechaSubida  DateTime            @default(now())
+  subidoPorId  String?
+
+  solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  @@index([solicitudId])
+}
+
+model ReintegroHistorialEstado {
+  id            BigInt           @id @default(autoincrement())
+  solicitudId   BigInt
+  estadoAnterior ReintegroEstado?
+  estadoNuevo   ReintegroEstado
+  observacion   String?
+  actorId       String?
+  fecha         DateTime         @default(now())
+  payloadAntes  Json?
+  payloadDespues Json?
+
+  solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  @@index([solicitudId])
+  @@index([estadoNuevo])
+}
+
+model ReintegroPolitica {
+  id                        BigInt   @id @default(autoincrement())
+  organizacionId            String
+  vigenteDesde              DateTime @db.Date
+  vigenteHasta              DateTime? @db.Date
+  activo                    Boolean  @default(true)
+  topeMensual               Decimal? @db.Decimal(14, 2)
+  topeAnual                 Decimal? @db.Decimal(14, 2)
+  porcentajeMedicamento     Decimal? @db.Decimal(5, 2)
+  porcentajePractica        Decimal? @db.Decimal(5, 2)
+  diasVentanaPresentacion   Int?
+  carenciaMeses             Int?
+  maxOrdenesPorGrupo         Int?
+  maxMedicamentosPorOrden    Int?
+  topesPrestaciones         Json?
+  requisitosAdjuntos        Json?
+  exclusiones               Json?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, vigenteDesde])
+  @@index([organizacionId, activo])
+}
+
+model PrestacionTipo {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  nombre         String
+  descripcion    String?
+  activo         Boolean  @default(true)
+  orden          Int?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  subtipos      PrestacionSubtipo[]
+  practicas     PrestacionPractica[]
+  reglas        PrestacionRegla[]
+
+  @@unique([organizacionId, nombre])
+  @@index([organizacionId, activo])
+}
+
+model PrestacionSubtipo {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  tipoId         BigInt
+  nombre         String
+  descripcion    String?
+  activo         Boolean  @default(true)
+  orden          Int?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tipo         PrestacionTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  practicas    PrestacionPractica[]
+  reglas       PrestacionRegla[]
+
+  @@unique([organizacionId, tipoId, nombre])
+  @@index([organizacionId, tipoId])
+  @@index([organizacionId, activo])
+}
+
+model PrestacionPractica {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  tipoId         BigInt
+  subtipoId      BigInt?
+  codigo         String?
+  nombre         String
+  descripcion    String?
+  activo         Boolean  @default(true)
+  orden          Int?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tipo         PrestacionTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  subtipo      PrestacionSubtipo? @relation(fields: [subtipoId], references: [id])
+  reglas       PrestacionRegla[]
+  reintegros   ReintegroItem[]
+
+  @@index([organizacionId, tipoId])
+  @@index([organizacionId, subtipoId])
+  @@index([organizacionId, codigo])
+  @@index([organizacionId, activo])
+}
+
+model PrestacionRegla {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  tipoId         BigInt?
+  subtipoId      BigInt?
+  practicaId     BigInt?
+  porcentaje     Decimal? @db.Decimal(5, 2)
+  tope           Decimal? @db.Decimal(14, 2)
+  vigenteDesde   DateTime @db.Date
+  vigenteHasta   DateTime? @db.Date
+  activo         Boolean  @default(true)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tipo         PrestacionTipo? @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  subtipo      PrestacionSubtipo? @relation(fields: [subtipoId], references: [id], onDelete: Cascade)
+  practica     PrestacionPractica? @relation(fields: [practicaId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, vigenteDesde])
+  @@index([organizacionId, activo])
+  @@index([organizacionId, tipoId])
+  @@index([organizacionId, subtipoId])
+  @@index([organizacionId, practicaId])
+}
+
+model ReintegroPago {
+  id           BigInt             @id @default(autoincrement())
+  solicitudId  BigInt
+  ordenPagoId  BigInt?
+  comprobanteId String?
+  monto        Decimal            @db.Decimal(14, 2)
+  medioPago    ReintegroMedioPago
+  fechaPago    DateTime?          @db.Date
+  estadoPago   ReintegroPagoEstado @default(PENDIENTE)
+
+  solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  comprobante Comprobante? @relation(fields: [comprobanteId], references: [id])
+
+  @@index([solicitudId])
+  @@index([comprobanteId])
 }
 
 model ReglaPrecioColateralDraft {
@@ -661,7 +927,8 @@ model OrdenCredito {
   obligacion   Obligacion?  @relation(fields: [obligacionId], references: [id])
   comercio     Comercio?    @relation(fields: [comercioId], references: [id])
 
-  cuotas OrdenCreditoCuota[]
+  cuotas             OrdenCreditoCuota[]
+  MovimientoAfiliado MovimientoAfiliado[]
   // @@unique([organizacionId, referenciaExterna]) // habilitar si tu negocio lo necesita
 
   @@index([organizacionId, afiliadoId, estado])
@@ -683,9 +950,10 @@ model OrdenCreditoCuota {
   fechaGeneracionObligacion DateTime?
   fechaCancelacion          DateTime?
 
-  comercio   Comercio?    @relation(fields: [comercioId], references: [id])
-  orden      OrdenCredito @relation(fields: [ordenId], references: [id], onDelete: Cascade)
-  obligacion Obligacion?  @relation(fields: [obligacionId], references: [id])
+  comercio           Comercio?            @relation(fields: [comercioId], references: [id])
+  orden              OrdenCredito         @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  obligacion         Obligacion?          @relation(fields: [obligacionId], references: [id])
+  MovimientoAfiliado MovimientoAfiliado[]
 
   @@unique([ordenId, numero])
   @@unique([ordenId, periodoVenc])
@@ -708,62 +976,46 @@ model OrganizacionConfig {
   @@index([organizacionId])
 }
 
-/// ===================== Novedades a nómina (envío/conciliación) =====================
-model NovedadLote {
-  id             BigInt   @id @default(autoincrement())
-  organizacionId String
-  periodo        String // "YYYY-MM"
-  fechaEnvio     DateTime @default(now())
-  estado         String   @default("enviado") // enviado | conciliado | parcialmente_conciliado | anulado
+/// ===================== Generación automática de novedades (por período) =====================
+model NovedadGenerada {
+  id               BigInt   @id @default(autoincrement())
+  organizacionId   String
+  periodo          String // "YYYY-MM"
+  sistema          String // "ES" | "SG"
+  archivoNombre    String // Ej: "ES3PROVI.AGO"
+  archivoContenido String   @db.Text // Contenido del TXT generado
+  totalRegistros   Int      @default(0)
+  totalImporte     Decimal  @default(0) @db.Decimal(14, 2)
+  generadoPor      String? // Usuario que generó
+  generadoEn       DateTime @default(now())
 
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
-  items      NovedadItem[]
-  Obligacion Obligacion[]
+  items NovedadGeneradaItem[]
 
+  @@unique([organizacionId, periodo, sistema])
   @@index([organizacionId, periodo])
 }
 
-model NovedadItem {
-  id             BigInt  @id @default(autoincrement())
-  novedadLoteId  BigInt
-  organizacionId String
-  afiliadoId     BigInt
-  padronId       BigInt?
-  canal          String // J22, K16, J17, etc. (tu código de descuento externo)
-  conceptoId     BigInt? // cuando aplique (p.ej. CUOTA_SOC, COSEGURO...)
-  importeEnviado Decimal @db.Decimal(12, 2)
+model NovedadGeneradaItem {
+  id                BigInt  @id @default(autoincrement())
+  novedadGeneradaId BigInt
+  organizacionId    String
+  afiliadoId        BigInt
+  padronId          BigInt?
+  padronRaw         String // Número de padrón completo (ej: "123456-7")
+  centro            Int? // Número de centro
+  codigo            String // Código de descuento (ej: "P40", "J17", "J22")
+  importe           Decimal @db.Decimal(12, 2)
 
-  // Datos de conciliación (respuesta de cómputos)
-  importeCobrado     Decimal?  @db.Decimal(12, 2)
-  conciliacionEstado String    @default("pendiente") // pendiente | descontado | no_descontado | parcial | ajustado
-  conciliacionFecha  DateTime?
+  novedadGenerada NovedadGenerada @relation(fields: [novedadGeneradaId], references: [id], onDelete: Cascade)
+  organizacion    Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado        Afiliado        @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron          Padron?         @relation(fields: [padronId], references: [id])
 
-  novedadLote  NovedadLote  @relation(fields: [novedadLoteId], references: [id], onDelete: Cascade)
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  padron       Padron?      @relation(fields: [padronId], references: [id])
-  concepto     Concepto?    @relation(fields: [conceptoId], references: [id])
-
-  // Si K16 agrupa varias obligaciones internas, las linkeamos acá
-  detalles NovedadItemDetalle[]
-
-  @@index([organizacionId, novedadLoteId])
+  @@index([organizacionId, novedadGeneradaId])
   @@index([organizacionId, afiliadoId])
-  @@index([organizacionId, canal])
-}
-
-model NovedadItemDetalle {
-  id            BigInt  @id @default(autoincrement())
-  novedadItemId BigInt
-  obligacionId  BigInt
-  importe       Decimal @db.Decimal(12, 2)
-
-  novedadItem NovedadItem @relation(fields: [novedadItemId], references: [id], onDelete: Cascade)
-  obligacion  Obligacion  @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
-
-  @@index([novedadItemId])
-  @@index([obligacionId])
+  @@index([organizacionId, padronId])
 }
 
 /// ===================== Novedades (Buffer de eventos) =====================
@@ -870,38 +1122,30 @@ model AplicacionCredito {
   @@index([obligacionId])
 }
 
-/// ===================== Lotes de Novedades (salida) =====================
-model LoteNovedad {
+/// ===================== Novedades manuales (carga manual del período en curso) =====================
+model Novedad {
   id             BigInt   @id @default(autoincrement())
   organizacionId String
-  periodo        String // "YYYY-MM"
-  generadoPor    String?
-  generadoEn     DateTime @default(now())
-  totalRegistros Int      @default(0)
-  totalImporte   Decimal  @default(0) @db.Decimal(14, 2)
+  periodo        String // "YYYY-MM" - período en curso
+  afiliadoId     BigInt
+  padronId       BigInt?
+  padronRaw      String // Número de padrón completo (ej: "123456-7")
+  centro         Int? // Número de centro
+  codigo         String // Código de descuento (ej: "P40", "J17", "J22")
+  importe        Decimal  @db.Decimal(12, 2)
+  observacion    String?
+  creadoPor      String? // Usuario que creó la novedad
+  creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @updatedAt
 
-  organizacion Organizacion     @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  detalles     NovedadDetalle[]
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron       Padron?      @relation(fields: [padronId], references: [id])
 
   @@index([organizacionId, periodo])
-}
-
-model NovedadDetalle {
-  id         BigInt  @id @default(autoincrement())
-  loteId     BigInt
-  afiliadoId BigInt
-  padronId   BigInt?
-  // Código “de nómina” a reportar. Ej: J22 (coseguro), J38 (colaterales), K16 (créditos/órdenes)
-  codigo     String
-  // Importe a descontar (positivo). Agregá filas separadas si hay varios conceptos para el mismo afiliado.
-  monto      Decimal @db.Decimal(14, 2)
-
-  lote     LoteNovedad @relation(fields: [loteId], references: [id], onDelete: Cascade)
-  afiliado Afiliado    @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  padron   Padron?     @relation(fields: [padronId], references: [id])
-
-  @@index([loteId])
-  @@index([afiliadoId])
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, padronId])
+  @@index([organizacionId, codigo])
 }
 
 /// ===================== Lotes de Devolución Nómina (entrada) =====================
@@ -1494,6 +1738,7 @@ model Comprobante {
   updatedAt   DateTime @updatedAt
 
   items ComprobanteItem[]
+  reintegroPagos ReintegroPago[]
 
   @@unique([organizacionId, tipo, ptoVta, serie, numero])
   @@index([organizacionId, fechaEmision])
@@ -1541,7 +1786,7 @@ model MovimientoAfiliado {
   organizacionId String
   afiliadoId     BigInt
   padronId       BigInt?
-  fecha          DateTime @default(now())
+  fecha          DateTime @default(now()) // Fecha física del movimiento (para orden cronológico y saldo)
 
   naturaleza NaturalezaMovimientoAf // debito | credito
   origen     OrigenMovimientoAf // trazabilidad funcional
@@ -1568,12 +1813,21 @@ model MovimientoAfiliado {
 
   // performa
   saldoPosterior Decimal? @db.Decimal(14, 2)
+  
+  // Período contable: para agrupar movimientos por período cuando corresponde
+  // Formato: "YYYY-MM" (ej: "2026-02")
+  // Se usa cuando el movimiento corresponde a un período específico (ej: cuota de febrero)
+  // Permite agrupar por período sin afectar el orden cronológico ni el cálculo de saldo
+  periodoContable String? // Período al que corresponde el movimiento (para agrupación/reportes)
 
   // relaciones
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  padron       Padron?      @relation(fields: [padronId], references: [id])
-  asiento      Asiento?     @relation(fields: [asientoId], references: [id])
+  organizacion Organizacion       @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado           @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron       Padron?            @relation(fields: [padronId], references: [id])
+  asiento      Asiento?           @relation(fields: [asientoId], references: [id])
+  obligacion   Obligacion?        @relation(fields: [obligacionId], references: [id])
+  orden        OrdenCredito?      @relation(fields: [ordenId], references: [id])
+  cuota        OrdenCreditoCuota? @relation(fields: [cuotaId], references: [id])
 
   @@index([organizacionId, afiliadoId, fecha, id])
   @@index([organizacionId, afiliadoId])
@@ -1582,4 +1836,5 @@ model MovimientoAfiliado {
   @@index([organizacionId, ordenId])
   @@index([organizacionId, cuotaId])
   @@index([organizacionId, pagoId])
+  @@index([organizacionId, afiliadoId, periodoContable]) // Para agrupar por período
 }

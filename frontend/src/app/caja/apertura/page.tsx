@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cajaService } from "@/servicios/cajaService";
 import { getErrorMessage } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
 
 export default function AperturaCajaPage() {
   const router = useRouter();
@@ -33,10 +34,10 @@ export default function AperturaCajaPage() {
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-semibold mb-2">Apertura de Caja</h1>
       <p className="text-sm text-muted-foreground mb-6">Abrí la caja para habilitar cobros.</p>
-      {msg && <div className="mb-4">{msg}</div>}
-      <button className="btn btn-primary" onClick={abrir} disabled={opening}>
+      {msg && <div className="mb-4 text-sm text-muted-foreground">{msg}</div>}
+      <Button onClick={abrir} disabled={opening}>
         {opening ? "Abriendo…" : "Abrir Caja"}
-      </button>
+      </Button>
     </div>
   );
 }

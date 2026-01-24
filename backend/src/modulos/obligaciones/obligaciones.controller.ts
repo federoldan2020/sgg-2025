@@ -48,4 +48,118 @@ export class ObligacionesController {
       include: { concepto: true, padron: true },
     });
   }
+
+  @Get('pendientes')
+  async pendientes(
+    @Req() req,
+    @Query('afiliadoId') afiliadoId: string,
+    @Query('padronId') padronId?: string,
+  ) {
+    const org = req.organizacionId;
+    if (!org) throw new Error('Falta organización');
+    if (!afiliadoId) throw new Error('afiliadoId requerido');
+
+    const afiliadoIdBig = BigInt(afiliadoId);
+
+    // ===== 1) Obligaciones pendientes =====
+    const whereObl: any = {
+      organizacionId: org,
+      afiliadoId: afiliadoIdBig,
+      saldo: { gt: 0 }, // Solo pendientes (saldo > 0)
+    };
+
+    if (padronId) {
+      whereObl.padronId = BigInt(padronId);
+    }
+
+    const obligaciones = await prisma.obligacion.findMany({
+      where: whereObl,
+      include: {
+        concepto: { select: { codigo: true, nombre: true } },
+        padron: { select: { id: true, padron: true, sistema: true, centro: true } },
+      },
+      orderBy: [{ periodo: 'desc' }, { id: 'asc' }],
+    });
+
+    // ===== 2) Cuotas de órdenes de crédito pendientes =====
+    const whereOrden: any = {
+      organizacionId: org,
+      afiliadoId: afiliadoIdBig,
+      estado: { in: ['pendiente', 'en_curso'] },
+      cuotas: {
+        some: {
+          saldo: { gt: 0 },
+          estado: { in: ['pendiente', 'generada', 'parcialmente_pagada'] },
+        },
+      },
+    };
+
+    if (padronId) {
+      whereOrden.padronId = BigInt(padronId);
+    }
+
+    const ordenes = await prisma.ordenCredito.findMany({
+      where: whereOrden,
+      include: {
+        padron: { select: { id: true, padron: true, sistema: true, centro: true } },
+        cuotas: {
+          where: {
+            saldo: { gt: 0 },
+            estado: { in: ['pendiente', 'generada', 'parcialmente_pagada'] },
+          },
+          orderBy: [{ numero: 'asc' }],
+        },
+      },
+      orderBy: [{ fechaAlta: 'desc' }],
+    });
+
+    // ===== 3) Formatear respuesta combinada =====
+    const resultado: any[] = [];
+
+    // Obligaciones
+    for (const o of obligaciones) {
+      resultado.push({
+        id: `OBL-${o.id.toString()}`,
+        obligacionId: o.id.toString(),
+        tipo: 'obligacion',
+        padronLabel: o.padron
+          ? `${o.padron.padron}${o.padron.centro ? ` (Centro: ${o.padron.centro})` : ''}`
+          : 'Sin padrón',
+        concepto: o.concepto?.nombre || o.concepto?.codigo || 'Sin concepto',
+        saldo: Number(o.saldo),
+        periodo: o.periodo,
+        monto: Number(o.monto),
+      });
+    }
+
+    // Cuotas de órdenes de crédito
+    for (const orden of ordenes) {
+      for (const cuota of orden.cuotas) {
+        const concepto = `ORD#${orden.id.toString()} - Cuota ${cuota.numero}${orden.cantidadCuotas ? `/${orden.cantidadCuotas}` : ''} (${cuota.periodoVenc})`;
+        resultado.push({
+          id: `CUO-${cuota.id.toString()}`,
+          cuotaId: cuota.id.toString(),
+          ordenId: orden.id.toString(),
+          tipo: 'cuota',
+          padronLabel: orden.padron
+            ? `${orden.padron.padron}${orden.padron.centro ? ` (Centro: ${orden.padron.centro})` : ''}`
+            : 'Sin padrón',
+          concepto: orden.descripcion || concepto,
+          saldo: Number(cuota.saldo),
+          periodo: cuota.periodoVenc,
+          monto: Number(cuota.importe),
+        });
+      }
+    }
+
+    // Ordenar por período descendente y luego por ID
+    resultado.sort((a, b) => {
+      if (a.periodo !== b.periodo) {
+        return (b.periodo || '').localeCompare(a.periodo || '');
+      }
+      return a.id.localeCompare(b.id);
+    });
+
+    return resultado;
+  }
 }

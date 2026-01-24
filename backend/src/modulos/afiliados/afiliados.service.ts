@@ -61,11 +61,48 @@ export class AfiliadosService {
     const q = qdto.q.trim();
     const isNumeric = /^\d+$/.test(q);
 
+    // Detectar si el query es un padrón (formato: "123456-7" o "1234567")
+    const padronNormalizado = q.replace(/\s+/g, '').replace(/-/g, '');
+    const padronMatch = padronNormalizado.match(/^(\d{6})(\d{1})$/);
+    
+    const where: any = { organizacionId };
+    
+    // Si es un padrón, buscar directamente por padrón
+    if (padronMatch) {
+      const padronBase = padronMatch[1];
+      const padronDV = padronMatch[2];
+      const padronFormateado = `${padronBase}-${padronDV}`;
+      
+      const items = await this.prisma.afiliado.findMany({
+        where: {
+          organizacionId,
+          padrones: {
+            some: {
+              padron: padronFormateado,
+            },
+          },
+        },
+        select: { id: true, dni: true, apellido: true, nombre: true },
+        orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+        take: 10,
+      });
+
+      return items.map((a) => ({
+        id: a.id,
+        dni: a.dni,
+        apellido: a.apellido,
+        nombre: a.nombre,
+        display:
+          a.apellido && a.nombre
+            ? `${a.apellido}, ${a.nombre}`
+            : a.apellido || a.nombre || '(sin nombre)',
+      }));
+    }
+
     // Armamos un OR que cubra:
     // - DNI numérico (match exacto o contains por si falta dígito)
     // - Apellido contains (caso migrado ape_nom en 'apellido')
     // - Nombre contains (si está bien normalizado)
-    const where: any = { organizacionId };
     const OR: any[] = [];
 
     if (isNumeric) {
@@ -82,9 +119,12 @@ export class AfiliadosService {
     });
 
     // Devolvemos lightweight + display listo para frontend
+    // Compatibilidad: algunos componentes esperan apellido/nombre separados
     const map = items.map((a) => ({
       id: a.id,
       dni: a.dni,
+      apellido: a.apellido,
+      nombre: a.nombre,
       display:
         a.apellido && a.nombre
           ? `${a.apellido}, ${a.nombre}`
@@ -124,14 +164,37 @@ export class AfiliadosService {
           }
         : {}),
       ...(q
-        ? {
-            OR: [
-              { apellido: { contains: q, mode: 'insensitive' } },
-              { nombre: { contains: q, mode: 'insensitive' } },
-              { cuit: { contains: q, mode: 'insensitive' } },
-              ...(Number.isFinite(Number(q)) ? [{ dni: BigInt(q) }] : []),
-            ],
-          }
+        ? (() => {
+            // Detectar si el query es un padrón (formato: "123456-7" o "1234567")
+            // Acepta formatos: "642574-1", "6425741", "642574 1", etc.
+            const padronNormalizado = q.trim().replace(/\s+/g, '').replace(/-/g, '');
+            const padronMatch = padronNormalizado.match(/^(\d{6})(\d{1})$/);
+            
+            if (padronMatch) {
+              // Es un padrón, buscar afiliados con ese padrón
+              const padronBase = padronMatch[1];
+              const padronDV = padronMatch[2];
+              const padronFormateado = `${padronBase}-${padronDV}`;
+              
+              return {
+                padrones: {
+                  some: {
+                    padron: padronFormateado,
+                  },
+                },
+              };
+            }
+            
+            // Búsqueda normal por apellido, nombre, cuit o DNI
+            return {
+              OR: [
+                { apellido: { contains: q, mode: 'insensitive' } },
+                { nombre: { contains: q, mode: 'insensitive' } },
+                { cuit: { contains: q, mode: 'insensitive' } },
+                ...(Number.isFinite(Number(q)) ? [{ dni: BigInt(q) }] : []),
+              ],
+            };
+          })()
         : {}),
     };
 

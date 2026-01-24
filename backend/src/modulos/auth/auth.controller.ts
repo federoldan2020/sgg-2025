@@ -11,11 +11,17 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  async login(@Body() dto: LoginDto, @Req() req: Request) {
+  async login(@Body() dto: LoginDto, @Req() req: Request & { organizacionId?: string }) {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    return this.authService.login(dto, ipAddress, userAgent);
+    // Tomar organizacionId del header (middleware) o del body
+    const loginDto = {
+      ...dto,
+      organizacionId: req.organizacionId || dto.organizacionId,
+    };
+    
+    return this.authService.login(loginDto, ipAddress, userAgent);
   }
 
   @Public()

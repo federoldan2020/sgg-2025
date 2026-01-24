@@ -25,5 +25,24 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Prisma (si aplica)
+# Prisma
 prisma/*.db
+*.sqlite
+
+# SSL Certificates
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+
+# Storage
+storage/comprobantes/*
+!storage/comprobantes/.gitkeep
+
+# Docker overrides
+docker-compose.override.yml
+
+# Cache
+.cache
+.temp
+*.bak
+*.tmp

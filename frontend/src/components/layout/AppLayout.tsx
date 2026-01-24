@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import Header from "./Header";
 import SidebarNav from "./SidebarNav";
 import AuthGuard from "../auth/AuthGuard";
@@ -18,6 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { usuario } = useAuth();
+  const pathname = usePathname();
 
   // Mapear roles del usuario autenticado al formato esperado por el nav
   const userRoles: Role[] = usuario?.roles as Role[] || [];
@@ -25,6 +27,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     name: usuario ? `${usuario.nombre} ${usuario.apellido}` : "Usuario",
     roles: userRoles,
   }), [usuario]);
+
+  // Si estamos en la página de login, no usar AuthGuard ni layout
+  if (pathname === '/login') {
+    return <>{children}</>;
+  }
 
   return (
     <AuthGuard>
@@ -37,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
 
           {/* Contenedor principal con sidebar y contenido */}
-          <div className="app-content">
+          <div className={`app-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
             <SidebarNav
               roles={ctx.roles}
               mobileOpen={mobileOpen}

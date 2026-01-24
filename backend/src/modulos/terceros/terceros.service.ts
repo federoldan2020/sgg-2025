@@ -409,41 +409,230 @@ export class TercerosService {
 
   /* ===== Autocomplete / buscar ===== */
   async buscar(organizacionId: string, q: string, rol?: RolTercero | null, limit = 20) {
-    const where: P.TerceroWhereInput = {
-      organizacionId,
-      OR: [
-        { nombre: { contains: q, mode: 'insensitive' } },
-        { fantasia: { contains: q, mode: 'insensitive' } },
-        { cuit: { contains: q } },
-        { codigo: { contains: q, mode: 'insensitive' } },
-      ],
-      ...(rol ? { roles: { some: { rol } } } : {}),
-    };
+    try {
+      // Si la búsqueda es un código exacto que empieza con "AFI-", buscar directamente por código
+      const esCodigoExacto = q.trim().startsWith('AFI-') && /^AFI-\d+$/.test(q.trim());
+      
+      let where: P.TerceroWhereInput;
+      if (esCodigoExacto && rol === RolTercero.AFILIADO) {
+        // Búsqueda exacta por código
+        where = {
+          organizacionId,
+          codigo: q.trim(),
+          roles: { some: { rol: RolTercero.AFILIADO } },
+        };
+      } else {
+        where = {
+          organizacionId,
+          OR: [
+            { nombre: { contains: q, mode: 'insensitive' } },
+            { fantasia: { contains: q, mode: 'insensitive' } },
+            { cuit: { contains: q } },
+            { codigo: { contains: q, mode: 'insensitive' } },
+          ],
+          ...(rol ? { roles: { some: { rol } } } : {}),
+        };
+      }
 
-    const rows = await prisma.tercero.findMany({
-      where,
-      orderBy: [{ nombre: 'asc' }],
-      take: limit,
-      select: {
-        id: true,
-        nombre: true,
-        fantasia: true,
-        cuit: true,
-        codigo: true,
-        activo: true,
-        roles: { select: { rol: true } },
-      },
-    });
+      const rows = await prisma.tercero.findMany({
+        where,
+        orderBy: [{ nombre: 'asc' }],
+        take: limit,
+        select: {
+          id: true,
+          nombre: true,
+          fantasia: true,
+          cuit: true,
+          codigo: true,
+          activo: true,
+          roles: { select: { rol: true } },
+        },
+      });
 
-    return rows.map((r) => ({
-      id: r.id.toString(), // 👈 el front espera string
-      nombre: r.nombre,
-      fantasia: r.fantasia,
-      cuit: r.cuit,
-      codigo: r.codigo,
-      activo: r.activo,
-      roles: r.roles.map((x) => x.rol),
-    }));
+      const result = rows.map((r) => ({
+        id: r.id.toString(), // 👈 el front espera string
+        nombre: r.nombre,
+        fantasia: r.fantasia,
+        cuit: r.cuit,
+        codigo: r.codigo,
+        activo: r.activo,
+        roles: r.roles.map((x) => x.rol),
+      }));
+
+      // Si el rol es AFILIADO y no encontramos el tercero por código exacto, crear/obtener desde afiliado
+      if (rol === RolTercero.AFILIADO && esCodigoExacto && result.length === 0) {
+        // Extraer el ID del afiliado del código
+        const afiliadoIdStr = q.trim().replace('AFI-', '');
+        try {
+          const afiliadoId = BigInt(afiliadoIdStr);
+          const afiliado = await prisma.afiliado.findFirst({
+            where: { id: afiliadoId, organizacionId },
+            select: {
+              id: true,
+              dni: true,
+              apellido: true,
+              nombre: true,
+              cuit: true,
+            },
+          });
+
+          if (afiliado) {
+            const codigo = `AFI-${afiliado.id.toString()}`;
+            const nombre = `${afiliado.apellido || ''} ${afiliado.nombre || ''}`.trim() || `Afiliado ${afiliado.id.toString()}`;
+
+            // Crear el tercero
+            const nuevoTercero = await prisma.$transaction(async (tx) => {
+              const tercero = await tx.tercero.create({
+                data: {
+                  organizacionId,
+                  codigo,
+                  nombre,
+                  cuit: afiliado.cuit ?? String(afiliado.dni),
+                  activo: true,
+                },
+                select: {
+                  id: true,
+                  nombre: true,
+                  fantasia: true,
+                  cuit: true,
+                  codigo: true,
+                  activo: true,
+                },
+              });
+
+              await tx.terceroRol.create({
+                data: {
+                  terceroId: tercero.id,
+                  rol: RolTercero.AFILIADO,
+                },
+              });
+
+              return tercero;
+            });
+
+            result.push({
+              id: nuevoTercero.id.toString(),
+              nombre: nuevoTercero.nombre,
+              fantasia: nuevoTercero.fantasia,
+              cuit: nuevoTercero.cuit,
+              codigo: nuevoTercero.codigo,
+              activo: nuevoTercero.activo,
+              roles: [RolTercero.AFILIADO],
+            });
+          }
+        } catch {
+          // Si no se puede parsear el ID, continuar con la búsqueda normal
+        }
+      }
+
+      // Si el rol es AFILIADO, también buscar en afiliados y devolver/crear terceros
+      if (rol === RolTercero.AFILIADO && !esCodigoExacto) {
+        const isNumeric = /^\d+$/.test(q.trim());
+        const afiliadosWhere: P.AfiliadoWhereInput = {
+          organizacionId,
+          OR: isNumeric
+            ? [{ dni: BigInt(q.trim()) }, { apellido: { contains: q, mode: 'insensitive' } }, { nombre: { contains: q, mode: 'insensitive' } }]
+            : [{ apellido: { contains: q, mode: 'insensitive' } }, { nombre: { contains: q, mode: 'insensitive' } }],
+        };
+
+        const afiliados = await prisma.afiliado.findMany({
+          where: afiliadosWhere,
+          orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+          take: limit,
+          select: {
+            id: true,
+            dni: true,
+            apellido: true,
+            nombre: true,
+            cuit: true,
+          },
+        });
+
+        // Para cada afiliado, obtener o crear el tercero correspondiente
+        for (const afiliado of afiliados) {
+          const codigo = `AFI-${afiliado.id.toString()}`;
+          const nombre = `${afiliado.apellido || ''} ${afiliado.nombre || ''}`.trim() || `Afiliado ${afiliado.id.toString()}`;
+
+          // Buscar si ya existe el tercero
+          const terceroExistente = await prisma.tercero.findFirst({
+            where: {
+              organizacionId,
+              codigo,
+            },
+            select: {
+              id: true,
+              nombre: true,
+              fantasia: true,
+              cuit: true,
+              codigo: true,
+              activo: true,
+              roles: { select: { rol: true } },
+            },
+          });
+
+          if (terceroExistente) {
+            // Ya existe, agregarlo si no está ya en el resultado
+            if (!result.some((r) => r.id === terceroExistente.id.toString())) {
+              result.push({
+                id: terceroExistente.id.toString(),
+                nombre: terceroExistente.nombre,
+                fantasia: terceroExistente.fantasia,
+                cuit: terceroExistente.cuit,
+                codigo: terceroExistente.codigo,
+                activo: terceroExistente.activo,
+                roles: terceroExistente.roles.map((x) => x.rol),
+              });
+            }
+          } else {
+            // No existe, crearlo
+            const nuevoTercero = await prisma.$transaction(async (tx) => {
+              const tercero = await tx.tercero.create({
+                data: {
+                  organizacionId,
+                  codigo,
+                  nombre,
+                  cuit: afiliado.cuit ?? String(afiliado.dni),
+                  activo: true,
+                },
+                select: {
+                  id: true,
+                  nombre: true,
+                  fantasia: true,
+                  cuit: true,
+                  codigo: true,
+                  activo: true,
+                },
+              });
+
+              await tx.terceroRol.create({
+                data: {
+                  terceroId: tercero.id,
+                  rol: RolTercero.AFILIADO,
+                },
+              });
+
+              return tercero;
+            });
+
+            result.push({
+              id: nuevoTercero.id.toString(),
+              nombre: nuevoTercero.nombre,
+              fantasia: nuevoTercero.fantasia,
+              cuit: nuevoTercero.cuit,
+              codigo: nuevoTercero.codigo,
+              activo: nuevoTercero.activo,
+              roles: [RolTercero.AFILIADO],
+            });
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      // En caso de error, devolver array vacío
+      console.error('Error en buscar terceros:', error);
+      return [];
+    }
   }
 
   /* =================== normalización upsert =================== */

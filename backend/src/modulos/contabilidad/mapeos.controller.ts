@@ -2,6 +2,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ContabilidadService } from './contabilidad.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 type ReqOrg = Request & { organizacionId?: string };
 
@@ -132,6 +133,29 @@ export class MapeosController {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
     return this.svc.seedMapeosCierreCaja(org);
+  }
+
+  // POST /contabilidad/mapeos/seed-nomina
+  // Crea mapeos para descuentos de nómina (J17, J22, J38, K16)
+  @Public() // Solo para desarrollo - quitar en producción
+  @Post('seed-nomina')
+  async seedNomina(
+    @Req() req: ReqOrg,
+    @Body()
+    body?: {
+      organizacionId?: string; // Para llamadas públicas (dev)
+      cuentas?: {
+        banco?: string;  // Cuenta banco donde llega la transferencia
+        j17?: string;    // Ingresos Cuota Sindical
+        j22?: string;    // Coseguro Dif. Titular
+        j38?: string;    // Coseguro Colat. Titular
+        k16?: string;    // Descuento Crédito
+      };
+    },
+  ) {
+    // Usar organizacionId del body (dev) o del middleware auth
+    const org = body?.organizacionId ?? req.organizacionId ?? 'org_default';
+    return this.svc.seedMapeosNomina(org, body);
   }
 
   // POST /contabilidad/mapeos/seed-terceros

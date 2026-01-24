@@ -23,9 +23,12 @@ import { ComerciosModule } from './modulos/comercios/comercios.module';
 import { MovimientosModule } from './modulos/movimientos/movimientos.module';
 import { AuthModule } from './modulos/auth/auth.module';
 import { JwtAuthGuard } from './modulos/auth/guards/jwt-auth.guard';
+import { ReintegrosModule } from './modulos/reintegros/reintegros.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
+    HealthModule,
     AuthModule,
     AfiliadosModule,
     PadronesModule,
@@ -42,6 +45,7 @@ import { JwtAuthGuard } from './modulos/auth/guards/jwt-auth.guard';
     PublicacionesModule,
     ComerciosModule,
     MovimientosModule,
+    ReintegrosModule,
   ],
   controllers: [
     AfiliadosController,

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getErrorMessage } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Rol = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
 
@@ -229,10 +231,8 @@ export default function TercerosListadoPage() {
           </p>
         </div>
         <div className="page-actions">
-          <button
-            className={`btn ${
-              data?.items.length ? "btn-secondary" : "btn-disabled"
-            }`}
+          <Button
+            variant="secondary"
             onClick={exportCSV}
             disabled={!data?.items.length}
             title="Exportar a CSV"
@@ -252,8 +252,9 @@ export default function TercerosListadoPage() {
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             Exportar
-          </button>
-          <Link href="/terceros/new" className="btn btn-primary">
+          </Button>
+          <Button asChild>
+            <Link href="/terceros/new">
             <svg
               width="16"
               height="16"
@@ -268,7 +269,8 @@ export default function TercerosListadoPage() {
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             Nuevo Tercero
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -308,8 +310,8 @@ export default function TercerosListadoPage() {
               </p>
             </div>
             {hasFilters && (
-              <button
-                className="btn btn-ghost"
+              <Button
+                variant="ghost"
                 onClick={clearFilters}
                 title="Limpiar filtros"
               >
@@ -327,7 +329,7 @@ export default function TercerosListadoPage() {
                   <path d="m19 6-3-3H8L5 6" />
                 </svg>
                 Limpiar
-              </button>
+              </Button>
             )}
           </div>
 
@@ -349,7 +351,7 @@ export default function TercerosListadoPage() {
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
-                <input
+                <Input
                   className="form-input form-input-with-icon"
                   placeholder="Nombre, fantasía, CUIT o código..."
                   value={q}
@@ -359,7 +361,9 @@ export default function TercerosListadoPage() {
                   }}
                 />
                 {q && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="form-input-clear"
                     onClick={() => {
                       setQ("");
@@ -380,7 +384,7 @@ export default function TercerosListadoPage() {
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -630,9 +634,9 @@ export default function TercerosListadoPage() {
                   : "No hay terceros registrados. Crea tu primer tercero para empezar"}
               </div>
               {hasFilters && (
-                <button className="btn btn-secondary" onClick={clearFilters}>
+                <Button variant="secondary" onClick={clearFilters}>
                   Limpiar filtros
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -705,11 +709,8 @@ export default function TercerosListadoPage() {
                         </td>
                         <td className="table-col-actions">
                           <div className="action-buttons">
-                            <Link
-                              href={`/terceros/${tercero.id}`}
-                              className="btn btn-ghost btn-sm"
-                              title="Ver tercero"
-                            >
+                            <Button asChild variant="ghost" size="sm" title="Ver tercero">
+                              <Link href={`/terceros/${tercero.id}`}>
                               <svg
                                 width="14"
                                 height="14"
@@ -724,12 +725,10 @@ export default function TercerosListadoPage() {
                                 <circle cx="12" cy="12" r="3" />
                               </svg>
                               Ver
-                            </Link>
-                            <Link
-                              href={`/terceros/${tercero.id}`}
-                              className="btn btn-ghost btn-sm"
-                              title="Editar tercero"
-                            >
+                              </Link>
+                            </Button>
+                            <Button asChild variant="ghost" size="sm" title="Editar tercero">
+                              <Link href={`/terceros/${tercero.id}`}>
                               <svg
                                 width="14"
                                 height="14"
@@ -744,9 +743,10 @@ export default function TercerosListadoPage() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                               Editar
-                            </Link>
-                            <button
-                              className="btn btn-primary btn-sm"
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
                               title="Ver cuentas"
                               onClick={() => verCuenta(tercero.id)}
                             >
@@ -765,7 +765,7 @@ export default function TercerosListadoPage() {
                                 <path d="M21 12H9" />
                               </svg>
                               Cuentas
-                            </button>
+                            </Button>
                           </div>
 
                           {/* Panel cuentas expandible */}
@@ -889,10 +889,10 @@ export default function TercerosListadoPage() {
               </span>
             </div>
             <div className="pagination-controls">
-              <button
-                className={`btn btn-ghost ${
-                  data.page <= 1 ? "btn-disabled" : ""
-                }`}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`btn btn-ghost ${data.page <= 1 ? "btn-disabled" : ""}`}
                 disabled={loading || data.page <= 1}
                 onClick={() => setPage(1)}
                 title="Primera página"
@@ -910,11 +910,11 @@ export default function TercerosListadoPage() {
                   <polygon points="19 20 9 12 19 4 19 20" />
                   <line x1="5" y1="19" x2="5" y2="5" />
                 </svg>
-              </button>
-              <button
-                className={`btn btn-ghost ${
-                  data.page <= 1 ? "btn-disabled" : ""
-                }`}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`btn btn-ghost ${data.page <= 1 ? "btn-disabled" : ""}`}
                 disabled={loading || data.page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 title="Página anterior"
@@ -932,14 +932,14 @@ export default function TercerosListadoPage() {
                   <polyline points="15,18 9,12 15,6" />
                 </svg>
                 Anterior
-              </button>
+              </Button>
               <span className="pagination-current">
                 {data.page} / {data.pages}
               </span>
-              <button
-                className={`btn btn-ghost ${
-                  data.page >= data.pages ? "btn-disabled" : ""
-                }`}
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`btn btn-ghost ${data.page >= data.pages ? "btn-disabled" : ""}`}
                 disabled={loading || data.page >= data.pages}
                 onClick={() => setPage((p) => p + 1)}
                 title="Página siguiente"
@@ -957,11 +957,11 @@ export default function TercerosListadoPage() {
                 >
                   <polyline points="9,18 15,12 9,6" />
                 </svg>
-              </button>
-              <button
-                className={`btn btn-ghost ${
-                  data.page >= data.pages ? "btn-disabled" : ""
-                }`}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`btn btn-ghost ${data.page >= data.pages ? "btn-disabled" : ""}`}
                 disabled={loading || data.page >= data.pages}
                 onClick={() => setPage(data.pages)}
                 title="Última página"
@@ -979,7 +979,7 @@ export default function TercerosListadoPage() {
                   <line x1="19" y1="5" x2="19" y2="19" />
                   <polygon points="5 4 15 12 5 20 5 4" />
                 </svg>
-              </button>
+              </Button>
             </div>
           </div>
         )}

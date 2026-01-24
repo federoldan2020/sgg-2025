@@ -47,6 +47,7 @@ export interface AfiliadoCsvRow {
   dni: string;
   apellido: string;
   nombre: string;
+  apellidoNombre?: string;
   cuit?: string;
   sexo?: string;
   tipo?: string;
@@ -67,6 +68,29 @@ export interface AfiliadoCsvRow {
   numeroSocio?: string;
   cupo?: string;
   observaciones?: string;
+  // --- Padron ---
+  padron?: string;
+  sistema?: string;
+  centro?: string;
+  sector?: string;
+  clase?: string;
+  situacion?: string;
+  fechaAlta?: string;
+  fechaBaja?: string;
+  activo?: string;
+  motivoBaja?: string;
+  cajaAhorro?: string;
+  beneficiarioJubilado?: string;
+  sueldoBasico?: string;
+  padronCupo?: string;
+  padronSaldo?: string;
+  j17?: string;
+  j22?: string;
+  j38?: string;
+  j38a?: string;
+  j38b?: string;
+  j38c?: string;
+  k16?: string;
   _modo?: string;
 }
 
@@ -79,7 +103,6 @@ export interface ValidationIssue {
 }
 
 export interface CambioDetectado {
-  campo: string;
   anterior: any;
   nuevo: any;
 }
@@ -88,6 +111,7 @@ export interface OperacionPreview {
   fila: number;
   operacion: 'CREAR' | 'ACTUALIZAR' | 'ERROR' | 'WARNING';
   dni: string;
+  padron?: string;
   nombre?: string;
   status: 'OK' | 'ERROR' | 'WARNING';
   mensaje?: string;

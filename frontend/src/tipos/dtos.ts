@@ -40,7 +40,7 @@ export interface CrearAfiliadoResp {
 }
 
 // ---------- Coseguro / Colaterales ----------
-export type Sistema = "ESC" | "SGR" | "SG";
+export type Sistema = "ESC" | "SGR" | "SG" | "JUV";
 
 export interface ColateralMinDto {
   parentescoId: number;

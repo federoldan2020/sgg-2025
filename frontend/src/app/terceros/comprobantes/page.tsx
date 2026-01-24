@@ -3,6 +3,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, ORG, getErrorMessage } from "@/servicios/api";
+import { formatearFechaArgentina } from "@/utiles/formatos";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table } from "@/components/ui/table";
 
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
 type Tipo = "FACTURA" | "PRESTACION" | "NOTA_CREDITO" | "NOTA_DEBITO";
@@ -37,7 +41,7 @@ const fmtMoney = (n: number | null | undefined) =>
   });
 
 const fmtDate = (s?: string | null) =>
-  s ? new Date(s).toLocaleDateString("es-AR") : "—";
+  s ? formatearFechaArgentina(s) : "—";
 
 export default function ComprobantesListadoPage() {
   const [q, setQ] = useState("");
@@ -160,7 +164,8 @@ export default function ComprobantesListadoPage() {
           <p className="page-subtitle">Gestión y consulta de comprobantes del sistema</p>
         </div>
         <div className="page-actions">
-          <a href="/terceros/comprobantes/nuevo" className="btn btn-primary">
+          <Button asChild>
+            <a href="/terceros/comprobantes/nuevo">
             <svg
               width="16"
               height="16"
@@ -178,7 +183,8 @@ export default function ComprobantesListadoPage() {
               <line x1="10" y1="9" x2="8" y2="9" />
             </svg>
             Nuevo Comprobante
-          </a>
+            </a>
+          </Button>
         </div>
       </div>
 
@@ -226,7 +232,7 @@ export default function ComprobantesListadoPage() {
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
-              <input
+              <Input
                 className="search-input"
                 placeholder="Buscar por tercero, CUIT o número..."
                 value={q}
@@ -301,9 +307,9 @@ export default function ComprobantesListadoPage() {
             </div>
 
             {hasActiveFilters && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={handleClearFilters}
-                className="btn btn-secondary"
                 title="Limpiar todos los filtros"
               >
                 <svg
@@ -323,7 +329,7 @@ export default function ComprobantesListadoPage() {
                   <line x1="14" y1="11" x2="14" y2="17" />
                 </svg>
                 Limpiar filtros
-              </button>
+              </Button>
             )}
           </div>
 
@@ -388,11 +394,12 @@ export default function ComprobantesListadoPage() {
                   : "Comienza creando el primer comprobante del sistema"}
               </div>
               {hasActiveFilters ? (
-                <button onClick={handleClearFilters} className="btn btn-secondary">
+                <Button variant="secondary" onClick={handleClearFilters}>
                   Limpiar filtros
-                </button>
+                </Button>
               ) : (
-                <a href="/terceros/comprobantes/nuevo" className="btn btn-primary">
+                <Button asChild>
+                  <a href="/terceros/comprobantes/nuevo">
                   <svg
                     width="16"
                     height="16"
@@ -410,12 +417,13 @@ export default function ComprobantesListadoPage() {
                     <line x1="10" y1="9" x2="8" y2="9" />
                   </svg>
                   Crear primer comprobante
-                </a>
+                  </a>
+                </Button>
               )}
             </div>
           ) : (
             <div className="table-container">
-              <table className="data-table">
+              <Table className="data-table">
                 <thead>
                   <tr>
                     <th>Comprobante</th>
@@ -473,11 +481,8 @@ export default function ComprobantesListadoPage() {
                         <td className="table-col-center">
                           <div className="actions-group">
                             {r.cuentaId && (
-                              <a
-                                href={`/finanzas/cuentas/${r.cuentaId}`}
-                                className="btn btn-secondary btn-sm"
-                                title="Ver cuenta asociada"
-                              >
+                              <Button asChild variant="secondary" size="sm" title="Ver cuenta asociada">
+                                <a href={`/finanzas/cuentas/${r.cuentaId}`}>
                                 <svg
                                   width="14"
                                   height="14"
@@ -492,13 +497,13 @@ export default function ComprobantesListadoPage() {
                                   <circle cx="12" cy="12" r="3" />
                                 </svg>
                                 Cuenta
-                              </a>
+                                </a>
+                              </Button>
                             )}
                             {r.estado !== "anulado" && (
-                              <button
-                                className={`btn btn-sm ${
-                                  anulando === r.id ? "btn-disabled" : "btn-danger"
-                                }`}
+                              <Button
+                                variant="destructive"
+                                size="sm"
                                 onClick={() => anular(r.id)}
                                 disabled={anulando === r.id}
                                 title="Anular comprobante"
@@ -539,7 +544,7 @@ export default function ComprobantesListadoPage() {
                                     Anular
                                   </>
                                 )}
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -547,7 +552,7 @@ export default function ComprobantesListadoPage() {
                     );
                   })}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </div>
@@ -561,7 +566,9 @@ export default function ComprobantesListadoPage() {
               </span>
             </div>
             <div className="pagination-controls">
-              <button
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage(1)}
                 disabled={data.page <= 1}
@@ -580,8 +587,10 @@ export default function ComprobantesListadoPage() {
                   <polyline points="11,17 6,12 11,7" />
                   <polyline points="18,17 13,12 18,7" />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={data.page <= 1}
@@ -599,9 +608,11 @@ export default function ComprobantesListadoPage() {
                 >
                   <polyline points="15,18 9,12 15,6" />
                 </svg>
-              </button>
+              </Button>
               <span className="pagination-current">{data.page}</span>
-              <button
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={data.page >= data.pages}
@@ -619,8 +630,10 @@ export default function ComprobantesListadoPage() {
                 >
                   <polyline points="9,18 15,12 9,6" />
                 </svg>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 className="pagination-btn"
                 onClick={() => setPage(data.pages)}
                 disabled={data.page >= data.pages}
@@ -639,7 +652,7 @@ export default function ComprobantesListadoPage() {
                   <polyline points="13,17 18,12 13,7" />
                   <polyline points="6,17 11,12 6,7" />
                 </svg>
-              </button>
+              </Button>
             </div>
           </div>
         )}

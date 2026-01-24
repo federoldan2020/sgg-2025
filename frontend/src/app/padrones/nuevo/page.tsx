@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
+import { InputFecha } from "@/components/InputFecha";
 import type {
   CrearPadronDto,
   CrearPadronResp,
@@ -32,7 +33,7 @@ import {
 } from "lucide-react";
 import { usePadronMask } from "@/hooks/usePadronMask";
 
-const SISTEMAS: Sistema[] = ["ESC", "SGR", "SG"];
+const SISTEMAS: Sistema[] = ["ESC", "SGR", "SG", "JUV"];
 
 // Types
 type AfiliadoSuggest = {
@@ -791,11 +792,11 @@ export default function NuevoPadronPage() {
 
                 <div className="form-group">
                   <label className="form-label">Fecha de Nacimiento</label>
-                  <input
-                    className="form-input"
-                    type="date"
+                  <InputFecha
                     value={fechaNacimiento}
-                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    onChange={(iso) => setFechaNacimiento(iso)}
+                    placeholder="dd/mm/aaaa"
+                    className="form-input"
                   />
                 </div>
 
@@ -1168,21 +1169,21 @@ export default function NuevoPadronPage() {
 
             <div className="form-group">
               <label className="form-label">Fecha Alta</label>
-              <input
-                className="form-input"
-                type="date"
+              <InputFecha
                 value={fechaAlta}
-                onChange={(e) => setFechaAlta(e.target.value)}
+                onChange={(iso) => setFechaAlta(iso)}
+                placeholder="dd/mm/aaaa"
+                className="form-input"
               />
             </div>
 
             <div className="form-group">
               <label className="form-label">Fecha Baja</label>
-              <input
-                className="form-input"
-                type="date"
+              <InputFecha
                 value={fechaBaja}
-                onChange={(e) => setFechaBaja(e.target.value)}
+                onChange={(iso) => setFechaBaja(iso)}
+                placeholder="dd/mm/aaaa"
+                className="form-input"
               />
             </div>
 
@@ -1548,11 +1549,11 @@ function ColateralRow({
           </div>
           <div className="form-group">
             <label className="form-label">Fecha de Nacimiento</label>
-            <input
-              className="form-input"
-              type="date"
+            <InputFecha
               value={colateral.fechaNacimiento || ""}
-              onChange={(e) => onChange({ fechaNacimiento: e.target.value })}
+              onChange={(iso) => onChange({ fechaNacimiento: iso })}
+              placeholder="dd/mm/aaaa"
+              className="form-input"
             />
           </div>
         </div>

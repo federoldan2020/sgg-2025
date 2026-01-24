@@ -14,7 +14,8 @@ export default function LoginPage() {
     if (usuario) {
       router.push('/');
     }
-  }, [usuario, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario]); // Remover router de las dependencias para evitar ciclo infinito
 
   // Si ya está autenticado, no mostrar nada (se redirigirá)
   if (usuario) {

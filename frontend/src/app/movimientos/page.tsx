@@ -1,22 +1,65 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/servicios/api";
+import { formatearFechaArgentina } from "@/utiles/formatos";
 import {
   Search,
-  Calendar,
-  TrendingDown,
-  TrendingUp,
-  X,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Eye,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+// shadcn
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"; // TODO: Verificar que el módulo existe y está correctamente tipado
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 /* ============================
- * Tipos (sin cambios)
+ * Tipos
  * ============================ */
 type AfiliadoSuggest = {
   id: string;
@@ -36,19 +79,19 @@ type PadronLite = {
 
 type Movimiento = {
   id: string;
-  fecha: string; // ISO
+  fecha: string;
   naturaleza: "debito" | "credito";
-  origen: string; // 'orden_credito' | 'cuota' | 'pago_caja' | 'nomina' | 'ajuste' | 'anulacion'...
+  origen: string;
   concepto: string;
-  importe: string | number; // siempre > 0
+  importe: string | number;
   padronId?: string | null;
   obligacionId?: string | null;
   ordenId?: string | null;
   cuotaId?: string | null;
   pagoId?: string | null;
   saldoPosterior?: string | number | null;
+  saldoPendiente?: string | number | null;
   asientoId?: string | null;
-  moneda?: string | null; // por si lo activás más adelante
 };
 
 type CtaCteResp = {
@@ -56,8 +99,49 @@ type CtaCteResp = {
   saldoFinal: number;
 };
 
+type PagoDetalle = {
+  id: string;
+  fecha: string;
+  importe: number;
+  concepto: string;
+  pagoId?: string | null;
+  pagoFecha?: string | null;
+  pagoTotal?: number | null;
+  origen?: string | null; // 'pago_caja' o 'nomina'
+  periodoContable?: string | null;
+};
+
+type CuotaDetalle = {
+  id: string;
+  numero: number;
+  periodoVenc: string;
+  importe: number;
+  cancelado: number;
+  saldo: number;
+  estado: string;
+  totalPagado: number;
+  porcentajePagado: number;
+  estadoCalculado: "pagada" | "parcialmente_pagada" | "pendiente";
+  pagos: PagoDetalle[];
+};
+
+type OrdenDetallesPagos = {
+  orden: {
+    id: string;
+    descripcion: string;
+    fechaAlta: string;
+    importeTotal: number;
+    saldoTotal: number;
+    cantidadCuotas: number;
+    estado: string;
+    totalPagado: number;
+    porcentajePagado: number;
+  };
+  cuotas: CuotaDetalle[];
+};
+
 /* ============================
- * Fetchers (sin cambios)
+ * Fetchers
  * ============================ */
 const buscarAfiliados = async (q: string) =>
   api<AfiliadoSuggest[]>(`/afiliados/suggest?q=${encodeURIComponent(q)}`, {
@@ -72,21 +156,27 @@ const padronesActivos = async (afiliadoId: string) =>
 const listarMovimientos = (params: {
   afiliadoId: string;
   padronId?: string;
-  desde?: string;
-  hasta?: string;
   take?: number;
+  periodoContable?: string;
 }): Promise<CtaCteResp> => {
   const qs = new URLSearchParams();
   qs.set("afiliadoId", params.afiliadoId);
   if (params.padronId) qs.set("padronId", params.padronId);
-  if (params.desde) qs.set("desde", params.desde);
-  if (params.hasta) qs.set("hasta", params.hasta);
   if (params.take) qs.set("take", String(params.take));
+  if (params.periodoContable) qs.set("periodoContable", params.periodoContable);
   return api<CtaCteResp>(`/movimientos?${qs.toString()}`, { method: "GET" });
 };
 
+const obtenerDetallesPagosOrden = async (
+  ordenId: string
+): Promise<OrdenDetallesPagos> => {
+  return api<OrdenDetallesPagos>(`/ordenes/detalles-pagos/${ordenId}`, {
+    method: "GET",
+  });
+};
+
 /* ============================
- * Helpers UI (sin cambios de lógica)
+ * Helpers
  * ============================ */
 const money = (n: number | string) =>
   new Intl.NumberFormat("es-AR", {
@@ -94,9 +184,6 @@ const money = (n: number | string) =>
     currency: "ARS",
     maximumFractionDigits: 2,
   }).format(typeof n === "string" ? Number(n || 0) : n || 0);
-
-const cx = (...cls: Array<string | false | null | undefined>) =>
-  cls.filter(Boolean).join(" ");
 
 function useDebounced<T>(value: T, ms = 250) {
   const [v, setV] = useState(value);
@@ -108,47 +195,49 @@ function useDebounced<T>(value: T, ms = 250) {
 }
 
 function fmtFecha(iso: string) {
-  try {
-    const d = new Date(iso);
-    return new Intl.DateTimeFormat("es-AR", {
-      dateStyle: "short",
-    }).format(d);
-  } catch {
-    return iso;
-  }
+  return formatearFechaArgentina(iso) || iso;
 }
 
 /* ============================
- * Página Movimientos (Cuenta Corriente)
+ * Page
  * ============================ */
 export default function MovimientosPage() {
+  const searchParams = useSearchParams();
+  const afiliadoIdParam = searchParams.get("afiliadoId");
+
   const [afiliado, setAfiliado] = useState<AfiliadoSuggest | null>(null);
+
   const [padrones, setPadrones] = useState<PadronLite[]>([]);
   const [padronId, setPadronId] = useState<string>("");
 
-  // filtro de mes/año
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const dSelectedDate = useDebounced(selectedDate, 300);
+  const dSelectedDate = useDebounced(selectedDate, 250);
 
   const [data, setData] = useState<CtaCteResp | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Cargar padrones al seleccionar afiliado
+  // preselección por querystring
   useEffect(() => {
-    (async () => {
-      if (!afiliado?.id) {
-        setPadrones([]);
-        setPadronId("");
-        setData(null);
-        return;
-      }
-      const ps = await padronesActivos(afiliado.id);
-      setPadrones(ps);
-      setPadronId(ps[0]?.id ?? "");
-    })();
+    if (!afiliadoIdParam) return;
+    buscarAfiliados(afiliadoIdParam).then((res) => {
+      if (res?.length) setAfiliado(res[0]);
+    });
+  }, [afiliadoIdParam]);
+
+  // cargar padrones al seleccionar afiliado
+  useEffect(() => {
+    if (!afiliado?.id) {
+      setPadrones([]);
+      setPadronId("");
+      return;
+    }
+    padronesActivos(afiliado.id).then((res) => {
+      setPadrones(res);
+      setPadronId((prev) => prev || res?.[0]?.id || "");
+    });
   }, [afiliado?.id]);
 
-  // Cargar movimientos cuando cambie afiliado/padrón/fecha
+  // cargar movimientos
   useEffect(() => {
     (async () => {
       if (!afiliado?.id) {
@@ -157,19 +246,17 @@ export default function MovimientosPage() {
       }
       setLoading(true);
       try {
-        // Calcular primer y último día del mes seleccionado
         const year = dSelectedDate.getFullYear();
         const month = dSelectedDate.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
+        const periodoContable = `${year}-${String(month + 1).padStart(2, "0")}`;
 
         const resp = await listarMovimientos({
           afiliadoId: afiliado.id,
           padronId: padronId || undefined,
-          desde: firstDay.toISOString().split("T")[0],
-          hasta: lastDay.toISOString().split("T")[0],
+          periodoContable,
           take: 500,
         });
+
         setData(resp);
       } finally {
         setLoading(false);
@@ -184,426 +271,195 @@ export default function MovimientosPage() {
 
   const saldoFinal = data?.saldoFinal ?? 0;
 
-  const totalDeb =
+  const totalDebitos =
     data?.movimientos
       .filter((m) => m.naturaleza === "debito")
       .reduce((a, b) => a + Number(b.importe || 0), 0) ?? 0;
 
-  const totalCre =
+  const totalCreditos =
     data?.movimientos
       .filter((m) => m.naturaleza === "credito")
       .reduce((a, b) => a + Number(b.importe || 0), 0) ?? 0;
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-slate-50 via-slate-50 to-white">
-      <Header afiliado={afiliado} onSelectAfiliado={setAfiliado} />
+    <div className="space-y-6 max-w-[1200px] mx-auto px-6">
+      {/* PageHeader */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">Movimientos</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cuenta corriente de afiliados
+          </p>
+        </div>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        {!afiliado ? (
-          <EmptyState />
-        ) : (
-          <>
-            {/* Tarjeta Afiliado + Filtros */}
-            <section className="mb-8">
-              {/* Banner de padrón inactivo */}
-              {padronSel && !padronSel.activo && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="mb-5 overflow-hidden rounded-2xl border border-orange-200/50 bg-gradient-to-r from-orange-50 via-orange-50/80 to-amber-50/50 shadow-lg shadow-orange-100/20"
-                >
-                  <div className="flex items-start gap-4 p-5">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 shadow-lg shadow-orange-300/30">
-                      <svg
-                        className="h-5 w-5 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2.5}
-                        stroke="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                        />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-base font-bold text-orange-900">
-                        Padrón inactivo
-                      </h4>
-                      <p className="mt-1.5 text-sm leading-relaxed text-orange-800/90">
-                        El padrón{" "}
-                        <span className="rounded-md bg-orange-200/50 px-1.5 py-0.5 font-semibold text-orange-900">
-                          {padronSel.padron}
-                        </span>{" "}
-                        está dado de baja. Los movimientos mostrados son
-                        históricos.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+        <AfiliadoCombobox value={afiliado} onSelect={setAfiliado} />
+      </div>
 
-              <div className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-200/50 ring-1 ring-slate-100">
-                {/* Header del afiliado */}
-                <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 px-6 py-6 sm:px-8">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="line-clamp-1 text-2xl font-bold tracking-tight text-slate-900">
-                        {afiliado.display}
-                      </h2>
-                      <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                        <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                          DNI {afiliado.dni || "—"}
-                        </span>
-                      </p>
-                    </div>
-
-                    {/* Selector de padrón */}
-                    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-                      <label
-                        htmlFor="padronSelect"
-                        className="shrink-0 text-sm font-semibold text-slate-600"
-                      >
-                        Padrón
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <select
-                          id="padronSelect"
-                          className="min-w-[220px] rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:border-slate-300 hover:shadow-md focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50"
-                          value={padronId}
-                          onChange={(e) => setPadronId(e.target.value)}
-                          disabled={!afiliado || padrones.length === 0}
-                          aria-label="Seleccionar padrón"
-                        >
-                          {padrones.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.padron} {!p.activo ? "(inactivo)" : ""}
-                            </option>
-                          ))}
-                        </select>
-
-                        {/* Chips de acceso rápido (solo UI) */}
-                        <div className="hidden items-center gap-2 lg:flex">
-                          {padrones.slice(0, 3).map((p) => (
-                            <button
-                              key={`chip-${p.id}`}
-                              type="button"
-                              onClick={() => setPadronId(p.id)}
-                              className={cx(
-                                "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition-all",
-                                padronId === p.id
-                                  ? "bg-blue-600 text-white ring-blue-600"
-                                  : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
-                              )}
-                              title={`Ver padrón ${p.padron}`}
-                            >
-                              {p.padron}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Info del padrón */}
-                  {padronSel && (
-                    <div className="mt-5 flex flex-wrap items-center gap-3">
-                      <span
-                        className={cx(
-                          "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold shadow-sm ring-1",
-                          padronSel.activo
-                            ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white ring-emerald-600"
-                            : "bg-gradient-to-r from-slate-400 to-slate-500 text-white ring-slate-500"
-                        )}
-                      >
-                        <span
-                          className={cx(
-                            "h-2 w-2 rounded-full",
-                            padronSel.activo ? "bg-white animate-pulse" : "bg-slate-300"
-                          )}
-                        />
-                        {padronSel.activo ? "Activo" : "Inactivo"}
-                      </span>
-                      <div className="h-5 w-px bg-slate-300" />
-                      <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 ring-1 ring-blue-200/50">
-                        <span className="text-sm font-medium text-slate-600">
-                          Saldo:{" "}
-                          <span className="text-base font-bold text-slate-900">
-                            {money(padronSel.saldo)}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-2 ring-1 ring-purple-200/50">
-                        <span className="text-sm font-medium text-slate-600">
-                          Cupo:{" "}
-                          <span className="text-base font-bold text-slate-900">
-                            {money(padronSel.cupo)}
-                          </span>
-                        </span>
-                      </div>
-                      {padronSel.sistema && (
-                        <>
-                          <div className="h-5 w-px bg-slate-300" />
-                          <span className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2 text-sm font-medium text-slate-600 ring-1 ring-amber-200/50">
-                            Sistema:{" "}
-                            <span className="font-bold text-slate-900">
-                              {padronSel.sistema}
-                            </span>
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )}
+      {!afiliado ? (
+        <EmptyState />
+      ) : (
+        <>
+          {/* EntitySummaryCard */}
+          <Card className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold truncate">{afiliado.display}</h2>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  DNI {afiliado.dni}
                 </div>
 
-                {/* Filtros de fecha */}
-                <div className="border-t border-slate-100 bg-white px-6 py-5 sm:px-8">
-                  <MonthYearSelector
-                    selectedDate={selectedDate}
-                    onDateChange={setSelectedDate}
-                    disabled={!afiliado}
-                  />
-                </div>
-
-                {/* Mini barra pegajosa con saldo (mejora de visibilidad) */}
-                <div className="sticky bottom-0 z-10 hidden bg-gradient-to-r from-white via-white to-blue-50/30 px-6 py-3 ring-1 ring-inset ring-slate-100 backdrop-blur-sm sm:px-8 md:flex md:items-center md:justify-end">
-                  <div className="inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                      Saldo final
-                    </span>
-                    <span
-                      className={cx(
-                        "tabular-nums text-base font-black",
-                        (saldoFinal ?? 0) >= 0
-                          ? "text-emerald-700"
-                          : "text-rose-700"
+                {padronSel && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "rounded-full",
+                        padronSel.activo
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-border bg-muted text-muted-foreground"
                       )}
                     >
-                      {money(saldoFinal)}
+                      {padronSel.activo ? "Activo" : "Inactivo"}
+                    </Badge>
+
+                    <span className="text-muted-foreground">
+                      Saldo:{" "}
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {money(padronSel.saldo)}
+                      </span>
                     </span>
+
+                    <span className="text-muted-foreground">
+                      Cupo:{" "}
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {money(padronSel.cupo)}
+                      </span>
+                    </span>
+
+                    {padronSel.sistema && (
+                      <span className="text-muted-foreground">
+                        Sistema:{" "}
+                        <span className="font-semibold text-foreground">
+                          {padronSel.sistema}
+                        </span>
+                      </span>
+                    )}
                   </div>
-                </div>
-              </div>
-            </section>
-
-            {/* KPIs */}
-            <section className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <KPI
-                label="Saldo final"
-                value={money(saldoFinal)}
-                icon={saldoFinal >= 0 ? TrendingUp : TrendingDown}
-                accent={saldoFinal >= 0 ? "emerald" : "rose"}
-                primary
-              />
-              <KPI
-                label="Total créditos"
-                value={money(totalCre)}
-                icon={TrendingUp}
-                accent="emerald"
-                subtitle={`${
-                  data?.movimientos.filter((m) => m.naturaleza === "credito")
-                    .length || 0
-                } mov.`}
-              />
-              <KPI
-                label="Total débitos"
-                value={money(totalDeb)}
-                icon={TrendingDown}
-                accent="rose"
-                subtitle={`${
-                  data?.movimientos.filter((m) => m.naturaleza === "debito")
-                    .length || 0
-                } mov.`}
-              />
-              <KPI
-                label="Movimientos totales"
-                value={data?.movimientos?.length ?? 0}
-                subtitle={padronSel?.padron}
-              />
-            </section>
-
-            {/* Tabla / Lista responsive */}
-            <section className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-200/50 ring-1 ring-slate-100">
-              <div className="flex items-center justify-between bg-gradient-to-r from-slate-50 to-blue-50/30 px-6 py-5 sm:px-8">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Cuenta Corriente
-                  </h3>
-                  {padronSel && (
-                    <p className="mt-1 text-sm font-medium text-slate-600">
-                      Padrón {padronSel.padron}
-                    </p>
-                  )}
-                </div>
-                {loading && (
-                  <span
-                    role="status"
-                    aria-live="polite"
-                    className="flex items-center gap-2.5 rounded-full bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700"
-                  >
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-blue-600" />
-                    Cargando
-                  </span>
                 )}
               </div>
 
-              <TablaMovimientos rows={data?.movimientos ?? []} loading={loading} />
-            </section>
-          </>
-        )}
-      </main>
+              <div className="flex items-center gap-3">
+                <div className="text-xs font-medium text-muted-foreground">
+                  Padrón
+                </div>
+
+                <Select value={padronId} onValueChange={setPadronId}>
+                  <SelectTrigger className="h-10 w-[180px]">
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {padrones.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.padron} {!p.activo ? "(inactivo)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <PeriodToolbar
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              disabled={!afiliado}
+            />
+          </Card>
+
+          {/* KPI Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <KpiCard
+              label="Lo que nos debe"
+              value={money(totalDebitos)}
+              tone="debit"
+            />
+            <KpiCard
+              label="Lo que nos paga"
+              value={money(totalCreditos)}
+              tone="credit"
+            />
+            <KpiCard
+              label={
+                saldoFinal < 0
+                  ? "Saldo final (a favor del afiliado)"
+                  : "Saldo final (deuda total acumulada)"
+              }
+              value={money(saldoFinal)}
+              tone={saldoFinal < 0 ? "credit" : saldoFinal > 0 ? "debit" : "neutral"}
+            />
+          </div>
+
+          {/* Table */}
+          <TablaMovimientos
+            rows={data?.movimientos || []}
+            loading={loading}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 /* ============================
- * Header con suggest de afiliados
+ * UI Pieces
  * ============================ */
-function Header({
-  afiliado,
-  onSelectAfiliado,
-}: {
-  afiliado: AfiliadoSuggest | null;
-  onSelectAfiliado: (a: AfiliadoSuggest | null) => void;
-}) {
-  const [q, setQ] = useState("");
-  const debounced = useDebounced(q, 250);
-  const [results, setResults] = useState<AfiliadoSuggest[]>([]);
-  const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      if (!debounced.trim()) {
-        setResults([]);
-        return;
-      }
-      const r = await buscarAfiliados(debounced.trim());
-      setResults(r);
-      setOpen(true);
-    })();
-  }, [debounced]);
-
+function EmptyState() {
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/50 bg-white/80 backdrop-blur-xl backdrop-saturate-150">
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
-              <svg
-                className="h-5 w-5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2.5}
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-900">
-                Movimientos
-              </h1>
-              {afiliado && (
-                <span className="text-xs font-medium text-slate-500">
-                  {afiliado.display}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 sm:w-96">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                ref={inputRef}
-                type="search"
-                placeholder="Buscar afiliado (Ctrl+K)"
-                className="h-12 w-full rounded-2xl border-2 border-slate-200 bg-white pl-11 pr-5 text-sm font-medium shadow-sm transition-all placeholder:text-slate-400 hover:border-slate-300 hover:shadow-md focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onFocus={() => q && setOpen(true)}
-                onBlur={() => setTimeout(() => setOpen(false), 120)}
-                aria-label="Buscar afiliado"
-                role="combobox"
-                aria-expanded={open}
-                aria-controls="afiliado-suggest"
-              />
-              {open && results.length > 0 && (
-                <div
-                  id="afiliado-suggest"
-                  className="absolute z-40 mt-3 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-300/30"
-                >
-                  <ul className="max-h-80 overflow-auto py-2">
-                    {results.map((a) => (
-                      <li
-                        key={a.id}
-                        className="cursor-pointer px-5 py-3.5 transition-colors hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50"
-                        onMouseDown={() => {
-                          onSelectAfiliado(a);
-                          setQ(`${a.display} (${a.dni || "s/d"})`);
-                          setOpen(false);
-                        }}
-                        title={`Seleccionar ${a.display}`}
-                      >
-                        <div className="font-semibold text-slate-900">
-                          {a.display}
-                        </div>
-                        <div className="mt-0.5 text-xs font-medium text-slate-500">
-                          DNI {a.dni || "—"}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {afiliado && (
-              <button
-                className="flex h-12 shrink-0 items-center gap-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 px-5 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-rose-500/30"
-                onClick={() => {
-                  onSelectAfiliado(null);
-                  setQ("");
-                  setResults([]);
-                }}
-                aria-label="Limpiar afiliado seleccionado"
-              >
-                <X className="h-4 w-4" />
-                <span className="hidden sm:inline">Limpiar</span>
-              </button>
-            )}
-          </div>
-        </div>
+    <Card className="p-10">
+      <div className="text-center">
+        <Search className="mx-auto h-10 w-10 text-muted-foreground/70" />
+        <h3 className="mt-4 text-sm font-semibold">Sin afiliado seleccionado</h3>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
+          Busca un afiliado por DNI, nombre o padrón para ver su cuenta corriente.
+        </p>
       </div>
-    </header>
+    </Card>
   );
 }
 
-/* ============================
- * Selector de Mes/Año (con mejoras de a11y y pegajosidad)
- * ============================ */
-function MonthYearSelector({
+function KpiCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "debit" | "credit" | "neutral";
+}) {
+  return (
+    <Card className="p-5">
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div
+          className={cn(
+            "text-2xl font-semibold tabular-nums",
+            tone === "debit" && "text-destructive",
+            tone === "credit" && "text-emerald-600"
+          )}
+        >
+          {value}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * PeriodToolbar premium (no “flota”, todo consistente)
+ */
+function PeriodToolbar({
   selectedDate,
   onDateChange,
   disabled,
@@ -612,461 +468,590 @@ function MonthYearSelector({
   onDateChange: (date: Date) => void;
   disabled: boolean;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const isCurrentMonth = useMemo(() => {
+    const now = new Date();
+    return (
+      selectedDate.getFullYear() === now.getFullYear() &&
+      selectedDate.getMonth() === now.getMonth()
+    );
+  }, [selectedDate]);
 
   const monthYear = useMemo(() => {
-    return new Intl.DateTimeFormat("es-AR", {
-      month: "long",
-      year: "numeric",
-    }).format(selectedDate);
+    return selectedDate.toLocaleString("es-AR", { month: "long", year: "numeric" });
   }, [selectedDate]);
 
   const goToPrevMonth = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() - 1);
-    onDateChange(newDate);
+    const d = new Date(selectedDate);
+    d.setMonth(d.getMonth() - 1);
+    onDateChange(d);
   };
 
   const goToNextMonth = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() + 1);
-    onDateChange(newDate);
+    const d = new Date(selectedDate);
+    d.setMonth(d.getMonth() + 1);
+    onDateChange(d);
   };
 
-  const goToToday = () => {
-    onDateChange(new Date());
-  };
-
-  const isCurrentMonth = useMemo(() => {
-    const today = new Date();
-    return (
-      selectedDate.getMonth() === today.getMonth() &&
-      selectedDate.getFullYear() === today.getFullYear()
-    );
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!containerRef.current || disabled) return;
-
-      const activeElement = document.activeElement as HTMLElement | null;
-      if (
-        activeElement &&
-        ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName)
-      ) {
-        return;
-      }
-
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goToPrevMonth();
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goToNextMonth();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedDate, disabled]);
+  const goToToday = () => onDateChange(new Date());
 
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-wrap items-center gap-4"
-      aria-label="Selector de período"
-    >
-      <div className="flex items-center gap-2 text-sm font-medium text-neutral-700">
-        <Calendar className="h-4 w-4" aria-hidden="true" />
-        Período
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-2 py-1">
+        <Button
+          variant="outline"
+          size="icon"
           onClick={goToPrevMonth}
           disabled={disabled}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-40 disabled:hover:bg-white"
           aria-label="Mes anterior"
+          className="h-8 w-8"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 19.5L8.25 12l7.5-7.5"
-            />
-          </svg>
-        </button>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
 
-        <div
-          className="flex min-w-[200px] items-center justify-center rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold capitalize text-neutral-900 shadow-sm"
-          role="status"
-          aria-live="polite"
-        >
+        <div className="min-w-[160px] text-center text-sm font-medium capitalize">
           {monthYear}
         </div>
 
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={goToNextMonth}
           disabled={disabled}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-40 disabled:hover:bg-white"
           aria-label="Mes siguiente"
+          className="h-8 w-8"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8.25 4.5l7.5 7.5-7.5 7.5"
-            />
-          </svg>
-        </button>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
 
         {!isCurrentMonth && (
-          <button
-            onClick={goToToday}
-            disabled={disabled}
-            className="ml-2 inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-40"
-          >
-            Hoy
-          </button>
+          <>
+            <Separator orientation="vertical" className="mx-1 h-6" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToToday}
+              disabled={disabled}
+              className="h-8"
+            >
+              Hoy
+            </Button>
+          </>
         )}
       </div>
 
-      <div className="ml-auto text-xs text-neutral-500">Usa ← → para navegar</div>
-    </div>
-  );
-}
-
-/* ============================
- * Empty State (con micro-detalle)
- * ============================ */
-function EmptyState() {
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="text-center">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner">
-          <Search className="h-10 w-10 text-slate-400" aria-hidden="true" />
-        </div>
-        <h3 className="mt-5 text-xl font-bold text-slate-900">
-          Sin afiliado seleccionado
-        </h3>
-        <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">
-          Busca un afiliado usando el campo de búsqueda en la parte superior para
-          ver sus movimientos y cuenta corriente.
-        </p>
-        <p className="mt-3 text-xs text-slate-500">
-          Tip: Usa{" "}
-          <kbd className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-xs font-semibold shadow-sm">
-            Ctrl+K
-          </kbd>{" "}
-          para acceder rápidamente
-        </p>
+      <div className="text-xs text-muted-foreground">
+        Tip: usá el selector para navegar por período contable.
       </div>
     </div>
   );
 }
 
-/* ============================
- * KPIs (sin cambios de lógica, mejor contraste/estados)
- * ============================ */
-function KPI({
-  label,
+/**
+ * Combobox shadcn para afiliados (Popover + Command)
+ * - evita dropdown "a mano"
+ * - mejor UX + accesibilidad
+ */
+function AfiliadoCombobox({
   value,
-  subtitle,
-  icon: Icon,
-  accent,
-  primary,
+  onSelect,
 }: {
-  label: string;
-  value: React.ReactNode;
-  subtitle?: string;
-  icon?: React.ComponentType<{ className?: string }>;
-  accent?: "emerald" | "rose" | "neutral";
-  primary?: boolean;
+  value: AfiliadoSuggest | null;
+  onSelect: (a: AfiliadoSuggest | null) => void;
 }) {
-  const accentColors = {
-    emerald: "from-emerald-400 to-green-600 shadow-emerald-500/30",
-    rose: "from-rose-400 to-pink-600 shadow-rose-500/30",
-    neutral: "from-slate-400 to-slate-600 shadow-slate-500/30",
-  };
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const dq = useDebounced(q, 250);
+  const [items, setItems] = useState<AfiliadoSuggest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const iconBg = {
-    emerald: "from-emerald-50 to-green-50 text-emerald-600",
-    rose: "from-rose-50 to-pink-50 text-rose-600",
-    neutral: "from-slate-50 to-slate-100 text-slate-600",
-  };
+  useEffect(() => {
+    if (dq.trim().length < 2) {
+      setItems([]);
+      return;
+    }
+    setLoading(true);
+    buscarAfiliados(dq)
+      .then(setItems)
+      .finally(() => setLoading(false));
+  }, [dq]);
 
   return (
-    <div
-      className={cx(
-        "relative overflow-hidden rounded-2xl border bg-white p-6 shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl",
-        primary && accent ? "border-transparent ring-2 ring-offset-2" : "border-slate-100",
-        primary && accent === "emerald" && "ring-emerald-500/50",
-        primary && accent === "rose" && "ring-rose-500/50"
-      )}
-      role="status"
-      aria-live="polite"
-    >
-      {primary && accent && (
-        <div
-          className={cx("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", accentColors[accent])}
-        />
-      )}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-10 w-[420px] justify-start gap-2 text-muted-foreground"
+          onClick={() => setOpen(true)}
+        >
+          <Search className="h-4 w-4" />
+          <span className={cn("truncate", value ? "text-foreground" : "")}>
+            {value ? value.display : "Buscar afiliado (DNI, nombre o padrón)…"}
+          </span>
+        </Button>
+      </PopoverTrigger>
 
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            {label}
-          </p>
-          <p
-            className={cx(
-              "mt-3 text-3xl font-black tabular-nums tracking-tight",
-              primary && accent === "emerald"
-                ? "text-emerald-700"
-                : primary && accent === "rose"
-                ? "text-rose-700"
-                : "text-slate-900"
+      <PopoverContent className="p-0 w-[420px]" align="end">
+        <Command>
+          <CommandInput
+            ref={inputRef as React.RefObject<HTMLInputElement>}
+            placeholder="Escribí al menos 2 caracteres…"
+            value={q}
+            onValueChange={setQ}
+          />
+          <CommandList>
+            {loading && (
+              <div className="p-3">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="mt-2 h-3 w-1/3" />
+              </div>
             )}
-          >
-            {value}
-          </p>
-          {subtitle && (
-            <p className="mt-2 text-xs font-medium text-slate-500">{subtitle}</p>
-          )}
-        </div>
-        {Icon && (
-          <div className={cx("rounded-xl bg-gradient-to-br p-2.5", accent ? iconBg[accent] : iconBg.neutral)}>
-            <Icon className="h-5 w-5" aria-hidden="true" />
-          </div>
-        )}
-      </div>
-    </div>
+            {!loading && <CommandEmpty>Sin resultados.</CommandEmpty>}
+
+            <CommandGroup heading="Afiliados">
+              {items.map((s) => (
+                <CommandItem
+                  key={s.id}
+                  value={`${s.display} ${s.dni}`}
+                  onSelect={() => {
+                    onSelect(s);
+                    setOpen(false);
+                    setQ("");
+                    setItems([]);
+                  }}
+                >
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{s.display}</span>
+                    <span className="text-xs text-muted-foreground">DNI {s.dni}</span>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+
+            {value && (
+              <>
+                <Separator />
+                <div className="p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-destructive"
+                    onClick={() => {
+                      onSelect(null);
+                      setOpen(false);
+                      setQ("");
+                      setItems([]);
+                    }}
+                  >
+                    Quitar selección
+                  </Button>
+                </div>
+              </>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
-/* ============================
- * Tabla de movimientos mejorada
- * - Header sticky
- * - Zebra + realce por tipo
- * - Vista tarjetas en mobile (sm:hidden)
- * - Accesibilidad + pequeños details
- * ============================ */
 function TablaMovimientos({ rows, loading }: { rows: Movimiento[]; loading: boolean }) {
-  const totalDeb = rows
-    .filter((m) => m.naturaleza === "debito")
-    .reduce((a, b) => a + Number(b.importe || 0), 0);
-  const totalCre = rows
-    .filter((m) => m.naturaleza === "credito")
-    .reduce((a, b) => a + Number(b.importe || 0), 0);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [ordenIdSel, setOrdenIdSel] = useState<string | null>(null);
+
+  const [cache, setCache] = useState<Map<string, OrdenDetallesPagos>>(new Map());
+  const [loadingOrden, setLoadingOrden] = useState(false);
+
+  const openOrden = async (ordenId: string) => {
+    setOrdenIdSel(ordenId);
+    setSheetOpen(true);
+
+    if (cache.has(ordenId)) return;
+
+    setLoadingOrden(true);
+    try {
+      const detalles = await obtenerDetallesPagosOrden(ordenId);
+      setCache((prev) => {
+        const n = new Map(prev);
+        n.set(ordenId, detalles);
+        return n;
+      });
+    } finally {
+      setLoadingOrden(false);
+    }
+  };
+
+  const detalles = ordenIdSel ? cache.get(ordenIdSel) : null;
+
+  const getEstadoBadge = (
+    saldoPendiente: string | number | null | undefined,
+    importe: string | number
+  ) => {
+    if (saldoPendiente == null) return null;
+    const saldoNum = Number(saldoPendiente);
+    const importeNum = Number(importe);
+
+    if (saldoNum <= 0.01)
+      return {
+        label: "Pagada",
+        icon: CheckCircle2,
+        className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      };
+    if (saldoNum < importeNum)
+      return {
+        label: "Parcial",
+        icon: Clock,
+        className: "border-amber-200 bg-amber-50 text-amber-700",
+      };
+    return {
+      label: "Pendiente",
+      icon: AlertCircle,
+      className: "border-border bg-muted text-muted-foreground",
+    };
+  };
+
+  const origenBadgeClass = (origen: string) => {
+    switch (origen) {
+      case "nomina":
+        return "bg-blue-50 text-blue-700";
+      case "pago_caja":
+        return "bg-amber-50 text-amber-700";
+      case "orden_credito":
+        return "bg-purple-50 text-purple-700";
+      case "ajuste":
+        return "bg-muted text-foreground";
+      case "anulacion":
+        return "bg-red-50 text-red-700";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
 
   if (loading && rows.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-          <p className="mt-4 text-sm font-medium text-slate-600">
-            Cargando movimientos...
-          </p>
+      <Card className="p-5">
+        <div className="space-y-3">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
-      </div>
+      </Card>
     );
   }
 
-  /* ---------- Vista Tarjetas (mobile) con shadcn/ui ---------- */
+  if (!loading && rows.length === 0) {
+    return (
+      <Card className="p-10 text-center">
+        <Search className="mx-auto h-10 w-10 text-muted-foreground/70" />
+        <p className="mt-4 text-sm font-semibold">Sin movimientos</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          No hay movimientos para el período/padrón seleccionado.
+        </p>
+      </Card>
+    );
+  }
+
   return (
-    <div className="w-full">
-      <div className="block sm:hidden space-y-3 p-4">
-        {rows.map((m) => {
-          const ref = m.ordenId
-            ? `ORD-${m.ordenId.slice(0, 8)}`
-            : m.cuotaId
-            ? `CUO-${m.cuotaId.slice(0, 8)}`
-            : m.obligacionId
-            ? `OBL-${m.obligacionId.slice(0, 8)}`
-            : m.pagoId
-            ? `PAG-${m.pagoId.slice(0, 8)}`
-            : m.asientoId
-            ? `AST-${m.asientoId.slice(0, 8)}`
-            : "—";
-
-          const isDeb = m.naturaleza === "debito";
-
-          return (
-            <Card key={m.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <Badge variant={isDeb ? "destructive" : "default"} className="gap-1">
-                    {isDeb ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                    {isDeb ? "Débito" : "Crédito"}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{fmtFecha(m.fecha)}</span>
-                </div>
-                <CardTitle className="text-base line-clamp-2 mt-2">{m.concepto}</CardTitle>
-                <CardDescription className="flex gap-2 flex-wrap mt-1">
-                  <Badge variant="outline" className="text-[10px]">
-                    {m.origen.replace(/_/g, " ")}
-                  </Badge>
-                  <Badge variant="secondary" className="text-[10px] font-mono">
-                    {ref}
-                  </Badge>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Importe:</span>
-                  <span className={`text-lg font-bold ${isDeb ? "text-red-600" : "text-green-600"}`}>
-                    {isDeb ? "-" : "+"}
-                    {money(m.importe)}
-                  </span>
-                </div>
-                <Separator className="my-2" />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Saldo:</span>
-                  <span className="text-sm font-semibold">{money(m.saldoPosterior ?? 0)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-        {rows.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center py-10">
-            <div className="rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 p-4 shadow-inner">
-              <Search className="h-8 w-8 text-slate-400" />
-            </div>
-            <p className="mt-4 text-base font-bold text-slate-900">
-              Sin movimientos
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              No hay movimientos para los filtros seleccionados
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* ---------- Vista Tabla (desktop) con shadcn/ui ---------- */}
-      <div className="hidden sm:block">
-        <div className="rounded-md border">
+    <>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Tipo</TableHead>
+              <TableRow className="border-b">
+                <TableHead className="w-[120px]">Fecha</TableHead>
                 <TableHead>Concepto</TableHead>
-                <TableHead>Origen</TableHead>
-                <TableHead className="text-right">Importe</TableHead>
+                <TableHead className="text-right">Debe</TableHead>
+                <TableHead className="text-right">Haber</TableHead>
                 <TableHead className="text-right">Saldo</TableHead>
-                <TableHead>Ref.</TableHead>
+                <TableHead className="w-[72px] text-right">Detalle</TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {rows.map((m) => {
-                const ref = m.ordenId
-                  ? `ORD-${m.ordenId.slice(0, 8)}`
-                  : m.cuotaId
-                  ? `CUO-${m.cuotaId.slice(0, 8)}`
-                  : m.obligacionId
-                  ? `OBL-${m.obligacionId.slice(0, 8)}`
-                  : m.pagoId
-                  ? `PAG-${m.pagoId.slice(0, 8)}`
-                  : m.asientoId
-                  ? `AST-${m.asientoId.slice(0, 8)}`
-                  : "—";
+                const isDebito = m.naturaleza === "debito";
+                const origenLabel = m.origen.replace(/_/g, " ");
+                const estado = getEstadoBadge(m.saldoPendiente, m.importe);
 
-                const isDeb = m.naturaleza === "debito";
+                const saldoCell = (() => {
+                  // Standard: mostramos "Saldo" (pendiente si aplica, sino saldo posterior)
+                  if (m.naturaleza === "debito" && m.saldoPendiente != null) return money(m.saldoPendiente);
+                  if (m.saldoPosterior != null) return money(m.saldoPosterior);
+                  return "—";
+                })();
 
                 return (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-medium">{fmtFecha(m.fecha)}</TableCell>
-                    <TableCell>
-                      <Badge variant={isDeb ? "destructive" : "default"} className="gap-1">
-                        {isDeb ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                        {isDeb ? "Débito" : "Crédito"}
-                      </Badge>
+                  <TableRow key={m.id} className="hover:bg-muted/40">
+                    <TableCell className="py-3 font-medium">
+                      {fmtFecha(m.fecha)}
                     </TableCell>
-                    <TableCell className="max-w-xs">
-                      <span className="line-clamp-2 font-semibold" title={m.concepto}>
-                        {m.concepto}
-                      </span>
+
+                    <TableCell className="py-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-sm truncate">
+                          {m.concepto}
+                        </div>
+
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant="secondary"
+                            className={cn("rounded", origenBadgeClass(m.origen))}
+                          >
+                            {origenLabel}
+                          </Badge>
+
+                          {estado && (
+                            <Badge
+                              variant="outline"
+                              className={cn("rounded-full gap-1", estado.className)}
+                            >
+                              <estado.icon className="h-3 w-3" />
+                              {estado.label}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {m.origen.replace(/_/g, " ")}
-                      </Badge>
+
+                    <TableCell className="py-3 text-right font-semibold tabular-nums text-destructive">
+                      {isDebito ? money(m.importe) : "—"}
                     </TableCell>
-                    <TableCell className={`text-right font-bold tabular-nums ${isDeb ? "text-red-600" : "text-green-600"}`}>
-                      {isDeb ? "-" : "+"}
-                      {money(m.importe)}
+
+                    <TableCell className="py-3 text-right font-semibold tabular-nums text-emerald-600">
+                      {!isDebito ? money(m.importe) : "—"}
                     </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">
-                      {money(m.saldoPosterior ?? 0)}
+
+                    <TableCell className="py-3 text-right font-semibold tabular-nums">
+                      {saldoCell}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono text-xs cursor-pointer"
-                        onClick={() => ref !== "—" && navigator.clipboard?.writeText(ref)}
-                        title="Copiar referencia">
-                        {ref}
-                      </Badge>
+
+                    <TableCell className="py-3 text-right">
+                      {m.ordenId ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openOrden(m.ordenId!)}
+                          aria-label="Ver detalle de orden"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
               })}
-
-              {rows.length === 0 && !loading && (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <Search className="h-8 w-8 text-muted-foreground mb-2" />
-                      <p className="font-semibold">Sin movimientos</p>
-                      <p className="text-sm text-muted-foreground">
-                        No hay movimientos para los filtros seleccionados
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
-
-            {/* Footer: totales */}
-            {rows.length > 0 && (
-              <TableRow className="border-t-2 bg-muted/50">
-                <TableCell colSpan={4} className="text-right font-bold">
-                  Totales del período
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="space-y-1 font-mono text-sm">
-                    <div className="flex items-center justify-end gap-2 text-green-600">
-                      <span className="text-xs">Créditos:</span>
-                      <span className="font-bold">+{money(totalCre)}</span>
-                    </div>
-                    <div className="flex items-center justify-end gap-2 text-red-600">
-                      <span className="text-xs">Débitos:</span>
-                      <span className="font-bold">-{money(totalDeb)}</span>
-                    </div>
-                    <Separator className="my-1" />
-                    <div className="flex items-center justify-end gap-2 font-bold">
-                      <span className="text-xs">Neto:</span>
-                      <span className="text-base">{money(totalCre - totalDeb)}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell colSpan={2}></TableCell>
-              </TableRow>
-            )}
           </Table>
         </div>
+      </Card>
+
+      {/* Sheet detalle de orden */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>Detalle de orden</SheetTitle>
+            <SheetDescription>
+              {ordenIdSel ? `Orden #${ordenIdSel}` : "—"}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-4">
+            {loadingOrden && !detalles ? (
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : detalles ? (
+              <DetallesOrden detalles={detalles} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Seleccioná una orden para ver el detalle.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+/* ============================
+ * Detalle Orden (mantenido, estilado con tokens)
+ * ============================ */
+
+function DetallesOrden({ detalles }: { detalles: OrdenDetallesPagos }) {
+  const { orden, cuotas } = detalles;
+
+  const estadoBadge = (estado: string) => {
+    // si querés normalizar estados desde backend, hacelo acá
+    return (
+      <Badge variant="outline" className="rounded-full">
+        {estado}
+      </Badge>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-semibold truncate">{orden.descripcion}</h4>
+              {estadoBadge(orden.estado)}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Alta: {fmtFecha(orden.fechaAlta)}
+            </p>
+          </div>
+
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground">Total</div>
+            <div className="text-sm font-semibold tabular-nums">
+              {money(orden.importeTotal)}
+            </div>
+          </div>
+        </div>
+
+        <Separator className="my-3" />
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Pagado</div>
+            <div className="text-sm font-semibold tabular-nums text-emerald-600">
+              {money(orden.totalPagado)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {orden.porcentajePagado.toFixed(1)}%
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-muted-foreground">Pendiente</div>
+            <div className="text-sm font-semibold tabular-nums text-destructive">
+              {money(orden.saldoTotal)}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-muted-foreground">Cuotas</div>
+            <div className="text-sm font-semibold tabular-nums">
+              {orden.cantidadCuotas}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="space-y-2">
+        <div className="text-sm font-semibold">Cuotas</div>
+
+        {cuotas.map((cuota) => {
+          const badge =
+            cuota.estadoCalculado === "pagada"
+              ? {
+                  label: "Pagada",
+                  icon: CheckCircle2,
+                  className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+                }
+              : cuota.estadoCalculado === "parcialmente_pagada"
+              ? {
+                  label: "Parcial",
+                  icon: Clock,
+                  className: "border-amber-200 bg-amber-50 text-amber-700",
+                }
+              : {
+                  label: "Pendiente",
+                  icon: AlertCircle,
+                  className: "border-border bg-muted text-muted-foreground",
+                };
+
+          const Icon = badge.icon;
+
+          return (
+            <Card key={cuota.id} className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold">
+                      Cuota {cuota.numero}/{orden.cantidadCuotas}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({cuota.periodoVenc})
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={cn("rounded-full gap-1", badge.className)}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {badge.label}
+                    </Badge>
+                  </div>
+
+                  {cuota.pagos?.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-xs font-semibold text-muted-foreground">
+                        Pagos
+                      </div>
+
+                      <div className="space-y-1">
+                        {cuota.pagos.map((pago) => {
+                          const esNomina = pago.origen === "nomina";
+                          return (
+                            <div
+                              key={pago.id}
+                              className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs gap-2"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Badge
+                                  variant="secondary"
+                                  className={cn(
+                                    "rounded",
+                                    esNomina
+                                      ? "bg-blue-50 text-blue-700"
+                                      : "bg-amber-50 text-amber-700"
+                                  )}
+                                >
+                                  {esNomina ? "Nómina" : "Caja"}
+                                  {pago.periodoContable ? ` (${pago.periodoContable})` : ""}
+                                </Badge>
+                                <span className="text-muted-foreground">
+                                  {fmtFecha(pago.fecha)}
+                                </span>
+                              </div>
+
+                              <span className="font-semibold tabular-nums text-emerald-600">
+                                {money(pago.importe)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 text-xs font-semibold">
+                        <span>Total pagado:</span>
+                        <span className="tabular-nums text-emerald-600">
+                          {money(cuota.totalPagado)} ({cuota.porcentajePagado.toFixed(1)}%)
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-semibold tabular-nums">
+                    {money(cuota.importe)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Saldo: <span className="tabular-nums">{money(cuota.saldo)}</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { MovimientosService } from '../movimientos/movimientos.service';
+import { ContabilidadService } from '../contabilidad/contabilidad.service';
 
 // ======================= Helpers de periodo/corte =======================
 
@@ -73,43 +75,85 @@ function padNum(n: number | string | null | undefined, width: number): string {
 }
 
 // Arma UNA línea de 80 posiciones para DPI
-// Slots: 0 => pos 16-27, slots 1..4 => pos 28-75 (4 bloques de 12)
+// Estructura: 01-02 (centro), 03-08 (blancos), 09-14 (padrón), 15 (DV), 16-75 (5 bloques de 12), 76-78 (blancos), 79-80 (B3)
 function buildRegistro80(params: {
   centro: number | null | undefined; // 01-02
   padronRaw: string; // "123456-7" o "1234567"
   codigos: { codigo: string; importe: Prisma.Decimal | string | number | null }[]; // máx 5 por línea
-}) {
-  const centro2 = padNum(params.centro ?? '', 2); // 01-02
-  const blancos_03_08 = ' '.repeat(6); // 03-08
-
-  const { base6, dv } = splitPadronDV(params.padronRaw);
-  const padron6 = padNum(base6, 6); // 09-14
-  const dv1 = dv.replace(/\D/g, '').slice(-1) || '0'; // 15
-
-  // Construimos hasta 5 slots de 12 chars: [3 cod][9 importe]
-  const slots: string[] = [];
-  for (let i = 0; i < Math.min(params.codigos.length, 5); i++) {
-    const c = params.codigos[i];
-    const cod3 = formatCodigo_3(c.codigo);
-    const imp9 = formatImporte_9(c.importe);
-    slots.push(cod3 + imp9); // 12
+}): string {
+  // 01-02: Centro (exactamente 2 dígitos)
+  let centroStr = '00';
+  if (params.centro != null) {
+    const numStr = String(Math.floor(Number(params.centro))).replace(/\D/g, '');
+    if (numStr) {
+      centroStr = numStr.slice(-2).padStart(2, '0');
+    }
   }
-  while (slots.length < 5) slots.push(' '.repeat(12));
 
-  const linea =
-    centro2 + // 01-02
-    blancos_03_08 + // 03-08
-    padron6 + // 09-14
-    dv1 + // 15
-    slots[0] + // 16-27
-    slots[1] + // 28-39
-    slots[2] + // 40-51
-    slots[3] + // 52-63
-    slots[4] + // 64-75
-    ' '.repeat(3) + // 76-78
-    'B3'; // 79-80
+  // 03-08: Blancos (6 espacios)
+  const blancos1 = '      ';
 
-  return linea.padEnd(80, ' ').slice(0, 80);
+  // 09-14: Padrón (6 dígitos)
+  const { base6, dv } = splitPadronDV(params.padronRaw);
+  const padronStr = base6.replace(/\D/g, '').padStart(6, '0').slice(-6);
+
+  // 15: Dígito verificador (1 dígito)
+  const dvStr = dv.replace(/\D/g, '').slice(-1) || '0';
+
+  // 16-75: 5 bloques de 12 caracteres cada uno (3 código + 9 importe)
+  const bloques: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    if (i < params.codigos.length) {
+      const c = params.codigos[i];
+      // Código: 3 caracteres (alfabético + 2 numéricos)
+      let cod = String(c.codigo || '').trim().toUpperCase().substring(0, 3).padEnd(3, ' ');
+      // Importe: 9 dígitos (7 enteros + 2 decimales, sin punto)
+      let imp = '000000000';
+      if (c.importe != null) {
+        const num = new Prisma.Decimal(String(c.importe));
+        const fixed = num.toFixed(2);
+        imp = fixed.replace('.', '').padStart(9, '0').substring(0, 9);
+      }
+      bloques.push((cod + imp).substring(0, 12));
+    } else {
+      bloques.push('            '); // 12 espacios
+    }
+  }
+
+  // 76-78: Blancos (3 espacios)
+  const blancos2 = '   ';
+
+  // 79-80: B3 (2 caracteres)
+  const final = 'B3';
+
+  // Construir línea concatenando exactamente 80 caracteres
+  const parts = [
+    centroStr.substring(0, 2),    // 01-02: 2
+    blancos1.substring(0, 6),     // 03-08: 6
+    padronStr.substring(0, 6),    // 09-14: 6
+    dvStr.substring(0, 1),        // 15: 1
+    bloques[0].substring(0, 12),  // 16-27: 12
+    bloques[1].substring(0, 12),  // 28-39: 12
+    bloques[2].substring(0, 12),  // 40-51: 12
+    bloques[3].substring(0, 12),  // 52-63: 12
+    bloques[4].substring(0, 12),  // 64-75: 12
+    blancos2.substring(0, 3),     // 76-78: 3
+    final.substring(0, 2),        // 79-80: 2
+  ];
+
+  const linea = parts.join('');
+
+  // Debug: verificar longitud
+  const len = linea.length;
+  if (len !== 80) {
+    console.error(`[buildRegistro80] ERROR: línea tiene ${len} caracteres (debe ser 80)`, {
+      partes: parts.map((p, i) => `${i}:${p.length}`),
+      total: parts.reduce((sum, p) => sum + p.length, 0),
+    });
+  }
+
+  // Retornar exactamente 80 caracteres
+  return linea.length === 80 ? linea : linea.substring(0, 80);
 }
 
 // Deriva un identificador corto de 6 chars para el archivo (si no hay campo dedicado)
@@ -134,7 +178,11 @@ function fechaCorteFromPeriodo(periodo: string, diaCorte: number): Date {
 
 @Injectable()
 export class NovedadesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly movimientos: MovimientosService,
+    private readonly contabilidad: ContabilidadService,
+  ) { }
 
   // Lee día de corte (si hay NovedadCalendario) o usa default=10
   private async getCorteDia(organizacionId: string, fechaEvento: Date): Promise<number> {
@@ -216,119 +264,120 @@ export class NovedadesService {
     // ⬆️⬆️⬆️ ADITIVO
   }
 
-  // === Genera lote desde pendientes ===
-  async generarLote(
+  // === Genera novedades automáticamente desde pendientes y manuales para un período/sistema ===
+  // Genera el TXT y guarda en NovedadGenerada
+  async generarNovedades(
     organizacionId: string,
     periodo: string,
-    opts?: { onDuplicate?: 'error' | 'replace' | 'skip' },
-  ): Promise<{ id: bigint; periodo: string; estado: string }> {
-    const existente = await this.prisma.novedadLote.findFirst({
-      where: { organizacionId, periodo },
-      select: { id: true },
+    sistema: 'ES' | 'SG',
+    opts?: { generadoPor?: string; onDuplicate?: 'error' | 'replace' },
+  ): Promise<{ id: bigint; periodo: string; sistema: string; archivoNombre: string; totalRegistros: number; totalImporte: string }> {
+    // Verificar si ya existe una generación para este período/sistema
+    const existente = await this.prisma.novedadGenerada.findUnique({
+      where: {
+        organizacionId_periodo_sistema: { organizacionId, periodo, sistema },
+      },
     });
 
     if (existente) {
       if (opts?.onDuplicate === 'replace') {
         await this.prisma.$transaction([
-          this.prisma.novedadItemDetalle.deleteMany({
-            where: { novedadItem: { novedadLoteId: existente.id } },
+          this.prisma.novedadGeneradaItem.deleteMany({
+            where: { novedadGeneradaId: existente.id },
           }),
-          this.prisma.novedadItem.deleteMany({ where: { novedadLoteId: existente.id } }),
-          this.prisma.novedadLote.delete({ where: { id: existente.id } }),
+          this.prisma.novedadGenerada.delete({ where: { id: existente.id } }),
         ]);
-      } else if (opts?.onDuplicate === 'skip') {
-        const full = await this.prisma.novedadLote.findUnique({
-          where: { id: existente.id },
-          select: { id: true, periodo: true, estado: true },
-        });
-        if (!full) throw new Error('Lote existente no encontrado');
-        return full;
       } else {
-        throw new Error(`Ya existe un lote de novedades para ${periodo}`);
+        throw new Error(`Ya existe una generación de novedades para ${periodo}/${sistema}`);
       }
     }
 
+    // Obtener novedades pendientes para este período
     const pendientes = await this.prisma.novedadPendiente.findMany({
       where: { organizacionId, periodoDestino: periodo },
       orderBy: { id: 'asc' },
     });
 
-    const lote = await this.prisma.novedadLote.create({
-      data: { organizacionId, periodo, estado: 'enviado' },
-      select: { id: true, periodo: true, estado: true },
-    });
-
-    // Creamos NovedadItem 1:1 (luego se puede consolidar por padrón/canal)
-    for (const p of pendientes) {
-      await this.prisma.novedadItem.create({
-        data: {
-          novedadLoteId: lote.id,
-          organizacionId,
-          afiliadoId: p.afiliadoId,
-          padronId: p.padronId ?? null,
-          canal: p.canal ?? '   ', // 3 chars
-          conceptoId: p.conceptoId ?? null,
-          importeEnviado: p.importe ?? new Prisma.Decimal(0),
-          conciliacionEstado: 'pendiente',
-        },
+    // Obtener padrones relacionados (si hay padronId)
+    const padronIds = pendientes
+      .map((p) => p.padronId)
+      .filter((id): id is bigint => id != null);
+    const padronesMap = new Map<bigint, { padron: string | null; centro: number | null; sistema: string | null }>();
+    if (padronIds.length > 0) {
+      const padrones = await this.prisma.padron.findMany({
+        where: { id: { in: padronIds }, organizacionId },
+        select: { id: true, padron: true, centro: true, sistema: true },
       });
+      for (const p of padrones) {
+        padronesMap.set(p.id, { padron: p.padron, centro: p.centro, sistema: p.sistema });
+      }
     }
 
-    // Limpiar pendientes usados (opcional)
-    await this.prisma.novedadPendiente.deleteMany({
-      where: { organizacionId, periodoDestino: periodo },
-    });
-
-    return lote;
-  }
-
-  // === Construye el TXT DPI (por sistema) desde NovedadItem del lote ===
-  async construirTxt(organizacionId: string, loteId: bigint | number, sistema: 'ES' | 'SG') {
-    const lote = await this.prisma.novedadLote.findFirst({
-      where: { id: BigInt(loteId), organizacionId },
+    // Obtener novedades manuales para este período
+    const manuales = await this.prisma.novedad.findMany({
+      where: { organizacionId, periodo },
       include: {
-        items: {
-          include: {
-            padron: true,
-            afiliado: true,
-          },
-          orderBy: { id: 'asc' },
-        },
+        padron: true,
       },
+      orderBy: { id: 'asc' },
     });
-    if (!lote) throw new Error('Lote no encontrado');
 
-    // Filtrar por sistema usando padron.sistema (ESC->ES, SG/SGR->SG)
-    const items = lote.items.filter((it) => {
-      const pref = sistemaToDpiPrefix(it.padron?.sistema ?? null);
+    // Combinar y filtrar por sistema
+    const todasLasNovedades = [
+      ...pendientes.map((p) => {
+        const padron = p.padronId ? padronesMap.get(p.padronId) : null;
+        return {
+          tipo: 'pendiente' as const,
+          afiliadoId: p.afiliadoId,
+          padronId: p.padronId,
+          padron: padron ? { padron: padron.padron, centro: padron.centro, sistema: padron.sistema } : null,
+          padronRaw: padron?.padron ?? '',
+          centro: padron?.centro ?? null,
+          codigo: (p.canal ?? '').slice(0, 3),
+          importe: p.importe ?? new Prisma.Decimal(0),
+        };
+      }),
+      ...manuales.map((m) => ({
+        tipo: 'manual' as const,
+        afiliadoId: m.afiliadoId,
+        padronId: m.padronId,
+        padron: m.padron,
+        padronRaw: m.padronRaw,
+        centro: m.centro,
+        codigo: m.codigo.slice(0, 3),
+        importe: m.importe,
+      })),
+    ].filter((n) => {
+      const pref = sistemaToDpiPrefix(n.padron?.sistema ?? null);
       return pref === sistema;
     });
 
-    // Agrupar por Padrón => { centro, padronRaw, codigos[] }
+    // Agrupar por padrón para generar el TXT
     const porPadron = new Map<
       string,
       {
         centro?: number | null;
         padronRaw: string;
-        codigos: { codigo: string; importe: Prisma.Decimal | string | number | null }[];
+        padronId: bigint | null;
+        codigos: { codigo: string; importe: Prisma.Decimal }[];
       }
     >();
 
-    for (const it of items) {
-      const key = String(it.padronId ?? 'sin-padron');
-      const centro = it.padron?.centro ?? null;
-      const padronRaw = it.padron?.padron ?? '';
-      const codigo = (it.canal ?? '').slice(0, 3); // 3 chars
-      const importe = it.importeEnviado;
-
+    for (const n of todasLasNovedades) {
+      const key = String(n.padronId ?? 'sin-padron');
       if (!porPadron.has(key)) {
-        porPadron.set(key, { centro, padronRaw, codigos: [] });
+        porPadron.set(key, {
+          centro: n.centro,
+          padronRaw: n.padronRaw,
+          padronId: n.padronId,
+          codigos: [],
+        });
       }
       const bucket = porPadron.get(key)!;
-      bucket.codigos.push({ codigo, importe });
+      bucket.codigos.push({ codigo: n.codigo, importe: n.importe });
     }
 
-    // Por cada padrón, generamos tantas líneas de 80 como se necesiten (máx 5 códigos por línea)
+    // Generar líneas del TXT
     const lineas: string[] = [];
     for (const { centro, padronRaw, codigos } of porPadron.values()) {
       for (let i = 0; i < codigos.length; i += 5) {
@@ -342,120 +391,144 @@ export class NovedadesService {
 
     const contenido = lineas.join('\r\n') + '\r\n';
 
-    // Nombre del archivo: <ES|SG><ORG6>.<MES3>
-    // Derivamos ORG6 de la organización (nombre o id) para no depender de un campo extra
+    // Calcular totales
+    const totalImporte = todasLasNovedades.reduce(
+      (sum, n) => sum.plus(n.importe),
+      new Prisma.Decimal(0),
+    );
+    const totalRegistros = lineas.length;
+
+    // Nombre del archivo
     const org = await this.prisma.organizacion.findUnique({
       where: { id: organizacionId },
-      select: { id: true, nombre: true }, // <-- solo campos existentes
+      select: { nombre: true },
     });
-
     const org6 = deriveOrg6(organizacionId, org?.nombre);
-    const nombre = `${sistema}${org6}.${mesAbrev(lote.periodo)}`; // ej: ES3PROVI.AGO
+    const archivoNombre = `${sistema}${org6}.${mesAbrev(periodo)}`;
 
-    return { nombre, contenido };
-  }
-
-  // === Preview JSON del lote (opcionalmente filtrado por sistema ES|SG) ===
-  async previewLote(
-    organizacionId: string,
-    loteId: bigint | number,
-    opts?: { sistema?: 'ES' | 'SG' },
-  ) {
-    const lote = await this.prisma.novedadLote.findFirst({
-      where: { id: BigInt(loteId), organizacionId },
-      include: {
+    // Crear NovedadGenerada con items
+    const novedadGenerada = await this.prisma.novedadGenerada.create({
+      data: {
+        organizacionId,
+        periodo,
+        sistema,
+        archivoNombre,
+        archivoContenido: contenido,
+        totalRegistros,
+        totalImporte,
+        generadoPor: opts?.generadoPor ?? null,
         items: {
-          include: {
-            padron: true,
-            afiliado: { select: { id: true, apellido: true, nombre: true, dni: true } },
-            concepto: { select: { id: true, codigo: true, nombre: true } },
-          },
-          orderBy: { id: 'asc' },
+          create: todasLasNovedades.map((n) => ({
+            organizacionId,
+            afiliadoId: n.afiliadoId,
+            padronId: n.padronId,
+            padronRaw: n.padronRaw,
+            centro: n.centro,
+            codigo: n.codigo,
+            importe: n.importe,
+          })),
         },
       },
+      select: {
+        id: true,
+        periodo: true,
+        sistema: true,
+        archivoNombre: true,
+        totalRegistros: true,
+        totalImporte: true,
+      },
     });
-    if (!lote) throw new Error('Lote no encontrado');
-
-    const itemsFiltrados = opts?.sistema
-      ? lote.items.filter((it) => sistemaToDpiPrefix(it.padron?.sistema ?? null) === opts.sistema)
-      : lote.items;
-
-    type Cod = { codigo: string; importe: string };
-    type Bucket = {
-      centro?: number | null;
-      padronRaw: string;
-      base6: string;
-      dv: string;
-      sistema?: string | null;
-      afiliados: { id: string; dni?: string | number | null; display: string }[];
-      codigos: Cod[];
-      totalCodigos: string;
-    };
-
-    const Decimal = Prisma.Decimal;
-    const porPadron = new Map<string, Bucket>();
-
-    for (const it of itemsFiltrados) {
-      const key = String(it.padronId ?? 'sin-padron');
-      const padronRaw = it.padron?.padron ?? '';
-      const { base6, dv } = splitPadronDV(padronRaw);
-
-      if (!porPadron.has(key)) {
-        porPadron.set(key, {
-          centro: it.padron?.centro ?? null,
-          padronRaw,
-          base6,
-          dv,
-          sistema: it.padron?.sistema ?? null,
-          afiliados: [],
-          codigos: [],
-          totalCodigos: '0.00',
-        });
-      }
-      const b = porPadron.get(key)!;
-
-      // Normalizar DNI bigint -> string (o null)
-      const dniNorm = it.afiliado?.dni != null ? String(it.afiliado.dni) : null;
-
-      const display =
-        [it.afiliado?.apellido, it.afiliado?.nombre].filter(Boolean).join(', ') ||
-        String(it.afiliadoId);
-
-      b.afiliados.push({
-        id: String(it.afiliadoId),
-        dni: dniNorm,
-        display,
-      });
-
-      const codigo = (it.canal ?? '').slice(0, 3);
-      const importe = new Decimal(String(it.importeEnviado ?? 0));
-      b.codigos.push({ codigo, importe: importe.toFixed(2) });
-      b.totalCodigos = new Decimal(b.totalCodigos).plus(importe).toFixed(2);
-    }
-
-    const totales = { ES: '0.00', SG: '0.00', ALL: '0.00' };
-    for (const b of porPadron.values()) {
-      const pref = sistemaToDpiPrefix(b.sistema ?? null);
-      totales.ALL = new Decimal(totales.ALL).plus(b.totalCodigos).toFixed(2);
-      if (pref === 'ES') totales.ES = new Decimal(totales.ES).plus(b.totalCodigos).toFixed(2);
-      if (pref === 'SG') totales.SG = new Decimal(totales.SG).plus(b.totalCodigos).toFixed(2);
-    }
 
     return {
-      lote: { id: String(lote.id), periodo: lote.periodo, estado: lote.estado },
-      filtros: { sistema: opts?.sistema ?? null },
-      totales,
-      padrones: Array.from(porPadron.values()).map((b) => ({
-        centro: b.centro,
-        padron: b.padronRaw,
-        base6: b.base6,
-        dv: b.dv,
-        sistema: b.sistema,
-        afiliados: b.afiliados,
-        codigos: b.codigos,
-        total: b.totalCodigos,
-      })),
+      id: novedadGenerada.id,
+      periodo: novedadGenerada.periodo,
+      sistema: novedadGenerada.sistema,
+      archivoNombre: novedadGenerada.archivoNombre,
+      totalRegistros: novedadGenerada.totalRegistros,
+      totalImporte: novedadGenerada.totalImporte.toString(),
     };
+  }
+
+  // === Descarga el TXT de una NovedadGenerada ===
+  async descargarTxtGenerado(
+    organizacionId: string,
+    novedadGeneradaId: bigint | number,
+  ): Promise<{ nombre: string; contenido: string }> {
+    const gen = await this.prisma.novedadGenerada.findFirst({
+      where: { id: BigInt(novedadGeneradaId), organizacionId },
+    });
+    if (!gen) throw new Error('Generación de novedades no encontrada');
+
+    return { nombre: gen.archivoNombre, contenido: gen.archivoContenido };
+  }
+
+  // === Lista las generaciones de novedades ===
+  async listarNovedadesGeneradas(
+    organizacionId: string,
+    params: {
+      periodo?: string;
+      sistema?: 'ES' | 'SG' | '';
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    const page = Math.max(1, Number(params.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(params.limit ?? 20)));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.NovedadGeneradaWhereInput = {
+      organizacionId,
+      ...(params.periodo ? { periodo: params.periodo } : {}),
+      ...(params.sistema && (params.sistema === 'ES' || params.sistema === 'SG')
+        ? { sistema: params.sistema }
+        : {}),
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.novedadGenerada.findMany({
+        where,
+        orderBy: [{ periodo: 'desc' }, { sistema: 'asc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.novedadGenerada.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((r) => ({
+        id: String(r.id),
+        periodo: r.periodo,
+        sistema: r.sistema,
+        archivoNombre: r.archivoNombre,
+        totalRegistros: r.totalRegistros,
+        totalImporte: r.totalImporte.toString(),
+        generadoPor: r.generadoPor,
+        generadoEn: r.generadoEn.toISOString(),
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  // === Elimina una generación de novedades ===
+  async eliminarNovedadGenerada(organizacionId: string, novedadGeneradaId: bigint | number) {
+    const gen = await this.prisma.novedadGenerada.findFirst({
+      where: { id: BigInt(novedadGeneradaId), organizacionId },
+    });
+    if (!gen) throw new Error('Generación de novedades no encontrada');
+
+    // Eliminar items primero (cascade debería hacerlo, pero lo hacemos explícitamente)
+    await this.prisma.$transaction([
+      this.prisma.novedadGeneradaItem.deleteMany({
+        where: { novedadGeneradaId: gen.id },
+      }),
+      this.prisma.novedadGenerada.delete({
+        where: { id: gen.id },
+      }),
+    ]);
+
+    return { id: String(gen.id), eliminado: true };
   }
 
   // ======================= Reglas de negocio (encolado) =======================
@@ -799,12 +872,12 @@ export class NovedadesService {
       const afiWhere: Prisma.AfiliadoWhereInput = /^\d+$/.test(q)
         ? { organizacionId, dni: BigInt(q) }
         : {
-            organizacionId,
-            OR: [
-              { apellido: { contains: q, mode: 'insensitive' } },
-              { nombre: { contains: q, mode: 'insensitive' } },
-            ],
-          };
+          organizacionId,
+          OR: [
+            { apellido: { contains: q, mode: 'insensitive' } },
+            { nombre: { contains: q, mode: 'insensitive' } },
+          ],
+        };
 
       const [afiliados, padrones] = await Promise.all([
         this.prisma.afiliado.findMany({ where: afiWhere, select: { id: true } }),
@@ -856,15 +929,15 @@ export class NovedadesService {
 
     const afis: AfiliadoRow[] = afiIdsAll.length
       ? await this.prisma.afiliado.findMany({
-          where: { id: { in: afiIdsAll }, organizacionId },
-          select: { id: true, apellido: true, nombre: true, dni: true },
-        })
+        where: { id: { in: afiIdsAll }, organizacionId },
+        select: { id: true, apellido: true, nombre: true, dni: true },
+      })
       : [];
     const pads: PadronRow[] = padIdsAll.length
       ? await this.prisma.padron.findMany({
-          where: { id: { in: padIdsAll }, organizacionId },
-          select: { id: true, padron: true },
-        })
+        where: { id: { in: padIdsAll }, organizacionId },
+        select: { id: true, padron: true },
+      })
       : [];
 
     const afiMap = new Map<string, AfiliadoRow>();
@@ -893,11 +966,11 @@ export class NovedadesService {
         origen: it.observacion ?? it.tipo ?? null,
         afiliado: a
           ? {
-              id: a.id.toString(),
-              dni: a.dni != null ? a.dni.toString() : null,
-              apellido: a.apellido ?? null,
-              nombre: a.nombre ?? null,
-            }
+            id: a.id.toString(),
+            dni: a.dni != null ? a.dni.toString() : null,
+            apellido: a.apellido ?? null,
+            nombre: a.nombre ?? null,
+          }
           : null,
         padron: p ? { id: p.id.toString(), padron: p.padron ?? null } : null,
       };
@@ -944,12 +1017,12 @@ export class NovedadesService {
       const afiWhere: Prisma.AfiliadoWhereInput = /^\d+$/.test(q)
         ? { organizacionId, dni: BigInt(q) }
         : {
-            organizacionId,
-            OR: [
-              { apellido: { contains: q, mode: 'insensitive' } },
-              { nombre: { contains: q, mode: 'insensitive' } },
-            ],
-          };
+          organizacionId,
+          OR: [
+            { apellido: { contains: q, mode: 'insensitive' } },
+            { nombre: { contains: q, mode: 'insensitive' } },
+          ],
+        };
 
       const [afiliados, padrones] = await Promise.all([
         this.prisma.afiliado.findMany({ where: afiWhere, select: { id: true } }),
@@ -1128,13 +1201,13 @@ export class NovedadesService {
     const padIds = rows.map((r) => r.padronId);
     const pads = padIds.length
       ? await this.prisma.padron.findMany({
-          where: {
-            id: { in: padIds },
-            organizacionId,
-            ...(q ? { padron: { contains: q, mode: 'insensitive' } } : {}),
-          },
-          select: { id: true, padron: true, centro: true, sistema: true },
-        })
+        where: {
+          id: { in: padIds },
+          organizacionId,
+          ...(q ? { padron: { contains: q, mode: 'insensitive' } } : {}),
+        },
+        select: { id: true, padron: true, centro: true, sistema: true },
+      })
       : [];
     const padMap = new Map(pads.map((p) => [p.id.toString(), p]));
 
@@ -1160,17 +1233,17 @@ export class NovedadesService {
         };
       })
       .filter(Boolean) as Array<{
-      periodo: string;
-      padronId: string;
-      padron: string | null;
-      centro: number | null;
-      sistema: 'ES' | 'SG' | null;
-      J17: number | null;
-      J22: number | null;
-      J38: number | null;
-      K16: number | null;
-      ocurridoEn: string | null;
-    }>;
+        periodo: string;
+        padronId: string;
+        padron: string | null;
+        centro: number | null;
+        sistema: 'ES' | 'SG' | null;
+        J17: number | null;
+        J22: number | null;
+        J38: number | null;
+        K16: number | null;
+        ocurridoEn: string | null;
+      }>;
 
     return { items, total, page, limit };
   }
@@ -1190,9 +1263,9 @@ export class NovedadesService {
     // lookup padrones
     const pads = rows.length
       ? await this.prisma.padron.findMany({
-          where: { id: { in: rows.map((r) => r.padronId) }, organizacionId },
-          select: { id: true, padron: true, centro: true },
-        })
+        where: { id: { in: rows.map((r) => r.padronId) }, organizacionId },
+        select: { id: true, padron: true, centro: true },
+      })
       : [];
     const padMap = new Map(pads.map((p) => [p.id.toString(), p]));
 
@@ -1447,5 +1520,876 @@ export class NovedadesService {
     const base = `${y}-${m}`;
     const destino = resolverPeriodoDestino(fecha, corte);
     return { fechaEvento: fechaISO, corteDia: corte, periodoBase: base, periodoDestino: destino };
+  }
+
+  // ======================= CRUD Novedades Manuales =======================
+
+  // === Crear novedad manual ===
+  async crearNovedadManual(input: {
+    organizacionId: string;
+    periodo: string;
+    afiliadoId: bigint | number;
+    padronId?: bigint | number | null;
+    padronRaw: string;
+    centro?: number | null;
+    codigo: string; // Código de descuento (ej: "P40", "J17", "J22")
+    importe: Prisma.Decimal | string | number;
+    observacion?: string | null;
+    creadoPor?: string | null;
+  }) {
+    const afiliadoId = BigInt(input.afiliadoId);
+    const padronId = input.padronId != null ? BigInt(input.padronId) : null;
+
+    const novedad = await this.prisma.novedad.create({
+      data: {
+        organizacionId: input.organizacionId,
+        periodo: input.periodo,
+        afiliadoId,
+        padronId,
+        padronRaw: input.padronRaw,
+        centro: input.centro ?? null,
+        codigo: input.codigo.slice(0, 3).toUpperCase(),
+        importe: new Prisma.Decimal(String(input.importe)),
+        observacion: input.observacion ?? null,
+        creadoPor: input.creadoPor ?? null,
+      },
+    });
+
+    return {
+      id: String(novedad.id),
+      periodo: novedad.periodo,
+      afiliadoId: String(novedad.afiliadoId),
+      padronId: novedad.padronId ? String(novedad.padronId) : null,
+      padronRaw: novedad.padronRaw,
+      centro: novedad.centro,
+      codigo: novedad.codigo,
+      importe: novedad.importe.toString(),
+      observacion: novedad.observacion,
+      creadoPor: novedad.creadoPor,
+      creadoEn: novedad.creadoEn.toISOString(),
+    };
+  }
+
+  // === Listar novedades manuales ===
+  async listarNovedadesManuales(
+    organizacionId: string,
+    params: {
+      periodo?: string;
+      codigo?: string;
+      q?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    const page = Math.max(1, Number(params.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(params.limit ?? 20)));
+    const skip = (page - 1) * limit;
+
+    const q = (params.q ?? '').trim();
+    const orFilters: Prisma.NovedadWhereInput[] = [];
+
+    if (q) {
+      const afiWhere: Prisma.AfiliadoWhereInput = /^\d+$/.test(q)
+        ? { organizacionId, dni: BigInt(q) }
+        : {
+          organizacionId,
+          OR: [
+            { apellido: { contains: q, mode: 'insensitive' } },
+            { nombre: { contains: q, mode: 'insensitive' } },
+          ],
+        };
+
+      const [afiliados, padrones] = await Promise.all([
+        this.prisma.afiliado.findMany({ where: afiWhere, select: { id: true } }),
+        this.prisma.padron.findMany({
+          where: { organizacionId, padron: { contains: q, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      ]);
+
+      const afiIds = afiliados.map((a) => a.id);
+      const padIds = padrones.map((p) => p.id);
+
+      if (afiIds.length) orFilters.push({ afiliadoId: { in: afiIds } });
+      if (padIds.length) orFilters.push({ padronId: { in: padIds } });
+      orFilters.push({ padronRaw: { contains: q, mode: 'insensitive' } });
+    }
+
+    const where: Prisma.NovedadWhereInput = {
+      organizacionId,
+      ...(params.periodo ? { periodo: params.periodo } : {}),
+      ...(params.codigo ? { codigo: params.codigo.toUpperCase() } : {}),
+      ...(orFilters.length ? { OR: orFilters } : {}),
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.novedad.findMany({
+        where,
+        include: {
+          afiliado: { select: { id: true, apellido: true, nombre: true, dni: true } },
+          padron: { select: { id: true, padron: true } },
+        },
+        orderBy: { creadoEn: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.novedad.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((r) => ({
+        id: String(r.id),
+        periodo: r.periodo,
+        afiliado: r.afiliado
+          ? {
+            id: String(r.afiliado.id),
+            apellido: r.afiliado.apellido,
+            nombre: r.afiliado.nombre,
+            dni: r.afiliado.dni ? String(r.afiliado.dni) : null,
+          }
+          : null,
+        padron: r.padron
+          ? { id: String(r.padron.id), padron: r.padron.padron }
+          : { id: null, padron: r.padronRaw },
+        padronRaw: r.padronRaw,
+        centro: r.centro,
+        codigo: r.codigo,
+        importe: r.importe.toString(),
+        observacion: r.observacion,
+        creadoPor: r.creadoPor,
+        creadoEn: r.creadoEn.toISOString(),
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  // === Actualizar novedad manual ===
+  async actualizarNovedadManual(
+    organizacionId: string,
+    novedadId: bigint | number,
+    input: {
+      padronId?: bigint | number | null;
+      padronRaw?: string;
+      centro?: number | null;
+      codigo?: string;
+      importe?: Prisma.Decimal | string | number;
+      observacion?: string | null;
+    },
+  ) {
+    const novedad = await this.prisma.novedad.findFirst({
+      where: { id: BigInt(novedadId), organizacionId },
+    });
+    if (!novedad) throw new Error('Novedad no encontrada');
+
+    const padronId = input.padronId !== undefined ? (input.padronId != null ? BigInt(input.padronId) : null) : undefined;
+
+    const actualizada = await this.prisma.novedad.update({
+      where: { id: BigInt(novedadId) },
+      data: {
+        ...(padronId !== undefined ? { padronId } : {}),
+        ...(input.padronRaw !== undefined ? { padronRaw: input.padronRaw } : {}),
+        ...(input.centro !== undefined ? { centro: input.centro ?? null } : {}),
+        ...(input.codigo !== undefined ? { codigo: input.codigo.slice(0, 3).toUpperCase() } : {}),
+        ...(input.importe !== undefined ? { importe: new Prisma.Decimal(String(input.importe)) } : {}),
+        ...(input.observacion !== undefined ? { observacion: input.observacion ?? null } : {}),
+      },
+    });
+
+    return {
+      id: String(actualizada.id),
+      periodo: actualizada.periodo,
+      codigo: actualizada.codigo,
+      importe: actualizada.importe.toString(),
+      actualizadoEn: actualizada.actualizadoEn.toISOString(),
+    };
+  }
+
+  // === Eliminar novedad manual ===
+  async eliminarNovedadManual(organizacionId: string, novedadId: bigint | number) {
+    const novedad = await this.prisma.novedad.findFirst({
+      where: { id: BigInt(novedadId), organizacionId },
+    });
+    if (!novedad) throw new Error('Novedad no encontrada');
+
+    await this.prisma.novedad.delete({ where: { id: BigInt(novedadId) } });
+
+    return { id: String(novedadId), eliminado: true };
+  }
+
+  // ===================== CONCILIACIÓN DE NOVEDADES =====================
+
+  /**
+   * Procesa un archivo TXT de conciliación de cómputos y actualiza los padrones con los montos efectivamente descontados.
+   * 
+   * Formato de línea esperado:
+   * SUP196650948RUMILLA GRACIELA     8213613672512J17004842543J22003500000J38000500000K16008746100
+   * 
+   * Estructura:
+   * - Posiciones 0-2: "SUP" (ignorar)
+   * - Posiciones 3-4: Centro (ej: "19")
+   * - Posiciones 5-11: Padrón con DV (ej: "6650948" -> "665094-8")
+   * - Luego: Nombre (variable, termina antes del tipo DNI)
+   * - Tipo DNI: 1 dígito (ej: "8")
+   * - DNI: variable (ej: "21361367")
+   * - Período: 4 dígitos (ej: "2512" = diciembre 2025 -> "2025-12")
+   * - Códigos y montos: bloques de 12 caracteres cada uno (3 código + 9 monto)
+   *   - Código: 3 caracteres (ej: "J17")
+   *   - Monto: 9 dígitos, 7 enteros + 2 decimales sin punto (ej: "004842543" = 4842.43)
+   */
+  async procesarConciliacion(
+    organizacionId: string,
+    archivoBuffer: Buffer,
+    periodo?: string, // Si no se proporciona, se extrae de la primera línea
+  ): Promise<{
+    procesadas: number;
+    errores: number;
+    periodo: string;
+    detalles: Array<{ padron: string; centro?: number; codigos: string[] }>;
+  }> {
+    const contenido = archivoBuffer.toString('latin1'); // Usar latin1 para preservar caracteres especiales
+    const lineas = contenido.split(/\r?\n/).filter((l) => l.trim().length > 0);
+
+    if (lineas.length === 0) {
+      throw new Error('El archivo está vacío');
+    }
+
+      // Extraer período de la primera línea si no se proporcionó
+      let periodoProcesado = periodo;
+      if (!periodoProcesado) {
+        const primeraLinea = lineas[0];
+        // Buscar el período (4 dígitos antes de los códigos J/K seguidos de 2 dígitos)
+        // Formato: YYMM donde YY es el año (ej: 25 = 2025) y MM es el mes (ej: 12 = diciembre)
+        const periodoMatch = primeraLinea.match(/(\d{4})(?=[JK]\d{2})/);
+        if (periodoMatch) {
+          const periodoRaw = periodoMatch[1]; // ej: "2512" = diciembre 2025
+          const anio = periodoRaw.substring(0, 2); // ej: "25"
+          const mes = periodoRaw.substring(2, 4); // ej: "12"
+          // Convertir YY a YYYY (asumiendo 2000-2099)
+          const anioCompleto = `20${anio}`;
+          periodoProcesado = `${anioCompleto}-${mes}`;
+        } else {
+          throw new Error('No se pudo extraer el período del archivo. Por favor, indíquelo manualmente.');
+        }
+      }
+
+    // Validar formato de período
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodoProcesado)) {
+      throw new Error('Período inválido. Formato esperado: YYYY-MM');
+    }
+
+    const detalles: Array<{ padron: string; centro?: number; codigos: string[] }> = [];
+    let procesadas = 0;
+    let errores = 0;
+
+    // Procesar en lotes pequeños para evitar timeout (máximo 50 líneas por transacción)
+    const TAMANO_LOTE = 50;
+    const TOTAL_LINEAS = lineas.length;
+
+    for (let i = 0; i < lineas.length; i += TAMANO_LOTE) {
+      const lote = lineas.slice(i, i + TAMANO_LOTE);
+      
+      // Procesar cada lote en una transacción con timeout extendido (60 segundos)
+      await this.prisma.$transaction(
+        async (tx) => {
+          for (const linea of lote) {
+        try {
+          // Parsear línea
+          // SUP + centro(2) + padrón(7) + nombre + tipoDNI(1) + DNI + período(4) + códigos
+          if (!linea.startsWith('SUP')) {
+            console.warn(`Línea ignorada (no comienza con SUP): ${linea.substring(0, 50)}`);
+            errores++;
+            continue;
+          }
+
+          // Extraer centro (posiciones 3-4)
+          const centroStr = linea.substring(3, 5);
+          const centro = /^\d{2}$/.test(centroStr) ? Number(centroStr) : undefined;
+
+          // Extraer padrón (posiciones 5-11 = 7 dígitos)
+          const padronRaw = linea.substring(5, 12);
+          if (!/^\d{7}$/.test(padronRaw)) {
+            console.warn(`Padrón inválido en línea: ${linea.substring(0, 50)}`);
+            errores++;
+            continue;
+          }
+
+          // Formatear padrón: los primeros 6 dígitos + "-" + último dígito (DV)
+          const padronBase = padronRaw.substring(0, 6);
+          const padronDV = padronRaw.substring(6, 7);
+          const padronFormateado = `${padronBase}-${padronDV}`;
+
+          // Buscar el padrón
+          const padron = await tx.padron.findFirst({
+            where: { organizacionId, padron: padronFormateado },
+          });
+
+          if (!padron) {
+            console.warn(`Padrón no encontrado: ${padronFormateado}`);
+            errores++;
+            continue;
+          }
+
+          // Extraer códigos y montos
+          // Buscar desde el final hacia atrás: los códigos vienen antes del final
+          // Buscamos bloques de 12 caracteres (3 código + 9 monto) que empiezan con J o K seguido de 2 dígitos
+          const codigosMontos: Array<{ codigo: string; monto: string }> = [];
+          const regexCodigo = /([JK]\d{2})(\d{9})/g;
+          let match;
+          
+          // Buscar todos los códigos en la línea
+          while ((match = regexCodigo.exec(linea)) !== null) {
+            const codigo = match[1]; // ej: "J17"
+            const montoStr = match[2]; // ej: "004842543"
+            codigosMontos.push({ codigo, monto: montoStr });
+          }
+
+          if (codigosMontos.length === 0) {
+            console.warn(`No se encontraron códigos en línea: ${linea.substring(0, 50)}`);
+            errores++;
+            continue;
+          }
+
+          // Preparar actualización de campos
+          const updateData: {
+            j17?: Prisma.Decimal;
+            j22?: Prisma.Decimal;
+            j38?: Prisma.Decimal;
+            k16?: Prisma.Decimal;
+          } = {};
+
+          const codigosProcesados: string[] = [];
+
+          for (const { codigo, monto } of codigosMontos) {
+            // Convertir monto: 9 dígitos (7 enteros + 2 decimales) -> Decimal
+            // ej: "004842543" = 0048425.43 = 48,425.43
+            // ej: "003500000" = 0035000.00 = 35,000.00
+            const enteroStr = monto.substring(0, 7);
+            const decimalStr = monto.substring(7, 9);
+            // Parsear como número y luego crear Decimal para evitar problemas con ceros a la izquierda
+            const montoNumerico = parseFloat(`${enteroStr}.${decimalStr}`);
+            const montoDecimal = new Prisma.Decimal(montoNumerico.toFixed(2));
+
+            // Actualizar según el código
+            switch (codigo.toUpperCase()) {
+              case 'J17':
+                updateData.j17 = montoDecimal;
+                codigosProcesados.push(`J17: ${montoDecimal.toFixed(2)}`);
+                break;
+              case 'J22':
+                updateData.j22 = montoDecimal;
+                codigosProcesados.push(`J22: ${montoDecimal.toFixed(2)}`);
+                break;
+              case 'J38':
+                updateData.j38 = montoDecimal;
+                codigosProcesados.push(`J38: ${montoDecimal.toFixed(2)}`);
+                break;
+              case 'K16':
+                updateData.k16 = montoDecimal;
+                codigosProcesados.push(`K16: ${montoDecimal.toFixed(2)}`);
+                break;
+              default:
+                console.warn(`Código no reconocido: ${codigo}`);
+            }
+          }
+
+          // Actualizar padrón
+          await tx.padron.update({
+            where: { id: padron.id },
+            data: updateData,
+          });
+
+          detalles.push({
+            padron: padronFormateado,
+            centro,
+            codigos: codigosProcesados,
+          });
+          procesadas++;
+        } catch (error) {
+          console.error(`Error procesando línea: ${linea.substring(0, 50)}`, error);
+          errores++;
+        }
+      }
+        },
+        {
+          maxWait: 60000, // 60 segundos máximo de espera
+          timeout: 60000, // 60 segundos de timeout por transacción
+        },
+      );
+    }
+
+    return {
+      procesadas,
+      errores,
+      periodo: periodoProcesado,
+      detalles,
+    };
+  }
+
+  /**
+   * Procesa la conciliación con callbacks para progreso en tiempo real
+   */
+  async procesarConciliacionConProgreso(
+    organizacionId: string,
+    archivoBuffer: Buffer,
+    periodo?: string,
+    onProgreso?: (progreso: {
+      procesadas: number;
+      errores: number;
+      total: number;
+      porcentaje: number;
+      ultimoPadron?: string;
+      detallesParciales: Array<{ padron: string; centro?: number; codigos: string[] }>;
+      erroresDetallados: Array<{ padron?: string; motivo: string; linea?: string }>;
+    }) => void,
+  ): Promise<{
+    procesadas: number;
+    errores: number;
+    periodo: string;
+    detalles: Array<{ padron: string; centro?: number; codigos: string[] }>;
+    erroresDetallados: Array<{ padron?: string; motivo: string; linea?: string }>;
+  }> {
+    const contenido = archivoBuffer.toString('latin1');
+    const lineas = contenido.split(/\r?\n/).filter((l) => l.trim().length > 0);
+
+    if (lineas.length === 0) {
+      throw new Error('El archivo está vacío');
+    }
+
+    let periodoProcesado = periodo;
+    if (!periodoProcesado) {
+      const primeraLinea = lineas[0];
+      const periodoMatch = primeraLinea.match(/(\d{4})(?=[JK]\d{2})/);
+      if (periodoMatch) {
+        const periodoRaw = periodoMatch[1];
+        const anio = periodoRaw.substring(0, 2);
+        const mes = periodoRaw.substring(2, 4);
+        const anioCompleto = `20${anio}`;
+        periodoProcesado = `${anioCompleto}-${mes}`;
+      } else {
+        throw new Error('No se pudo extraer el período del archivo. Por favor, indíquelo manualmente.');
+      }
+    }
+
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodoProcesado)) {
+      throw new Error('Período inválido. Formato esperado: YYYY-MM');
+    }
+
+    const detalles: Array<{ padron: string; centro?: number; codigos: string[] }> = [];
+    const erroresDetallados: Array<{ padron?: string; motivo: string; linea?: string }> = [];
+    let procesadas = 0;
+    let errores = 0;
+    const TOTAL_LINEAS = lineas.length;
+    const TAMANO_LOTE = 50;
+
+    for (let i = 0; i < lineas.length; i += TAMANO_LOTE) {
+      const lote = lineas.slice(i, i + TAMANO_LOTE);
+      let ultimoPadronProcesado: string | undefined;
+      const erroresLote: Array<{ padron?: string; motivo: string; linea?: string }> = [];
+
+      await this.prisma.$transaction(
+        async (tx) => {
+          for (const linea of lote) {
+            try {
+              if (!linea.startsWith('SUP')) {
+                const motivo = `Línea no comienza con SUP`;
+                erroresLote.push({ motivo, linea: linea.substring(0, 80) });
+                errores++;
+                continue;
+              }
+
+              const centroStr = linea.substring(3, 5);
+              const centro = /^\d{2}$/.test(centroStr) ? Number(centroStr) : undefined;
+
+              const padronRaw = linea.substring(5, 12);
+              let padronFormateado: string | undefined;
+              
+              if (!/^\d{7}$/.test(padronRaw)) {
+                const motivo = `Padrón inválido (no tiene 7 dígitos): ${padronRaw}`;
+                erroresLote.push({ motivo, linea: linea.substring(0, 80) });
+                errores++;
+                continue;
+              }
+
+              const padronBase = padronRaw.substring(0, 6);
+              const padronDV = padronRaw.substring(6, 7);
+              padronFormateado = `${padronBase}-${padronDV}`;
+
+              const padron = await tx.padron.findFirst({
+                where: { organizacionId, padron: padronFormateado },
+              });
+
+              if (!padron) {
+                const motivo = `Padrón no encontrado en la base de datos`;
+                erroresLote.push({ padron: padronFormateado, motivo, linea: linea.substring(0, 80) });
+                errores++;
+                continue;
+              }
+
+              const codigosMontos: Array<{ codigo: string; monto: string }> = [];
+              const regexCodigo = /([JK]\d{2})(\d{9})/g;
+              let match;
+
+              while ((match = regexCodigo.exec(linea)) !== null) {
+                const codigo = match[1];
+                const montoStr = match[2];
+                codigosMontos.push({ codigo, monto: montoStr });
+              }
+
+              if (codigosMontos.length === 0) {
+                const motivo = `No se encontraron códigos (J17, J22, J38, K16) en la línea`;
+                erroresLote.push({ padron: padronFormateado, motivo, linea: linea.substring(0, 80) });
+                errores++;
+                continue;
+              }
+
+              const updateData: {
+                j17?: Prisma.Decimal;
+                j22?: Prisma.Decimal;
+                j38?: Prisma.Decimal;
+                k16?: Prisma.Decimal;
+              } = {};
+
+              const codigosProcesados: string[] = [];
+              
+              // Mapeo de códigos a conceptos
+              const codigoToConcepto: Record<string, string> = {
+                'J17': 'CUOTA_SOC',
+                'J22': 'COSEGURO',
+                'J38': 'ADIC_COL',
+                'K16': 'ORDEN_CREDITO',
+              };
+
+              // Calcular total del pago para crear un único Pago
+              let totalPago = new Prisma.Decimal(0);
+              const itemsPago: Array<{ codigo: string; monto: Prisma.Decimal; concepto: string }> = [];
+
+              for (const { codigo, monto } of codigosMontos) {
+                const enteroStr = monto.substring(0, 7);
+                const decimalStr = monto.substring(7, 9);
+                const montoNumerico = parseFloat(`${enteroStr}.${decimalStr}`);
+                const montoDecimal = new Prisma.Decimal(montoNumerico.toFixed(2));
+
+                switch (codigo.toUpperCase()) {
+                  case 'J17':
+                    updateData.j17 = montoDecimal;
+                    codigosProcesados.push(`J17: ${montoDecimal.toFixed(2)}`);
+                    totalPago = totalPago.add(montoDecimal);
+                    itemsPago.push({ codigo: 'J17', monto: montoDecimal, concepto: 'CUOTA_SOC' });
+                    break;
+                  case 'J22':
+                    updateData.j22 = montoDecimal;
+                    codigosProcesados.push(`J22: ${montoDecimal.toFixed(2)}`);
+                    totalPago = totalPago.add(montoDecimal);
+                    itemsPago.push({ codigo: 'J22', monto: montoDecimal, concepto: 'COSEGURO' });
+                    break;
+                  case 'J38':
+                    updateData.j38 = montoDecimal;
+                    codigosProcesados.push(`J38: ${montoDecimal.toFixed(2)}`);
+                    totalPago = totalPago.add(montoDecimal);
+                    itemsPago.push({ codigo: 'J38', monto: montoDecimal, concepto: 'ADIC_COL' });
+                    break;
+                  case 'K16':
+                    updateData.k16 = montoDecimal;
+                    codigosProcesados.push(`K16: ${montoDecimal.toFixed(2)}`);
+                    totalPago = totalPago.add(montoDecimal);
+                    itemsPago.push({ codigo: 'K16', monto: montoDecimal, concepto: 'ORDEN_CREDITO' });
+                    break;
+                  default:
+                    console.warn(`Código no reconocido: ${codigo}`);
+                }
+              }
+
+              // Actualizar padrón con los montos
+              await tx.padron.update({
+                where: { id: padron.id },
+                data: updateData,
+              });
+
+              // Si hay montos a procesar, crear pago y movimientos
+              if (totalPago.gt(0) && itemsPago.length > 0) {
+                // Buscar o crear una caja virtual para nómina
+                // (el schema requiere cajaId, pero para nómina no tenemos caja física)
+                let cajaNomina = await tx.caja.findFirst({
+                  where: {
+                    organizacionId,
+                    sede: 'NOMINA', // Caja especial para nómina
+                    estado: 'cerrada', // Buscamos una cerrada, o creamos nueva
+                  },
+                  orderBy: { fechaCierre: 'desc' },
+                });
+
+                // Si no existe, crear una caja virtual para nómina
+                if (!cajaNomina) {
+                  cajaNomina = await tx.caja.create({
+                    data: {
+                      organizacionId,
+                      sede: 'NOMINA',
+                      fechaApertura: new Date(),
+                      fechaCierre: new Date(), // Cerrada automáticamente
+                      estado: 'cerrada',
+                    },
+                  });
+                }
+
+                // 1. Crear Pago con origen='nomina'
+                const pago = await tx.pago.create({
+                  data: {
+                    organizacionId,
+                    afiliadoId: padron.afiliadoId,
+                    cajaId: cajaNomina.id,
+                    total: totalPago,
+                    numeroRecibo: null,
+                    origen: 'nomina',
+                  },
+                });
+
+                // 2. Crear MétodoPago (nómina)
+                await tx.metodoPago.create({
+                  data: {
+                    pagoId: pago.id,
+                    metodo: 'nomina',
+                    monto: totalPago,
+                    ref: `Conciliación ${periodoProcesado}`,
+                  },
+                });
+
+                // 3. Procesar cada código: crear movimientos y para K16 cancelar órdenes de crédito
+                for (const item of itemsPago) {
+                  const conceptoNombre = item.codigo === 'J17' ? 'Descuento cuota societaria'
+                    : item.codigo === 'J22' ? 'Descuento coseguro'
+                    : item.codigo === 'J38' ? 'Descuento colateral'
+                    : item.codigo === 'K16' ? 'Descuento crédito'
+                    : `Descuento ${item.codigo}`;
+
+                  let ordenIdAplicada: bigint | null = null;
+                  let cuotaIdAplicada: bigint | null = null;
+                  const ordenesCanceladas: Array<{ ordenId: bigint; descripcion: string }> = [];
+
+                  // Para K16: cancelar órdenes de crédito en orden FIFO
+                  // Crear UN SOLO movimiento con el total del K16 y describir aplicaciones en concepto
+                  if (item.codigo === 'K16') {
+                    // Buscar órdenes de crédito pendientes del afiliado, ordenadas por fecha (FIFO)
+                    const ordenesCredito = await tx.ordenCredito.findMany({
+                      where: {
+                        organizacionId,
+                        afiliadoId: padron.afiliadoId,
+                        estado: { in: ['pendiente', 'en_curso'] },
+                        saldoTotal: { gt: 0 },
+                      },
+                      include: {
+                        cuotas: {
+                          where: {
+                            estado: { in: ['pendiente', 'generada', 'parcialmente_pagada'] },
+                            saldo: { gt: 0 },
+                          },
+                          orderBy: [
+                            { periodoVenc: 'asc' },
+                            { numero: 'asc' },
+                          ],
+                        },
+                      },
+                      orderBy: { fechaAlta: 'asc' },
+                    });
+
+                    let montoRestante = item.monto;
+                    const aplicaciones: Array<{ ordenId: bigint; cuotaId: bigint; cuotaNum: number; monto: Prisma.Decimal }> = [];
+
+                    // Recorrer órdenes de crédito en orden FIFO y aplicar pagos
+                    for (const orden of ordenesCredito) {
+                      if (montoRestante.lte(0)) break;
+
+                      for (const cuota of orden.cuotas) {
+                        if (montoRestante.lte(0)) break;
+
+                        const saldoCuota = new Prisma.Decimal(cuota.saldo);
+                        const montoAplicar = montoRestante.gt(saldoCuota) ? saldoCuota : montoRestante;
+                        const nuevoSaldo = saldoCuota.minus(montoAplicar);
+                        const nuevoCancelado = new Prisma.Decimal(cuota.cancelado).add(montoAplicar);
+
+                        // Actualizar cuota
+                        await tx.ordenCreditoCuota.update({
+                          where: { id: cuota.id },
+                          data: {
+                            saldo: nuevoSaldo,
+                            cancelado: nuevoCancelado,
+                            estado: nuevoSaldo.lte(0.01) ? 'pagada' : 'parcialmente_pagada',
+                            fechaCancelacion: nuevoSaldo.lte(0.01) ? new Date() : cuota.fechaCancelacion,
+                          },
+                        });
+
+                        // Registrar la aplicación para el detalle
+                        aplicaciones.push({
+                          ordenId: orden.id,
+                          cuotaId: cuota.id,
+                          cuotaNum: cuota.numero,
+                          monto: montoAplicar,
+                        });
+
+                        montoRestante = montoRestante.minus(montoAplicar);
+
+                        // Registrar orden afectada
+                        if (!ordenesCanceladas.find((o) => o.ordenId.toString() === orden.id.toString())) {
+                          ordenesCanceladas.push({ ordenId: orden.id, descripcion: orden.descripcion });
+                        }
+
+                        // Actualizar saldo total de la orden
+                        const todasLasCuotas = await tx.ordenCreditoCuota.findMany({
+                          where: { ordenId: orden.id },
+                        });
+                        const saldoTotalOrden = todasLasCuotas.reduce(
+                          (sum, c) => sum.add(new Prisma.Decimal(c.saldo)),
+                          new Prisma.Decimal(0),
+                        );
+
+                        await tx.ordenCredito.update({
+                          where: { id: orden.id },
+                          data: {
+                            saldoTotal: saldoTotalOrden,
+                            estado: saldoTotalOrden.lte(0.01) ? 'cancelada' : 'en_curso',
+                          },
+                        });
+                      }
+                    }
+
+                    // Construir concepto descriptivo con las aplicaciones
+                    let conceptoK16 = 'Descuento crédito K16';
+                    if (aplicaciones.length > 0) {
+                      const detalleAplicaciones = aplicaciones
+                        .map((a) => `ORD#${a.ordenId} cuota ${a.cuotaNum}: $${a.monto.toFixed(2)}`)
+                        .join(' | ');
+                      conceptoK16 += ` → ${detalleAplicaciones}`;
+                    }
+                    if (montoRestante.gt(0.01)) {
+                      conceptoK16 += ` | Saldo a favor: $${montoRestante.toFixed(2)}`;
+                    }
+
+                    // Crear UN SOLO movimiento con el total del K16
+                    // Vinculamos a la primera orden/cuota si hay, para poder expandir el detalle
+                    const primeraAplicacion = aplicaciones[0];
+                    const movK16 = await this.movimientos.postMovimiento({
+                      tx,
+                      organizacionId,
+                      afiliadoId: padron.afiliadoId,
+                      padronId: padron.id,
+                      fecha: new Date(),
+                      naturaleza: 'credito',
+                      origen: 'nomina',
+                      concepto: conceptoK16,
+                      importe: Number(item.monto), // Total del K16
+                      ordenId: primeraAplicacion?.ordenId ?? null,
+                      cuotaId: primeraAplicacion?.cuotaId ?? null,
+                      pagoId: pago.id,
+                      periodoContable: periodoProcesado,
+                      // K16 SÍ afecta el saldo (cancela deuda real de órdenes de crédito)
+                    });
+
+                    // Generar asiento contable para K16 (si hay mapeo configurado)
+                    await this.contabilidad.crearAsientoNomina(tx, {
+                      organizacionId,
+                      conceptoCodigo: 'K16',
+                      monto: Number(item.monto),
+                      padron: padronFormateado,
+                      periodoContable: periodoProcesado,
+                      movimientoId: movK16.id,
+                    });
+
+                    continue; // No crear movimiento genérico al final
+                  }
+
+                  // Para J17, J22, J38: crear movimiento INFORMATIVO (no afecta saldo)
+                  // Estos descuentos pagan deudas "implícitas" que NO registramos como débito
+                  // Solo sirven para saber que al afiliado le están descontando
+                  const movInfo = await this.movimientos.postMovimiento({
+                    tx,
+                    organizacionId,
+                    afiliadoId: padron.afiliadoId,
+                    padronId: padron.id,
+                    fecha: new Date(),
+                    naturaleza: 'credito',
+                    origen: 'nomina',
+                    concepto: conceptoNombre,
+                    importe: Number(item.monto),
+                    pagoId: pago.id,
+                    periodoContable: periodoProcesado,
+                    afectaSaldo: false, // NO afecta saldo porque no hay deuda previa registrada
+                  });
+
+                  // Generar asiento contable (J17, J22, J38) si hay mapeo configurado
+                  await this.contabilidad.crearAsientoNomina(tx, {
+                    organizacionId,
+                    conceptoCodigo: item.codigo,
+                    monto: Number(item.monto),
+                    padron: padronFormateado,
+                    periodoContable: periodoProcesado,
+                    movimientoId: movInfo.id,
+                  });
+                }
+              }
+
+              detalles.push({
+                padron: padronFormateado,
+                centro,
+                codigos: codigosProcesados,
+              });
+              ultimoPadronProcesado = padronFormateado;
+              procesadas++;
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              // Intentar extraer el padrón si está disponible en el contexto
+              let padronError: string | undefined;
+              try {
+                const padronRaw = linea.substring(5, 12);
+                if (/^\d{7}$/.test(padronRaw)) {
+                  const padronBase = padronRaw.substring(0, 6);
+                  const padronDV = padronRaw.substring(6, 7);
+                  padronError = `${padronBase}-${padronDV}`;
+                }
+              } catch {
+                // Ignorar si no se puede extraer
+              }
+              
+              const motivo = `Error al procesar: ${errorMsg}`;
+              erroresLote.push({ 
+                padron: padronError, 
+                motivo, 
+                linea: linea.substring(0, 80) 
+              });
+              errores++;
+              console.error(`Error procesando línea: ${linea.substring(0, 50)}`, error);
+            }
+          }
+        },
+        {
+          maxWait: 60000,
+          timeout: 60000,
+        },
+      );
+
+      // Agregar errores del lote a la lista total
+      erroresDetallados.push(...erroresLote);
+
+      // Notificar progreso después de cada lote
+      if (onProgreso) {
+        onProgreso({
+          procesadas,
+          errores,
+          total: TOTAL_LINEAS,
+          porcentaje: Math.round(((i + lote.length) / TOTAL_LINEAS) * 100),
+          ultimoPadron: ultimoPadronProcesado,
+          detallesParciales: detalles.slice(Math.max(0, detalles.length - lote.length)),
+          erroresDetallados: erroresLote,
+        });
+      }
+    }
+
+    return {
+      procesadas,
+      errores,
+      periodo: periodoProcesado,
+      detalles,
+      erroresDetallados,
+    };
   }
 }

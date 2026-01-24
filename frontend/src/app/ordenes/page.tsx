@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function OrdenesHomePage() {
   const router = useRouter();
@@ -19,40 +21,33 @@ export default function OrdenesHomePage() {
   }, [router, afiliadoId]);
 
   return (
-    <main style={{ padding: 24, maxWidth: 520 }}>
-      <h1 style={{ marginBottom: 16 }}>Órdenes por afiliado</h1>
+    <main className="p-6 max-w-lg space-y-4">
+      <h1 className="text-xl font-semibold">Órdenes por afiliado</h1>
 
-      <label htmlFor="afiliadoId">ID de afiliado</label>
-      <input
-        id="afiliadoId"
-        value={afiliadoId}
-        onChange={(e) => setAfiliadoId(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') ir();
-        }}
-        placeholder="Ej: 1001"
-        style={{
-          display: 'block',
-          width: '100%',
-          padding: '8px 10px',
-          marginTop: 6,
-          marginBottom: 10,
-          border: '1px solid #ccc',
-          borderRadius: 4,
-        }}
-      />
+      <div className="space-y-2">
+        <label htmlFor="afiliadoId" className="text-xs font-medium text-muted-foreground">
+          ID de afiliado
+        </label>
+        <Input
+          id="afiliadoId"
+          value={afiliadoId}
+          onChange={(e) => setAfiliadoId(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') ir();
+          }}
+          placeholder="Ej: 1001"
+        />
+      </div>
 
-      <button onClick={ir} style={{ padding: '8px 14px' }}>
-        Ver órdenes
-      </button>
+      <Button onClick={ir}>Ver órdenes</Button>
 
       {error && (
-        <p style={{ color: 'crimson', marginTop: 12 }}>
+        <p className="text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <p style={{ marginTop: 16, color: '#666', fontSize: 14 }}>
+      <p className="text-sm text-muted-foreground">
         Ingresá el ID y presioná Enter o el botón para ver las órdenes del afiliado.
       </p>
     </main>

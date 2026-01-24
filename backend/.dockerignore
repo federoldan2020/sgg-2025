@@ -1,0 +1,5 @@
+# Backups
+backups/
+*.sql
+*.sql.gz
+*.sql.zip

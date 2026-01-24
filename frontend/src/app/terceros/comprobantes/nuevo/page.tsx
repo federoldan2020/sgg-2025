@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, getErrorMessage, ORG } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /* ===== Tipos ===== */
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
@@ -386,7 +388,7 @@ export default function NuevoComprobantePage() {
           <div className="form-grid form-grid-4">
             <div className="form-group">
               <label className="form-label">Organización</label>
-              <input
+              <Input
                 className="form-input"
                 value={organizacionId}
                 onChange={(e) => setOrg(e.target.value)}
@@ -405,7 +407,7 @@ export default function NuevoComprobantePage() {
                 )}
               </label>
               <div className="autocomplete-container">
-                <input
+                <Input
                   ref={inputRef}
                   className="form-input"
                   value={q}
@@ -421,8 +423,10 @@ export default function NuevoComprobantePage() {
                   aria-expanded={open}
                 />
                 {terceroSel && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={limpiarTercero}
                     className="autocomplete-clear"
                     title="Limpiar selección"
@@ -440,7 +444,7 @@ export default function NuevoComprobantePage() {
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
-                  </button>
+                  </Button>
                 )}
 
                 {open && (items.length > 0 || q.trim()) && (
@@ -546,7 +550,7 @@ export default function NuevoComprobantePage() {
 
             <div className="form-group">
               <label className="form-label">Punto de Venta</label>
-              <input
+              <Input
                 className="form-input"
                 type="number"
                 value={puntoVenta}
@@ -559,7 +563,7 @@ export default function NuevoComprobantePage() {
 
             <div className="form-group">
               <label className="form-label">Número</label>
-              <input
+              <Input
                 className="form-input"
                 type="number"
                 value={numero}
@@ -574,7 +578,7 @@ export default function NuevoComprobantePage() {
           <div className="form-grid form-grid-5">
             <div className="form-group">
               <label className="form-label">Fecha</label>
-              <input
+              <Input
                 className="form-input"
                 type="date"
                 value={fecha}
@@ -584,7 +588,7 @@ export default function NuevoComprobantePage() {
 
             <div className="form-group">
               <label className="form-label">Vencimiento</label>
-              <input
+              <Input
                 className="form-input"
                 type="date"
                 value={vencimiento}
@@ -594,7 +598,7 @@ export default function NuevoComprobantePage() {
 
             <div className="form-group">
               <label className="form-label">Moneda</label>
-              <input
+              <Input
                 className="form-input"
                 value={moneda}
                 onChange={(e) => setMoneda(e.target.value)}
@@ -604,7 +608,7 @@ export default function NuevoComprobantePage() {
 
             <div className="form-group">
               <label className="form-label">CUIT Emisor</label>
-              <input
+              <Input
                 className="form-input"
                 value={cuitEmisor}
                 onChange={(e) => setCuitEmisor(e.target.value)}
@@ -614,7 +618,7 @@ export default function NuevoComprobantePage() {
 
             <div className="form-group">
               <label className="form-label">Observaciones</label>
-              <input
+              <Input
                 className="form-input"
                 value={observaciones}
                 onChange={(e) => setObs(e.target.value)}
@@ -631,11 +635,7 @@ export default function NuevoComprobantePage() {
               <h2 className="form-section-title">Líneas de Detalle</h2>
               <p className="form-section-subtitle">Items del comprobante</p>
             </div>
-            <button
-              className="btn btn-primary"
-              onClick={addLinea}
-              type="button"
-            >
+            <Button onClick={addLinea} type="button">
               <svg
                 width="16"
                 height="16"
@@ -650,7 +650,7 @@ export default function NuevoComprobantePage() {
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               Agregar Línea
-            </button>
+            </Button>
           </div>
 
           <div className="table-container">
@@ -669,7 +669,7 @@ export default function NuevoComprobantePage() {
                 {lineas.map((l, i) => (
                   <tr key={i}>
                     <td>
-                      <input
+                      <Input
                         className="table-input"
                         value={l.descripcion}
                         onChange={(e) =>
@@ -679,7 +679,7 @@ export default function NuevoComprobantePage() {
                       />
                     </td>
                     <td>
-                      <input
+                      <Input
                         className="table-input table-input-numeric"
                         type="number"
                         step="0.01"
@@ -691,7 +691,7 @@ export default function NuevoComprobantePage() {
                       />
                     </td>
                     <td>
-                      <input
+                      <Input
                         className="table-input table-input-numeric"
                         type="number"
                         step="0.01"
@@ -731,7 +731,9 @@ export default function NuevoComprobantePage() {
                       )}
                     </td>
                     <td className="table-col-center">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="btn-icon btn-icon-danger"
                         onClick={() => delLinea(i)}
                         title="Eliminar línea"
@@ -750,7 +752,7 @@ export default function NuevoComprobantePage() {
                           <polyline points="3,6 5,6 21,6" />
                           <path d="m19,6v14a2,2 0,0 1,-2,2H7a2,2 0,0 1,-2,-2V6m3,0V4a2,2 0,0 1,2,-2h4a2,2 0,0 1,2,2v2" />
                         </svg>
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -766,11 +768,7 @@ export default function NuevoComprobantePage() {
               <h2 className="form-section-title">Impuestos y Percepciones</h2>
               <p className="form-section-subtitle">Conceptos adicionales</p>
             </div>
-            <button
-              className="btn btn-secondary"
-              onClick={addImp}
-              type="button"
-            >
+            <Button variant="secondary" onClick={addImp} type="button">
               <svg
                 width="16"
                 height="16"
@@ -785,7 +783,7 @@ export default function NuevoComprobantePage() {
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               Agregar Concepto
-            </button>
+            </Button>
           </div>
 
           {impuestos.length > 0 && (
@@ -828,7 +826,7 @@ export default function NuevoComprobantePage() {
                         </select>
                       </td>
                       <td>
-                        <input
+                        <Input
                           className="table-input"
                           value={it.detalle || ""}
                           onChange={(e) =>
@@ -838,7 +836,7 @@ export default function NuevoComprobantePage() {
                         />
                       </td>
                       <td>
-                        <input
+                        <Input
                           className="table-input table-input-numeric"
                           type="number"
                           step="0.01"
@@ -854,7 +852,7 @@ export default function NuevoComprobantePage() {
                         />
                       </td>
                       <td>
-                        <input
+                        <Input
                           className="table-input table-input-numeric"
                           type="number"
                           step="0.01"
@@ -866,7 +864,9 @@ export default function NuevoComprobantePage() {
                         />
                       </td>
                       <td className="table-col-center">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="btn-icon btn-icon-danger"
                           onClick={() => delImp(i)}
                           title="Eliminar concepto"
@@ -885,7 +885,7 @@ export default function NuevoComprobantePage() {
                             <polyline points="3,6 5,6 21,6" />
                             <path d="m19,6v14a2,2 0,0 1,-2,2H7a2,2 0,0 1,-2,-2V6m3,0V4a2,2 0,0 1,2,-2h4a2,2 0,0 1,2,2v2" />
                           </svg>
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -974,10 +974,7 @@ export default function NuevoComprobantePage() {
               </div>
 
               <div className="submit-section">
-                <button
-                  className={`btn btn-lg ${
-                    canSubmit ? "btn-success" : "btn-disabled"
-                  }`}
+                <Button
                   onClick={submit}
                   disabled={posting || !canSubmit}
                   type="button"
@@ -1016,7 +1013,7 @@ export default function NuevoComprobantePage() {
                       Crear Comprobante
                     </>
                   )}
-                </button>
+                </Button>
 
                 {!canSubmit && (
                   <div className="submit-help">

@@ -1,18 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import prisma from '../../prisma';
+import { PrismaService } from '../../common/prisma.service';
 import type { CrearParentescoDto, EditarParentescoDto } from './dtos';
 
 @Injectable()
 export class ParentescosService {
+  constructor(private prisma: PrismaService) {}
+
   listar(orgId: string) {
-    return prisma.parentesco.findMany({
+    return this.prisma.parentesco.findMany({
       where: { organizacionId: orgId },
       orderBy: [{ activo: 'desc' }, { codigo: 'asc' }],
     });
   }
 
   async crear(orgId: string, dto: CrearParentescoDto) {
-    return prisma.parentesco.create({
+    return this.prisma.parentesco.create({
       data: {
         organizacionId: orgId,
         codigo: dto.codigo,
@@ -23,8 +25,8 @@ export class ParentescosService {
   }
 
   async editar(orgId: string, id: bigint | number, dto: EditarParentescoDto) {
-    const pid = typeof id === 'number' ? BigInt(id) : id; // ✅ sin "as"
-    return prisma.parentesco.update({
+    const pid = typeof id === 'number' ? BigInt(id) : id;
+    return this.prisma.parentesco.update({
       where: { id: pid },
       data: {
         descripcion: dto.descripcion?.trim(),
@@ -34,7 +36,7 @@ export class ParentescosService {
   }
 
   eliminar(orgId: string, id: bigint | number) {
-    const pid = typeof id === 'number' ? BigInt(id) : id; // ✅ sin "as"
-    return prisma.parentesco.delete({ where: { id: pid } });
+    const pid = typeof id === 'number' ? BigInt(id) : id;
+    return this.prisma.parentesco.delete({ where: { id: pid } });
   }
 }
