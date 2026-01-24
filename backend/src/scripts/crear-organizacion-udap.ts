@@ -83,20 +83,31 @@ async function crearOrganizacionUDAP(): Promise<void> {
     console.log('✅ Parentescos creados para UDAP');
 
     // 4. Crear regla base de coseguro
-    await prisma.reglaPrecioCoseguro.upsert({
+    const vigenteDesde = new Date(new Date().toISOString().split('T')[0]);
+    const reglaCoseguro = await prisma.reglaPrecioCoseguro.findFirst({
       where: {
-        organizacionId_vigenteDesde: {
-          organizacionId: udap.id,
-          vigenteDesde: new Date(new Date().toISOString().split('T')[0]),
-        },
-      },
-      update: {},
-      create: {
         organizacionId: udap.id,
-        vigenteDesde: new Date(),
-        precioBase: new Prisma.Decimal(25000),
+        vigenteDesde,
       },
     });
+
+    if (reglaCoseguro) {
+      await prisma.reglaPrecioCoseguro.update({
+        where: { id: reglaCoseguro.id },
+        data: {
+          precioBase: new Prisma.Decimal(25000),
+          activo: true,
+        },
+      });
+    } else {
+      await prisma.reglaPrecioCoseguro.create({
+        data: {
+          organizacionId: udap.id,
+          vigenteDesde,
+          precioBase: new Prisma.Decimal(25000),
+        },
+      });
+    }
 
     console.log('✅ Regla de coseguro creada para UDAP');
 
@@ -151,19 +162,28 @@ async function crearOrganizacionUDAP(): Promise<void> {
     }
 
     // 6. Crear configuración de organización
-    const config = await prisma.organizacionConfig.upsert({
-      where: {
-        organizacionId: udap.id,
-      },
-      update: {},
-      create: {
-        organizacionId: udap.id,
-        cuentaContableIngreso: '4100-001',
-        cuentaContableEgreso: '5100-001',
-        cuentaContableCoseguro: '4110-001',
-        cuentaContableColateral: '4120-001',
-      },
-    });
+    const configuraciones = [
+      { clave: 'cuentaContableIngreso', valorString: '4100-001' },
+      { clave: 'cuentaContableEgreso', valorString: '5100-001' },
+      { clave: 'cuentaContableCoseguro', valorString: '4110-001' },
+      { clave: 'cuentaContableColateral', valorString: '4120-001' },
+    ];
+
+    for (const cfg of configuraciones) {
+      await prisma.organizacionConfig.upsert({
+        where: {
+          organizacionId_clave: {
+            organizacionId: udap.id,
+            clave: cfg.clave,
+          },
+        },
+        update: cfg,
+        create: {
+          organizacionId: udap.id,
+          ...cfg,
+        },
+      });
+    }
 
     console.log('✅ Configuración de organización creada');
 
