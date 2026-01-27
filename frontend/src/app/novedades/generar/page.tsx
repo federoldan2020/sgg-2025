@@ -15,14 +15,16 @@ export default function GenerarNovedadesPage() {
   const [sistema, setSistema] = useState<'ES' | 'SG'>('ES');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [res, setRes] = useState<{
+  type GenerarNovedadesResponse = {
     id: string;
     periodo: string;
     sistema: string;
     archivoNombre: string;
     totalRegistros: number;
     totalImporte: string;
-  } | null>(null);
+  };
+
+  const [res, setRes] = useState<GenerarNovedadesResponse | null>(null);
 
   const generar = async () => {
     if (!periodo || !/^\d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
@@ -33,7 +35,7 @@ export default function GenerarNovedadesPage() {
     setMsg(null);
     setLoading(true);
     try {
-      const r = await api(
+      const r = await api<GenerarNovedadesResponse>(
         `/novedades/generar?periodo=${encodeURIComponent(periodo)}&sistema=${sistema}`,
         { method: 'POST' }
       );

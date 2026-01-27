@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cajaService } from "@/servicios/cajaService";
-import { getErrorMessage, referenciaCierreCaja } from "@/servicios/api";
+import { getErrorMessage } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -44,9 +44,14 @@ export default function CierreCajaPage() {
     try {
       if (!cajaId) return;
       setClosing(true);
-      const r = await cajaService.cerrarLote(cajaId, rows.map(r => ({
-        metodo: r.metodo || null, declarado: toNum(r.declarado), teorico: toNum(r.teorico)
-      })), referenciaCierreCaja(cajaId));
+      const r = await cajaService.cerrarLote(
+        cajaId,
+        rows.map((r) => ({
+          metodo: r.metodo || null,
+          declarado: toNum(r.declarado),
+          teorico: toNum(r.teorico),
+        }))
+      );
       setMsg(r.asientoId ? `Cierre OK. Δ $${fmt(r.diff)}. Asiento #${r.asientoId}` : `Cierre sin diferencias. Δ $${fmt(r.diff)}`);
       router.replace("/caja/apertura");
     } catch (e) {
