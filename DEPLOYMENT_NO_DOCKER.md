@@ -437,10 +437,11 @@ npx prisma generate
 npx prisma migrate deploy
 npm run build
 
-# Frontend
+# Frontend (usa npm ci completo: el build requiere Tailwind/PostCSS en devDependencies)
 echo "📦 Actualizando frontend..."
 cd ../frontend
-npm ci --only=production
+rm -rf node_modules .next
+npm ci
 npm run build
 
 # Restart con PM2
@@ -457,6 +458,20 @@ pm2 status
 ```bash
 chmod +x /var/www/sgg-2025/deploy.sh
 ```
+
+### Error: "Failed to load native binding" (@tailwindcss/oxide)
+
+Si el build del frontend falla con este error, suele deberse a bindings nativos incompatibles (p. ej. `node_modules` copiado desde otro SO o arquitectura). Solución:
+
+```bash
+cd /var/www/sgg-2025/frontend
+rm -rf node_modules .next
+npm ci
+npm run build
+```
+
+- **No usar** `npm ci --only=production` en frontend: el build necesita Tailwind (devDependencies).
+- Asegurar Node.js 18+ (`node --version`).
 
 ## 📊 Comandos Útiles
 
