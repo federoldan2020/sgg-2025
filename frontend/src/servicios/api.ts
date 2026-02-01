@@ -76,10 +76,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
 
   // Preparar headers con autenticación
+  const initHeaders = (init.headers || {}) as Record<string, string>;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Organizacion-ID": init.headers?.['X-Organizacion-ID'] ?? getOrgId(),
-    ...(init.headers as Record<string, string> || {}),
+    "X-Organizacion-ID": initHeaders["X-Organizacion-ID"] ?? getOrgId(),
+    ...initHeaders,
   };
 
   // Agregar token de autenticación si está disponible

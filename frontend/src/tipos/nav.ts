@@ -1,6 +1,7 @@
 // filepath: types/nav.ts
 export type Role =
   | "ADMIN"
+  | "SUPERADMIN"
   | "OPERACION"
   | "COSEGURO"
   | "NOMINA"
