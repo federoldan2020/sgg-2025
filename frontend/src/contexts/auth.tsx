@@ -44,7 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Al iniciar, intentar hidratar sesión (solo una vez)
+    // Si no hay token, no llamar al API (evita loop 401 → doLogout → redirect)
+    if (typeof window === 'undefined') return;
+    if (!localStorage.getItem('accessToken')) {
+      setState((s) => ({ ...s, usuario: null, loading: false }));
+      return;
+    }
     void refreshProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Array vacío para ejecutar solo al montar

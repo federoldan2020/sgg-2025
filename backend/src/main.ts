@@ -7,7 +7,17 @@ import { SerializeInterceptor } from './core/interceptores/serialize.interceptor
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
-  app.enableCors();
+  app.enableCors({
+    origin: [
+      'http://localhost:3010',
+      'http://localhost:3000',
+      'https://udap.fourdev.com.ar',
+      'https://www.udap.fourdev.com.ar',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Organizacion-ID', 'X-Org-Id'],
+  });
   app.useGlobalInterceptors(new SerializeInterceptor());
 
   // Middleware de organización (multitenant) con validación contra usuario autenticado
