@@ -7,8 +7,10 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["AFILIADOS", "ADMIN"],
     items: [
       { href: "/afiliados", label: "ABM" },
+      { href: "/afiliados/familiares", label: "ABM familiares" },
       { href: "/movimientos", label: "Movimientos" },
       { href: "/afiliados/importar", label: "Importar afiliados" },
+      { href: "/afiliados/familiares/importar", label: "Importar familiares" },
       { href: "/padrones/importar", label: "Importar padrones" },
       // { href: "/afiliados/nuevo", label: "Alta de afiliado" },
       //  { href: "/padrones/nuevo", label: "Alta de padrón" },
@@ -106,11 +108,31 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["ADMIN"],
     items: [
       { href: "/parametricos/parentescos", label: "Parentescos" },
+      { href: "/parametricos/parentescos/importar", label: "Importar parentescos" },
       { href: "/parametricos/reglas/base", label: "Reglas base" },
       {
         href: "/parametricos/reglas/colaterales",
         label: "Reglas por colaterales",
       },
+    ],
+  },
+
+  /* ===== Admin (usuarios, auditoría) ===== */
+  {
+    titulo: "Admin",
+    roles: ["ADMIN"],
+    items: [
+      { href: "/admin/usuarios", label: "ABM Usuarios" },
+      { href: "/admin/auditoria", label: "Auditoría" },
+    ],
+  },
+
+  /* ===== Superadmin (solo dueño de plataforma) ===== */
+  {
+    titulo: "Superadmin",
+    roles: ["SUPERADMIN"],
+    items: [
+      { href: "/superadmin/organizaciones", label: "ABM Organizaciones" },
     ],
   },
 
@@ -125,7 +147,9 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { href: "/terceros/import", icon: "upload", label: "Importar Terceros" },
       { href: "/afiliados/importar", icon: "upload", label: "Importar Afiliados" },
+      { href: "/afiliados/familiares/importar", icon: "upload", label: "Importar Familiares" },
       { href: "/padrones/importar", icon: "upload", label: "Importar Padrones" },
+      { href: "/parametricos/parentescos/importar", icon: "upload", label: "Importar Parentescos" },
     ],
   },
 ];

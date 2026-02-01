@@ -7,10 +7,11 @@ import { AfiliadosImportController } from './afiliados-import.controller';
 import { AfiliadosService } from './afiliados.service';
 import { AfiliadosImportService } from './afiliados-import.service';
 import { PrismaService } from '../../common/prisma.service';
+import { AuditService } from '../../common/audit.service';
 
 @Module({
   controllers: [AfiliadosController, AfiliadosImportController],
-  providers: [AfiliadosService, AfiliadosImportService, PrismaService],
+  providers: [AfiliadosService, AfiliadosImportService, PrismaService, AuditService],
   exports: [AfiliadosService],
 })
 export class AfiliadosModule {}

@@ -1,19 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth';
+import { authOrganizaciones, ORG } from '@/servicios/api';
 
 interface LoginFormProps {
   onSuccess?: () => void;
 }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
+  const [organizacionId, setOrganizacionId] = useState(ORG);
+  const [organizaciones, setOrganizaciones] = useState<Array<{ id: string; nombre: string }>>([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { login } = useAuth();
+
+  useEffect(() => {
+    authOrganizaciones().then((orgs) => {
+      setOrganizaciones(orgs);
+      if (orgs.length > 0 && !orgs.some((o) => o.id === organizacionId)) {
+        setOrganizacionId(orgs[0].id);
+      }
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +33,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
+      const success = await login(email, password, organizacionId || ORG || undefined);
       if (success) {
         onSuccess?.();
       } else {
@@ -35,24 +47,40 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="h-12 w-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
-            P
-          </div>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Iniciar Sesión
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
             Sistema de Gestión Gremial
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Ingresá con tus credenciales
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-slate-700">
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            {organizaciones.length > 1 && (
+              <div>
+                <label htmlFor="organizacion" className="sr-only">
+                  Organización
+                </label>
+                <select
+                  id="organizacion"
+                  value={organizacionId}
+                  onChange={(e) => setOrganizacionId(e.target.value)}
+                  className="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                >
+                  {organizaciones.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label htmlFor="email" className="sr-only">
                 Email
               </label>
               <input
@@ -63,13 +91,12 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                placeholder="admin@udap.org.ar"
+                className={`appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm ${organizaciones.length <= 1 ? 'rounded-t-md' : ''}`}
+                placeholder="Email"
               />
             </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-slate-700">
+            <div>
+              <label htmlFor="password" className="sr-only">
                 Contraseña
               </label>
               <input
@@ -80,32 +107,34 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                placeholder="••••••••"
+                className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Contraseña"
               />
             </div>
+          </div>
 
-            {error && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="text-sm text-red-700">{error}</div>
+            </div>
+          )}
 
+          <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="h-10 w-full rounded-md bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </button>
+          </div>
 
-            <div className="pt-2 text-center text-xs text-slate-500">
-              <p>Credenciales de prueba</p>
-              <p>Email: admin@udap.org.ar</p>
-              <p>Contraseña: admin123</p>
-            </div>
-          </form>
-        </div>
+          <div className="text-xs text-gray-500 text-center">
+            <p>Credenciales de prueba:</p>
+            <p>Email: admin@udap.org.ar</p>
+            <p>Contraseña: admin123</p>
+          </div>
+        </form>
       </div>
     </div>
   );

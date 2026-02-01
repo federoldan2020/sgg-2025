@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { authLogin, authLogout, authMe } from '../servicios/api';
+import { authLogin, authLogout, authMe, setOrganizacionId } from '../servicios/api';
 
 export type Usuario = {
   id: string;
@@ -21,7 +21,7 @@ export type AuthState = {
 export type AuthContextType = {
   usuario: Usuario | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, organizacionId?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
   refreshProfile: () => Promise<void>;
@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = useCallback(async () => {
     try {
       const perfil = await authMe();
+      if (perfil?.organizacionId) setOrganizacionId(perfil.organizacionId);
       setState((s) => ({ ...s, usuario: perfil, loading: false, error: undefined }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'No se pudo obtener el perfil';
@@ -48,8 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Array vacío para ejecutar solo al montar
 
-  const login = useCallback(async (email: string, password: string) => {
-    const ok = await authLogin({ email, password });
+  const login = useCallback(async (email: string, password: string, organizacionId?: string) => {
+    const ok = await authLogin({ email, password, organizacionId: organizacionId || '' });
     if (ok) {
       await refreshProfile();
     }
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasRole = useCallback((...roles: string[]) => {
     const userRoles = state.usuario?.roles || [];
-    if (userRoles.includes('ADMIN')) return true;
+    if (userRoles.includes('SUPERADMIN') || userRoles.includes('ADMIN')) return true;
     return roles.some((r) => userRoles.includes(r));
   }, [state.usuario]);
 

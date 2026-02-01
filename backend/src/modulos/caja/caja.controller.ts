@@ -4,6 +4,10 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { MovimientosService } from '../movimientos/movimientos.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuditService } from '../../common/audit.service';
+import type { Usuario } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
 type MetodoDto = { metodo: string; monto: number; ref?: string };
@@ -12,13 +16,14 @@ type AplicacionDto = {
   cuotaId?: number;
   monto: number;
 };
-type ReqOrg = { organizacionId?: string };
+type ReqOrg = { organizacionId?: string; ip?: string; headers?: Record<string, string> };
 
 @Controller('caja')
 export class CajaController {
   constructor(
     private readonly contab: ContabilidadService,
     private readonly movs: MovimientosService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -80,15 +85,33 @@ export class CajaController {
 
   @Public() // Temporalmente público para testing
   @Post('abrir')
-  async abrir(@Req() req: ReqOrg, @Body() dto: { sede?: string }) {
+  async abrir(
+    @Req() req: ReqOrg,
+    @Body() dto: { sede?: string },
+    @CurrentUser() user?: Usuario,
+  ) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
-    return prisma.caja.create({ data: { organizacionId: org, sede: dto.sede ?? null } });
+    const caja = await prisma.caja.create({ data: { organizacionId: org, sede: dto.sede ?? null } });
+    if (user) {
+      await this.audit.log({
+        usuarioId: user.id.toString(),
+        organizacionId: org,
+        accion: 'CAJA_ABRIR',
+        entidad: 'Caja',
+        entidadId: caja.id.toString(),
+        payloadDespues: { sede: dto.sede, cajaId: caja.id.toString() },
+        ipAddress: req.ip,
+        userAgent: req.headers?.['user-agent'],
+      });
+    }
+    return caja;
   }
 
   @Post('cobrar')
   async cobrar(
     @Req() req: ReqOrg,
+    @CurrentUser() user: Usuario,
     @Body()
     dto: {
       cajaId: number;
@@ -477,6 +500,17 @@ export class CajaController {
         },
       });
 
+      await this.audit.log({
+        usuarioId: user.id.toString(),
+        organizacionId: org,
+        accion: 'CAJA_COBRAR',
+        entidad: 'Pago',
+        entidadId: pago.id.toString(),
+        payloadDespues: { afiliadoId: dto.afiliadoId, total: totalMetodos, cajaId: dto.cajaId },
+        ipAddress: req.ip,
+        userAgent: req.headers?.['user-agent'],
+      });
+
       return pagoCompleto;
     });
   }
@@ -714,10 +748,10 @@ export class CajaController {
    * - Recibe montos del front (teórico + declarado) y opcional metodoPago
    * - Genera asiento de ajuste solo si hay diferencia
    */
-  // src/modulos/caja/caja.controller.ts
   @Post('cerrar')
   async cerrar(
     @Req() req: ReqOrg,
+    @CurrentUser() user: Usuario,
     @Body()
     body:
       | {
@@ -773,6 +807,17 @@ export class CajaController {
           lineas,
         });
 
+        await this.audit.log({
+          usuarioId: user.id.toString(),
+          organizacionId: org,
+          accion: 'CAJA_CERRAR',
+          entidad: 'Caja',
+          entidadId: body.referenciaId ?? undefined,
+          payloadDespues: { asientoId: asiento.id.toString(), diffTotal },
+          ipAddress: req.ip,
+          userAgent: req.headers?.['user-agent'],
+        });
+
         return { diff: diffTotal, asientoId: asiento.id.toString(), ok: true };
       }
 
@@ -795,6 +840,17 @@ export class CajaController {
         origen: 'cierre_caja',
         referenciaId,
         lineas,
+      });
+
+      await this.audit.log({
+        usuarioId: user.id.toString(),
+        organizacionId: org,
+        accion: 'CAJA_CERRAR',
+        entidad: 'Caja',
+        entidadId: referenciaId,
+        payloadDespues: { asientoId: asiento.id.toString(), diff },
+        ipAddress: req.ip,
+        userAgent: req.headers?.['user-agent'],
       });
 
       return { diff, asientoId: asiento.id.toString(), ok: true };

@@ -14,12 +14,18 @@ import {
 import type { Request } from 'express';
 import { RolTercero } from '@prisma/client';
 import { TercerosService, type TerceroUpsert } from './terceros.service';
+import { AuditService } from '../../common/audit.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { Usuario } from '@prisma/client';
 
-type ReqOrg = Request & { organizacionId?: string };
+type ReqOrg = Request & { organizacionId?: string; ip?: string; headers?: Record<string, string> };
 
 @Controller('terceros')
 export class TercerosController {
-  constructor(private readonly svc: TercerosService) {}
+  constructor(
+    private readonly svc: TercerosService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get('buscar')
   async buscar(@Req() req: ReqOrg, @Query() q: { q: string; rol?: RolTercero; limit?: string }) {
@@ -68,19 +74,50 @@ export class TercerosController {
   }
 
   @Post()
-  async crear(@Req() req: ReqOrg, @Body() body: TerceroUpsert) {
+  async crear(
+    @Req() req: ReqOrg,
+    @Body() body: TerceroUpsert,
+    @CurrentUser() user: Usuario,
+  ) {
     const org = req.organizacionId;
     if (!org) throw new BadRequestException('Falta organización');
-    return this.svc.crear(org, body);
+    const tercero = await this.svc.crear(org, body);
+    await this.audit.log({
+      usuarioId: user.id.toString(),
+      organizacionId: org,
+      accion: 'TERCERO_CREAR',
+      entidad: 'Tercero',
+      entidadId: tercero.id.toString(),
+      payloadDespues: { nombre: tercero.nombre },
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+    return tercero;
   }
 
   @Put('by-id/:id')
-  async actualizar(@Req() req: ReqOrg, @Param('id') id: string, @Body() body: TerceroUpsert) {
+  async actualizar(
+    @Req() req: ReqOrg,
+    @Param('id') id: string,
+    @Body() body: TerceroUpsert,
+    @CurrentUser() user: Usuario,
+  ) {
     const org = req.organizacionId;
     if (!org) throw new BadRequestException('Falta organización');
     const num = Number(id);
     if (!Number.isFinite(num) || num < 1) throw new BadRequestException('Id inválido');
-    return this.svc.actualizar(org, BigInt(num), body);
+    const tercero = await this.svc.actualizar(org, BigInt(num), body);
+    await this.audit.log({
+      usuarioId: user.id.toString(),
+      organizacionId: org,
+      accion: 'TERCERO_ACTUALIZAR',
+      entidad: 'Tercero',
+      entidadId: id,
+      payloadDespues: { nombre: tercero.nombre },
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+    return tercero;
   }
 
   @Patch('by-id/:id/toggle')

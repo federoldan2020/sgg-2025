@@ -1,13 +1,21 @@
-import { Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PadronesImportService } from './padrones-import.service';
 import { type ImportOptionsDto, type ImportPreviewResponse, type ImportResultResponse } from './dto/import-padrones.dto';
+import { AuditService } from '../../common/audit.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { Usuario } from '@prisma/client';
+
+type ReqWithIp = { ip?: string; headers?: Record<string, string> };
 
 @UseGuards(JwtAuthGuard)
 @Controller('padrones/import')
 export class PadronesImportController {
-  constructor(private readonly service: PadronesImportService) {}
+  constructor(
+    private readonly service: PadronesImportService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get('template')
   getTemplate(): string {
@@ -26,7 +34,23 @@ export class PadronesImportController {
   }
 
   @Post('confirm')
-  async confirm(@Body('previewId') previewId: string, @Body('org') org: string): Promise<ImportResultResponse> {
-    return this.service.confirmar(org, previewId);
+  async confirm(
+    @Body('previewId') previewId: string,
+    @Body('org') org: string,
+    @Req() req: ReqWithIp,
+    @CurrentUser() user: Usuario,
+  ): Promise<ImportResultResponse> {
+    const result = await this.service.confirmar(org, previewId);
+    await this.audit.log({
+      usuarioId: user.id.toString(),
+      organizacionId: org,
+      accion: 'PADRON_IMPORT',
+      entidad: 'Padron',
+      entidadId: undefined,
+      payloadDespues: { previewId, creados: (result as { creados?: number })?.creados, actualizados: (result as { actualizados?: number })?.actualizados },
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+    return result;
   }
 }

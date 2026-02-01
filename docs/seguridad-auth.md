@@ -8,6 +8,7 @@ Este documento resume lo que se implementó recientemente en materia de autentic
 ### Modelos Prisma
 - `Usuario`: credenciales, roles (`RolUsuario[]`), estado (`EstadoUsuario`), sede opcional (`sedeId`), bloqueo temporal, forzado de cambio de password.
 - `SesionUsuario`: refresh token único, familia de tokens (`tokenFamily`), expiración (30 días), metadatos de IP/UserAgent, estado activa.
+- `EventoAuditoria`: registro de acciones (login, USUARIO_CREAR, ORGANIZACION_CREAR, etc.).
 
 ### Endpoints Auth (`/auth`)
 - `POST /auth/login`: valida credenciales, estado y bloqueos; crea sesión y entrega `accessToken` (15m) + `refreshToken` (30d).
@@ -19,7 +20,7 @@ Este documento resume lo que se implementó recientemente en materia de autentic
 
 ### Guards y Decorators
 - `JwtAuthGuard`: protege rutas por defecto (excepto las marcadas con `@Public`).
-- `RolesGuard`: valida presencia de uno o más roles (`@Roles(RolUsuario.ADMIN, ...)`). Admin sobrepasa cualquier restricción.
+- `RolesGuard`: valida presencia de uno o más roles (`@Roles(RolUsuario.ADMIN, ...)`). ADMIN y SUPERADMIN sobrepasan cualquier restricción.
 - `@CurrentUser()`: inyecta el objeto `Usuario` (payload validado) en el handler.
 - `@Public()`: marca rutas que no requieren autenticación.
 
@@ -109,8 +110,9 @@ Agregar chequeo:
 if (user.sedeId && entidad.sede !== user.sedeId) throw new ForbiddenException('Sede inválida');
 ```
 
-### Paso 6: Auditoría (futuro)
-Al implementar auditoría, envolver acciones sensibles con un servicio `AuditService.log(user, acción, target)`.
+### Paso 6: Auditoría
+- `AuditService.log(params)` registra en `EventoAuditoria` acciones sensibles.
+- Integrado en: login, usuarios, organizaciones, caja (abrir/cobrar/cerrar), nómina (confirmar), terceros, padrones (crear/actualizar/eliminar/import), coseguro (alta/baja/upsert/modificar/suspender/rehabilitar), colaterales (crear/actualizar/eliminar/imputación), afiliados, órdenes de crédito.
 
 ---
 ## 4. Cómo Proteger Nuevas Páginas (Frontend)
@@ -224,9 +226,35 @@ export default function CuentaDetallePage({ params }) {
 - Control de sede: `backend/src/modulos/caja/caja.controller.ts`
 
 ---
-## 11. Próximos Pasos Recomendados
+## 11. Superadmin y Organizaciones
+
+### Rol SUPERADMIN
+- Nuevo rol `SUPERADMIN` para el dueño de la plataforma.
+- Acceso total a todas las secciones (como ADMIN).
+- Puede ver y gestionar todas las organizaciones.
+- Middleware de org: SUPERADMIN puede usar cualquier `X-Organizacion-ID` sin restricción.
+
+### Endpoints Superadmin
+- `GET/POST/PUT /organizaciones`: ABM de organizaciones (solo SUPERADMIN).
+- `GET /organizaciones/:id/usuarios`: usuarios de una organización.
+
+### Cómo asignar SUPERADMIN a un usuario
+```sql
+-- Reemplazar <email> y <organizacion_id> con los valores correctos
+UPDATE "Usuario"
+SET roles = array_append(roles, 'SUPERADMIN')
+WHERE email = '<email>' AND "organizacionId" = '<organizacion_id>';
+
+-- Si el usuario solo tiene un rol, reemplazar:
+UPDATE "Usuario"
+SET roles = ARRAY['SUPERADMIN']::"RolUsuario"[]
+WHERE email = '<email>' AND "organizacionId" = '<organizacion_id>';
+```
+
+---
+## 12. Próximos Pasos Recomendados
 - Migrar a cookies seguras y CSRF token.
-- Añadir tabla de auditoría transversal.
+- Ampliar auditoría a más acciones (caja, nómina, etc.).
 - Implementar rotación de refresh tokens.
 - Test e2e: login → acceso protegido → refresh → logout → acceso denegado.
 

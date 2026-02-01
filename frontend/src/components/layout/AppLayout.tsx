@@ -44,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
 
           {/* Contenedor principal con sidebar y contenido */}
-          <div className={`app-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+          <div className="app-content">
             <SidebarNav
               roles={ctx.roles}
               mobileOpen={mobileOpen}

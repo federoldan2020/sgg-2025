@@ -2,6 +2,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ForbiddenException } from '@nestjs/common';
 
+const SUPERADMIN_ROLE = 'SUPERADMIN';
+
 export function orgMiddleware(
   req: Request & { organizacionId?: string },
   _res: Response,
@@ -13,9 +15,12 @@ export function orgMiddleware(
     (req.query['organizacionId'] as string) ||
     req.organizacionId;
 
-  // Si hay usuario autenticado, validar que organización coincida
-  const userOrg = (req as any)?.user?.organizacionId as string | undefined;
-  if (userOrg && req.organizacionId && req.organizacionId !== userOrg) {
+  // Si hay usuario autenticado, validar que organización coincida (salvo SUPERADMIN)
+  const user = (req as any)?.user;
+  const userOrg = user?.organizacionId as string | undefined;
+  const isSuperadmin = Array.isArray(user?.roles) && user.roles.includes(SUPERADMIN_ROLE);
+
+  if (!isSuperadmin && userOrg && req.organizacionId && req.organizacionId !== userOrg) {
     // Previene acceso cruzado entre tenants
     return next(new ForbiddenException('Organización del header no coincide con la del usuario'));
   }

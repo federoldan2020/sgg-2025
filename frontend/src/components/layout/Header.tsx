@@ -8,6 +8,8 @@ import UserMenu from "../auth/UserMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/auth";
+import { useOrgSelector } from "@/contexts/orgSelector";
 
 type Props = {
   onToggleSidebar?: () => void; // Desktop collapse
@@ -15,6 +17,10 @@ type Props = {
 };
 
 export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
+  const { usuario } = useAuth();
+  const { organizaciones, selectedOrgId, setSelectedOrgId } = useOrgSelector() || {};
+  const isSuperadmin = usuario?.roles?.includes("SUPERADMIN");
+
   // Acceso rápido: Ctrl/Cmd+B para colapsar sidebar (desktop)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -62,6 +68,29 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
       </div>
       
       <div className="header-right">
+        {isSuperadmin && organizaciones && organizaciones.length > 0 && (
+          <select
+            value={selectedOrgId ?? usuario?.organizacionId ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              const mine = usuario?.organizacionId ?? "";
+              setSelectedOrgId?.(v === mine || !v ? null : v);
+            }}
+            className="text-sm border rounded px-2 py-1 max-w-[180px] hidden-mobile"
+            title="Actuar como organización"
+          >
+            <option value={usuario?.organizacionId ?? ""}>
+              Mi org
+            </option>
+            {organizaciones
+              .filter((o) => o.id !== usuario?.organizacionId)
+              .map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nombre}
+                </option>
+              ))}
+          </select>
+        )}
         <div className="search-input-container hidden-mobile">
           <Search size={16} className="search-icon" />
           <Input

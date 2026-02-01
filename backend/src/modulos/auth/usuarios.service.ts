@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { AuditService } from '../../common/audit.service';
 import { RolUsuario, EstadoUsuario, Usuario } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 export interface CrearUsuarioDto {
-  organizacionId: string;
+  organizacionId?: string;
   email: string;
   username?: string;
   password: string;
@@ -13,6 +14,13 @@ export interface CrearUsuarioDto {
   roles: RolUsuario[];
   sedeId?: string;
   creadoPor?: string;
+}
+
+export interface AuditContext {
+  usuarioId: string;
+  organizacionId: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface ActualizarUsuarioDto {
@@ -37,14 +45,33 @@ export interface ResetPasswordDto {
 
 @Injectable()
 export class UsuariosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
-  async crear(dto: CrearUsuarioDto): Promise<Usuario> {
+  /** ADMIN usa su org; SUPERADMIN puede pasar organizacionId por query/body */
+  resolverOrganizacionId(param: string | undefined, user: Usuario): string {
+    const isSuperadmin = user.roles.includes(RolUsuario.SUPERADMIN);
+    if (isSuperadmin && param) return param;
+    return user.organizacionId;
+  }
+
+  private async validarOrgUsuario(usuario: Usuario, currentUser: Usuario): Promise<void> {
+    if (currentUser.roles.includes(RolUsuario.SUPERADMIN)) return;
+    if (usuario.organizacionId !== currentUser.organizacionId) {
+      throw new ForbiddenException('No tienes permisos para este usuario');
+    }
+  }
+
+  async crear(dto: CrearUsuarioDto, auditCtx?: AuditContext): Promise<Usuario> {
+    const orgId = dto.organizacionId;
+    if (!orgId) throw new BadRequestException('organizacionId es requerido');
     // Verificar que el email no esté en uso
     const existente = await this.prisma.usuario.findUnique({
       where: {
         organizacionId_email: {
-          organizacionId: dto.organizacionId,
+          organizacionId: orgId,
           email: dto.email,
         },
       },
@@ -59,7 +86,7 @@ export class UsuariosService {
       const existenteUsername = await this.prisma.usuario.findUnique({
         where: {
           organizacionId_username: {
-            organizacionId: dto.organizacionId,
+            organizacionId: orgId,
             username: dto.username,
           },
         },
@@ -73,9 +100,9 @@ export class UsuariosService {
     // Hash de la contraseña
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    return this.prisma.usuario.create({
+    const usuario = await this.prisma.usuario.create({
       data: {
-        organizacionId: dto.organizacionId,
+        organizacionId: orgId,
         email: dto.email,
         username: dto.username,
         passwordHash,
@@ -88,6 +115,18 @@ export class UsuariosService {
         cambiarPassword: true,
       },
     });
+
+    if (auditCtx) {
+      await this.audit.log({
+        ...auditCtx,
+        organizacionId: orgId,
+        accion: 'USUARIO_CREAR',
+        entidad: 'Usuario',
+        entidadId: usuario.id.toString(),
+        payloadDespues: { email: usuario.email, nombre: usuario.nombre, roles: usuario.roles },
+      });
+    }
+    return usuario;
   }
 
   async listar(organizacionId: string, filtros?: {
@@ -134,17 +173,18 @@ export class UsuariosService {
     });
   }
 
-  async obtenerPorId(id: string): Promise<Usuario | null> {
-    return this.prisma.usuario.findUnique({
+  async obtenerPorId(id: string, currentUser?: Usuario): Promise<Usuario | null> {
+    const usuario = await this.prisma.usuario.findUnique({
       where: { id: BigInt(id) },
     });
+    if (usuario && currentUser) await this.validarOrgUsuario(usuario, currentUser);
+    return usuario;
   }
 
-  async actualizar(id: string, dto: ActualizarUsuarioDto): Promise<Usuario> {
-    const usuario = await this.obtenerPorId(id);
-    if (!usuario) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+  async actualizar(id: string, dto: ActualizarUsuarioDto, currentUser?: Usuario): Promise<Usuario> {
+    const usuario = await this.prisma.usuario.findUnique({ where: { id: BigInt(id) } });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    if (currentUser) await this.validarOrgUsuario(usuario, currentUser);
 
     // Verificar email único si se cambia
     if (dto.email && dto.email !== usuario.email) {
@@ -214,11 +254,10 @@ export class UsuariosService {
     });
   }
 
-  async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    const usuario = await this.obtenerPorId(dto.usuarioId);
-    if (!usuario) {
-      throw new NotFoundException('Usuario no encontrado');
-    }
+  async resetPassword(dto: ResetPasswordDto, currentUser?: Usuario): Promise<void> {
+    const usuario = await this.prisma.usuario.findUnique({ where: { id: BigInt(dto.usuarioId) } });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    if (currentUser) await this.validarOrgUsuario(usuario, currentUser);
 
     // Hash nueva contraseña
     const passwordHash = await bcrypt.hash(dto.passwordNueva, 12);
@@ -240,14 +279,20 @@ export class UsuariosService {
     });
   }
 
-  async activar(id: string): Promise<Usuario> {
+  async activar(id: string, currentUser?: Usuario): Promise<Usuario> {
+    const usuario = await this.prisma.usuario.findUnique({ where: { id: BigInt(id) } });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    if (currentUser) await this.validarOrgUsuario(usuario, currentUser);
     return this.prisma.usuario.update({
       where: { id: BigInt(id) },
       data: { estado: EstadoUsuario.ACTIVO },
     });
   }
 
-  async desactivar(id: string): Promise<Usuario> {
+  async desactivar(id: string, currentUser?: Usuario): Promise<Usuario> {
+    const usuarioAntes = await this.prisma.usuario.findUnique({ where: { id: BigInt(id) } });
+    if (!usuarioAntes) throw new NotFoundException('Usuario no encontrado');
+    if (currentUser) await this.validarOrgUsuario(usuarioAntes, currentUser);
     const usuario = await this.prisma.usuario.update({
       where: { id: BigInt(id) },
       data: { estado: EstadoUsuario.INACTIVO },
@@ -262,7 +307,10 @@ export class UsuariosService {
     return usuario;
   }
 
-  async bloquear(id: string, hasta?: Date): Promise<Usuario> {
+  async bloquear(id: string, hasta?: Date, currentUser?: Usuario): Promise<Usuario> {
+    const usuarioAntes = await this.prisma.usuario.findUnique({ where: { id: BigInt(id) } });
+    if (!usuarioAntes) throw new NotFoundException('Usuario no encontrado');
+    if (currentUser) await this.validarOrgUsuario(usuarioAntes, currentUser);
     return this.prisma.usuario.update({
       where: { id: BigInt(id) },
       data: {
@@ -272,7 +320,10 @@ export class UsuariosService {
     });
   }
 
-  async eliminar(id: string): Promise<void> {
+  async eliminar(id: string, currentUser?: Usuario): Promise<void> {
+    const usuario = await this.prisma.usuario.findUnique({ where: { id: BigInt(id) } });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    if (currentUser) await this.validarOrgUsuario(usuario, currentUser);
     // Primero invalidar sesiones
     await this.prisma.sesionUsuario.updateMany({
       where: { usuarioId: BigInt(id) },
@@ -285,7 +336,11 @@ export class UsuariosService {
     });
   }
 
-  async obtenerSesionesActivas(usuarioId: string) {
+  async obtenerSesionesActivas(usuarioId: string, currentUser?: Usuario) {
+    if (currentUser && usuarioId !== currentUser.id.toString()) {
+      const usuario = await this.prisma.usuario.findUnique({ where: { id: BigInt(usuarioId) } });
+      if (usuario) await this.validarOrgUsuario(usuario, currentUser);
+    }
     return this.prisma.sesionUsuario.findMany({
       where: {
         usuarioId: BigInt(usuarioId),

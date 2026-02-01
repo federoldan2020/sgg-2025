@@ -5,11 +5,12 @@ import { PrismaService } from '../../common/prisma.service';
 import { NovedadesModule } from '../novedades/novedades.module';
 import { CoseguroReglasController } from './coseguro-reglas.controller';
 import { CoseguroReglasService } from './coseguro-reglas.service';
+import { AuditService } from '../../common/audit.service';
 
 @Module({
   imports: [NovedadesModule],
   controllers: [CoseguroController, CoseguroReglasController],
-  providers: [CoseguroService, PrismaService, CoseguroReglasService],
+  providers: [CoseguroService, PrismaService, CoseguroReglasService, AuditService],
   exports: [CoseguroService],
 })
 export class CoseguroModule {}

@@ -49,12 +49,23 @@ async function refreshAuthToken(): Promise<boolean> {
 // Función para hacer logout
 function doLogout() {
   if (typeof window === 'undefined') return;
-  
+
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
-  
+  localStorage.removeItem('organizacionId');
+
   // Redirigir al login
   window.location.href = '/login';
+}
+
+function getOrgId(): string {
+  if (typeof window === 'undefined') return ORG;
+  return localStorage.getItem('organizacionId') || ORG;
+}
+
+export function setOrganizacionId(orgId: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('organizacionId', orgId);
 }
 
 /** Fetch tipado con autenticación automática */
@@ -67,7 +78,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   // Preparar headers con autenticación
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Organizacion-ID": ORG,
+    "X-Organizacion-ID": init.headers?.['X-Organizacion-ID'] ?? getOrgId(),
     ...(init.headers as Record<string, string> || {}),
   };
 
@@ -126,20 +137,44 @@ export function getErrorMessage(err: unknown): string {
   try { return JSON.stringify(err); } catch { return String(err); }
 }
 
-export async function authLogin(credentials: { email: string; password: string }): Promise<boolean> {
+export type OrgLite = { id: string; nombre: string };
+
+export async function authOrganizaciones(): Promise<OrgLite[]> {
   try {
+    const res = await fetch(`${API_URL}/auth/organizaciones`);
+    if (!res.ok) return [];
+    return (await res.json()) as OrgLite[];
+  } catch {
+    return [];
+  }
+}
+
+export async function authLogin(credentials: {
+  email: string;
+  password: string;
+  organizacionId: string;
+}): Promise<boolean> {
+  try {
+    const orgId = credentials.organizacionId || ORG;
     const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'X-Organizacion-ID': ORG,
+        'X-Organizacion-ID': orgId,
       },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+        organizacionId: orgId,
+      }),
     });
     if (!res.ok) return false;
     const data = await res.json();
     localStorage.setItem('accessToken', data.accessToken);
     localStorage.setItem('refreshToken', data.refreshToken);
+    if (data.usuario?.organizacionId) {
+      localStorage.setItem('organizacionId', data.usuario.organizacionId);
+    }
     return true;
   } catch {
     return false;
@@ -173,7 +208,7 @@ export async function getPdfBlob(path: string): Promise<Blob> {
 
   // Preparar headers con autenticación
   const headers: Record<string, string> = {
-    "X-Organizacion-ID": ORG,
+    "X-Organizacion-ID": getOrgId(),
   };
 
   // Agregar token de autenticación si está disponible

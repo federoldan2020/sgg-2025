@@ -23,8 +23,8 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Usuario no autenticado');
     }
 
-    // ADMIN tiene acceso a todo
-    if (user.roles.includes(RolUsuario.ADMIN)) {
+    // ADMIN y SUPERADMIN tienen acceso a todo
+    if (user.roles.includes(RolUsuario.SUPERADMIN) || user.roles.includes(RolUsuario.ADMIN)) {
       return true;
     }
 

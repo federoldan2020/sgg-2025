@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/prisma.service';
+import { AuditService } from '../../common/audit.service';
 import * as bcrypt from 'bcryptjs';
 import { Usuario, SesionUsuario, RolUsuario, EstadoUsuario } from '@prisma/client';
 
@@ -41,9 +42,14 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly audit: AuditService,
   ) {}
 
-  async login(dto: LoginDto, ipAddress?: string, userAgent?: string): Promise<LoginResponse> {
+  async login(
+    dto: LoginDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<LoginResponse> {
     // 1. Buscar usuario
     const usuario = await this.prisma.usuario.findUnique({
       where: {
@@ -87,7 +93,20 @@ export class AuthService {
     });
 
     // 6. Crear sesión y tokens
-    return this.crearSesionYTokens(usuario, ipAddress, userAgent);
+    const response = await this.crearSesionYTokens(usuario, ipAddress, userAgent);
+
+    // 7. Auditoría de login
+    await this.audit.log({
+      usuarioId: usuario.id.toString(),
+      organizacionId: usuario.organizacionId,
+      accion: 'LOGIN',
+      entidad: 'Usuario',
+      entidadId: usuario.id.toString(),
+      ipAddress,
+      userAgent,
+    });
+
+    return response;
   }
 
   async refreshToken(dto: RefreshTokenDto): Promise<LoginResponse> {
@@ -103,18 +122,21 @@ export class AuthService {
 
     // 2. Verificar estado del usuario
     if (sesion.usuario.estado !== EstadoUsuario.ACTIVO) {
-      // Invalidar sesión
       await this.invalidarSesion(sesion.id);
       throw new UnauthorizedException('Usuario inactivo');
     }
 
-    // 3. Actualizar último uso
+    // 3. Rotación: generar nuevo refresh token e invalidar el anterior
+    const nuevoRefreshToken = this.generarRefreshToken();
     await this.prisma.sesionUsuario.update({
       where: { id: sesion.id },
-      data: { ultimoUso: new Date() },
+      data: {
+        refreshToken: nuevoRefreshToken,
+        ultimoUso: new Date(),
+      },
     });
 
-    // 4. Generar nuevo access token (mismo refresh token)
+    // 4. Generar nuevo access token
     const payload: JwtPayload = {
       sub: sesion.usuario.id.toString(),
       email: sesion.usuario.email,
@@ -128,7 +150,7 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken: dto.refreshToken, // Mismo refresh token
+      refreshToken: nuevoRefreshToken,
       usuario: {
         id: sesion.usuario.id.toString(),
         email: sesion.usuario.email,

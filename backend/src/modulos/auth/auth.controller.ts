@@ -1,15 +1,32 @@
 import { Controller, Post, Body, Req, UseGuards, Get } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import type { LoginDto, RefreshTokenDto } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import type { Request } from 'express';
+import { PrismaService } from '../../common/prisma.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Public()
+  @Get('organizaciones')
+  async listarOrganizaciones() {
+    const orgs = await this.prisma.organizacion.findMany({
+      where: { activo: true },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    });
+    return orgs;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 intentos por minuto en login
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: Request & { organizacionId?: string }) {
     const ipAddress = req.ip || req.connection.remoteAddress;

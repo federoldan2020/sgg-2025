@@ -175,7 +175,7 @@ nano .env.production
 
 ```env
 NODE_ENV=production
-NEXT_PUBLIC_API_URL=https://api.udap.fourdev.com
+NEXT_PUBLIC_API_URL=https://api.udap.fourdev.com.ar
 ```
 
 ### 4. Instalar Dependencias y Build
@@ -304,7 +304,7 @@ upstream frontend {
 # Redirect HTTP to HTTPS
 server {
     listen 80;
-    server_name tudominio.com www.tudominio.com api.tudominio.com;
+server_name udap.fourdev.com.ar www.udap.fourdev.com.ar api.udap.fourdev.com.ar;
     
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -318,11 +318,11 @@ server {
 # Backend API
 server {
     listen 443 ssl http2;
-    server_name api.tudominio.com;
+server_name api.udap.fourdev.com.ar;
 
     # SSL configurado por Certbot
-    ssl_certificate /etc/letsencrypt/live/api.tudominio.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.tudominio.com/privkey.pem;
+ssl_certificate /etc/letsencrypt/live/api.udap.fourdev.com.ar/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/api.udap.fourdev.com.ar/privkey.pem;
     
     # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
@@ -357,10 +357,10 @@ server {
 # Frontend
 server {
     listen 443 ssl http2;
-    server_name tudominio.com www.tudominio.com;
+server_name udap.fourdev.com.ar www.udap.fourdev.com.ar;
 
-    ssl_certificate /etc/letsencrypt/live/tudominio.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/tudominio.com/privkey.pem;
+ssl_certificate /etc/letsencrypt/live/udap.fourdev.com.ar/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/udap.fourdev.com.ar/privkey.pem;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
@@ -403,10 +403,10 @@ sudo systemctl reload nginx
 
 ```bash
 # Certificado para dominio principal
-sudo certbot --nginx -d tudominio.com -d www.tudominio.com
+sudo certbot --nginx -d udap.fourdev.com.ar -d www.udap.fourdev.com.ar
 
 # Certificado para API
-sudo certbot --nginx -d api.tudominio.com
+sudo certbot --nginx -d api.udap.fourdev.com.ar
 
 # Verificar renovación automática
 sudo certbot renew --dry-run

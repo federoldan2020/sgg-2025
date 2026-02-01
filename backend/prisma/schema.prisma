@@ -59,6 +59,32 @@ model Organizacion {
   MovimientoAfiliado     MovimientoAfiliado[]
   usuarios               Usuario[]
   sesiones               SesionUsuario[]
+  eventosAuditoria       EventoAuditoria[]
+}
+
+/**
+ * ===================== Auditoría =====================
+ */
+model EventoAuditoria {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String?
+  usuarioId      String?
+  accion         String   // ej: USUARIO_CREAR, USUARIO_ACTUALIZAR, LOGIN, ORGANIZACION_CREAR
+  entidad        String   // ej: Usuario, Organizacion, Caja
+  entidadId      String?
+  payloadAntes   Json?
+  payloadDespues Json?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json?
+  creadoEn       DateTime @default(now())
+
+  organizacion Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
+
+  @@index([organizacionId, creadoEn])
+  @@index([usuarioId, creadoEn])
+  @@index([entidad, entidadId])
+  @@index([accion, creadoEn])
 }
 
 /**
@@ -66,6 +92,7 @@ model Organizacion {
  */
 
 enum RolUsuario {
+  SUPERADMIN
   ADMIN
   OPERACION
   COSEGURO
