@@ -3,6 +3,14 @@ set -e
 
 echo "🚀 Iniciando deployment..."
 
+# Requerir Node 20+ (Nest 11 y varias deps lo exigen)
+NODE_VER=$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1)
+if [ -z "$NODE_VER" ] || [ "$NODE_VER" -lt 20 ]; then
+  echo "❌ Se requiere Node 20 o superior. Actual: $(node -v 2>/dev/null || echo 'no encontrado')"
+  echo "   En la VPS: nvm use 20  (o instala Node 20 y vuelve a ejecutar)"
+  exit 1
+fi
+
 cd /var/www/sgg-2025
 
 # Sincronizar con el repo: descartar cambios locales y quedar igual que origin/main

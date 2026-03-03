@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AfiliadosController } from './modulos/afiliados/afiliados.controller';
 import { PadronesController } from './modulos/padrones/padrones.controller';
 import { ObligacionesController } from './modulos/obligaciones/obligaciones.controller';
@@ -28,6 +29,7 @@ import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     HealthModule,
     AuthModule,
     AfiliadosModule,
@@ -55,10 +57,8 @@ import { HealthModule } from './health/health.module';
     AsientosController,
   ],
   providers: [
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })
 export class AppModule implements NestModule {
