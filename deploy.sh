@@ -5,8 +5,9 @@ echo "🚀 Iniciando deployment..."
 
 cd /var/www/sgg-2025
 
-# Pull cambios
-git pull origin main
+# Sincronizar con el repo: descartar cambios locales y quedar igual que origin/main
+git fetch origin
+git reset --hard origin/main
 
 # Backend (instalar todo: nest y prisma están en devDependencies y se necesitan para build/migrate)
 echo "📦 Actualizando backend..."
