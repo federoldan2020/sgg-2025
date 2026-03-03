@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Request } from 'express';
 import { PrestacionesService } from './prestaciones.service';
 import type {
@@ -11,6 +11,8 @@ import type {
   CrearPrestacionReglaDto,
   EditarPrestacionReglaDto,
 } from './prestaciones.dtos';
+import { BuscarPracticasQueryDto } from './dto/buscar-practicas-query.dto';
+import { sanitizeSearchTerm } from '../../common/sanitize';
 
 type ReqOrg = Request & { organizacionId?: string };
 
@@ -72,16 +74,15 @@ export class PrestacionesController {
     return this.svc.eliminarSubtipo(req.organizacionId, id);
   }
 
-  // ===== Prácticas =====
   @Get('practicas')
-  listarPracticas(
-    @Req() req: ReqOrg,
-    @Query('tipoId') tipoId?: string,
-    @Query('subtipoId') subtipoId?: string,
-    @Query('q') q?: string,
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  listarPracticas(@Req() req: ReqOrg, @Query() query: BuscarPracticasQueryDto) {
     if (!req.organizacionId) throw new Error('Falta organización');
-    return this.svc.listarPracticas(req.organizacionId, { tipoId, subtipoId, q });
+    return this.svc.listarPracticas(req.organizacionId, {
+      tipoId: query.tipoId,
+      subtipoId: query.subtipoId,
+      q: query.q ? sanitizeSearchTerm(query.q) : undefined,
+    });
   }
 
   @Post('practicas')

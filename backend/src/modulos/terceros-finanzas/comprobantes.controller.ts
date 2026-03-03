@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
-import type { Request } from 'express'; // 👈 agrega esto
+import { Body, Controller, Get, Param, Post, Query, Req, UsePipes, ValidationPipe } from '@nestjs/common';
+import type { Request } from 'express';
 import { ComprobantesService } from './comprobantes.service';
 import type { CrearComprobanteDTO } from './comprobantes.dto';
-import { RolTercero, EstadoComprobanteTercero } from '@prisma/client'; // 👈 tipa rol/estado
+import { ListarComprobantesQueryDto } from './dto/listar-comprobantes-query.dto';
+import { RolTercero } from '@prisma/client';
+import { clampPageLimit } from '../../common/sanitize';
+import { sanitizeSearchTerm } from '../../common/sanitize';
 
-type ReqOrg = Request & { organizacionId?: string }; // 👈 agrega esto
+type ReqOrg = Request & { organizacionId?: string };
 
 @Controller('terceros/comprobantes')
 export class ComprobantesController {
@@ -21,24 +24,19 @@ export class ComprobantesController {
   }
 
   @Get()
-  listar(
-    @Query('organizacionId') org: string,
-    @Query('rol') rol?: RolTercero, // 👈 usa enum
-    @Query('estado') estado?: EstadoComprobanteTercero, // 👈 usa enum
-    @Query('q') q?: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  listar(@Query() q: ListarComprobantesQueryDto) {
+    const org = q.organizacionId;
+    if (!org) throw new Error('Falta organización');
     return this.svc.listar(org, {
-      rol,
-      estado,
-      q: q ?? null,
-      page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      rol: q.rol,
+      estado: q.estado,
+      q: q.q ? sanitizeSearchTerm(q.q) : null,
+      page: q.page ? Number(q.page) : undefined,
+      pageSize: q.pageSize ? clampPageLimit(Number(q.pageSize)) : undefined,
     });
   }
 
-  // GET /terceros/comprobantes/pendientes?terceroId=...&rol=PROVEEDOR&limit=50
   @Get('pendientes')
   async pendientes(
     @Req() req: ReqOrg,
@@ -51,13 +49,13 @@ export class ComprobantesController {
     if (!terceroId) throw new Error('terceroId requerido');
     if (!rol) throw new Error('rol requerido');
 
-    // 👇 evita el warning de no-unsafe-argument
     const terceroIdBig = BigInt(String(terceroId));
+    const limitNum = clampPageLimit(limit ? Number(limit) : 50);
 
     return this.svc.pendientesPorTercero(org, {
       terceroId: terceroIdBig,
       rol,
-      limit: limit ? Number(limit) : 50,
+      limit: limitNum,
     });
   }
 }

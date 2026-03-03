@@ -1,7 +1,9 @@
 // src/modulos/contabilidad/cuentas.controller.ts
-import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Controller, Get, Query, Req, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Request } from 'express';
 import { ContabilidadService } from './contabilidad.service';
+import { BuscarCuentasQueryDto } from './dto/buscar-cuentas-query.dto';
+import { clampPageLimit } from '../../common/sanitize';
 
 type ReqOrg = Request & { organizacionId?: string };
 
@@ -10,10 +12,8 @@ export class CuentasController {
   constructor(private readonly svc: ContabilidadService) {}
 
   @Get('buscar')
-  async buscar(
-    @Req() req: ReqOrg,
-    @Query() query: { q: string; imputableOnly?: string; limit?: string },
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async buscar(@Req() req: ReqOrg, @Query() query: BuscarCuentasQueryDto) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
@@ -21,7 +21,7 @@ export class CuentasController {
     if (!q) return [];
 
     const imputableOnly = query.imputableOnly === 'true';
-    const limit = query.limit ? Number(query.limit) : 20;
+    const limit = clampPageLimit(query.limit ? Number(query.limit) : 20);
 
     return this.svc.buscarCuentas({ organizacionId: org, q, imputableOnly, limit });
   }

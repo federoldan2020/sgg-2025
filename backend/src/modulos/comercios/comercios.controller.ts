@@ -2,7 +2,8 @@ import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ComerciosService } from './comercios.service';
 import { CreateComercioDto, UpdateComercioDto } from './dto';
 import { Comercio, Prisma } from '@prisma/client';
-import { OrgId } from '../../common/decorators/org-id.decorator'; // <-- decorador correcto
+import { OrgId } from '../../common/decorators/org-id.decorator';
+import { sanitizeSearchTerm } from '../../common/sanitize';
 
 @Controller('comercios')
 export class ComerciosController {
@@ -10,7 +11,7 @@ export class ComerciosController {
 
   @Get()
   async search(@OrgId() organizacionId: string, @Query('q') q = ''): Promise<Comercio[]> {
-    return await this.svc.search(organizacionId, q);
+    return await this.svc.search(organizacionId, sanitizeSearchTerm(q));
   }
 
   @Get(':id')

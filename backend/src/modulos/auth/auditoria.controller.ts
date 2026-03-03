@@ -6,6 +6,7 @@ import { RolUsuario } from '@prisma/client';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { Usuario } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { clampPageLimit } from '../../common/sanitize';
 
 @Controller('auditoria')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -23,8 +24,8 @@ export class AuditoriaController {
     @Query('limit') limitStr?: string,
     @Query('offset') offsetStr?: string,
   ) {
-    const limit = Math.min(parseInt(limitStr || '50', 10) || 50, 200);
-    const offset = parseInt(offsetStr || '0', 10) || 0;
+    const limit = clampPageLimit(limitStr ? parseInt(limitStr, 10) : 50);
+    const offset = Math.max(0, parseInt(offsetStr || '0', 10) || 0);
 
     const where: Record<string, unknown> = {};
 

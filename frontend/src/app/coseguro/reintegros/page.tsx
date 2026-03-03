@@ -72,7 +72,31 @@ import {
   AlertCircle,
   History,
   ClipboardList,
+  MoreVertical,
+  CalendarDays,
 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { toast } from "sonner";
+import { getInitials, timeAgo, moneyARS } from "@/utiles/ui-helpers";
 
 // ==================== TIPOS ====================
 
@@ -129,11 +153,7 @@ const ESTADOS = [
 
 const TIPOS = ["MEDICAMENTO", "PRACTICA"] as const;
 
-const moneyARS = new Intl.NumberFormat("es-AR", {
-  style: "currency",
-  currency: "ARS",
-  maximumFractionDigits: 2,
-});
+
 
 function EstadoBadge({ estado }: { estado: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -150,7 +170,7 @@ function EstadoBadge({ estado }: { estado: string }) {
   const config = map[estado] || { label: estado, className: "bg-gray-100 text-gray-700" };
 
   return (
-    <Badge variant="outline" className={cn("rounded-md px-2 py-0.5 text-xs", config.className)}>
+    <Badge variant="outline" className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium border-0 ring-1 ring-inset", config.className)}>
       {config.label}
     </Badge>
   );
@@ -177,7 +197,7 @@ function KpiCard({
             {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
           </div>
           {icon ? (
-            <div className="rounded-lg border bg-background p-2 text-muted-foreground">
+            <div className="rounded-full bg-primary/10 p-2.5 text-primary">
               {icon}
             </div>
           ) : null}
@@ -257,9 +277,9 @@ function AfiliadoSearchInput({
   return (
     <div ref={containerRef} className="relative">
       <div className="relative flex items-center">
-        <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
-          className="h-10 pl-9 pr-10"
+          className="h-10 pl-12 pr-10"
           placeholder={placeholder}
           aria-label="Buscar afiliado"
           value={query}
@@ -620,12 +640,12 @@ export default function ReintegrosPage() {
         body: JSON.stringify(payload),
       });
 
-      setMsg({ type: "success", text: "Solicitud creada correctamente" });
+      toast.success("Solicitud creada correctamente");
       setCreateOpen(false);
       resetCreateForm();
       await cargar();
     } catch (e) {
-      setMsg({ type: "error", text: getErrorMessage(e) });
+      toast.error(getErrorMessage(e));
     } finally {
       setCreateLoading(false);
     }
@@ -641,12 +661,12 @@ export default function ReintegrosPage() {
   const canNext = page < totalPages && !listLoading;
 
   return (
-    <main className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reintegros</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+    <div className="page-container">
+      {/* Header de página */}
+      <div className="page-header">
+        <div className="page-title-section">
+          <h1 className="page-title">Reintegros</h1>
+          <p className="page-subtitle">
             Gestión de solicitudes de reintegro de afiliados y familiares
           </p>
         </div>
@@ -662,6 +682,8 @@ export default function ReintegrosPage() {
           </Button>
         </div>
       </div>
+
+      <div className="page-content">
 
       {/* Alert */}
       {msg && (
@@ -757,18 +779,26 @@ export default function ReintegrosPage() {
         </div>
       )}
 
-      {/* Filtros */}
-      <Card className="rounded-lg">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs text-muted-foreground mb-2 block font-medium">Estado</label>
+      {/* Filtros: estilo global */}
+      <div className="flex flex-col lg:flex-row items-end lg:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
+          {/* Search Input con estilo global */}
+          <div className="search-input-container w-full md:w-auto">
+             <AfiliadoSearchInput
+               value={afiliadoFilterSearch}
+               onChange={(v) => {
+                 setAfiliadoFilterSearch(v);
+                 if (!v) setAfiliadoFilterSelected(null);
+               }}
+               onSelect={setAfiliadoFilterSelected}
+               placeholder="Buscar afiliado..."
+             />
+          </div>
+
+           <div className="flex items-center gap-2 w-full md:w-auto">
               <Select value={estadoFilter || "all"} onValueChange={(v) => setEstadoFilter(v === "all" ? "" : v)}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Todos los estados" />
+                <SelectTrigger className="h-10 w-full md:w-[180px] bg-white">
+                  <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
@@ -782,13 +812,10 @@ export default function ReintegrosPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground mb-2 block font-medium">Tipo</label>
               <Select value={tipoFilter || "all"} onValueChange={(v) => setTipoFilter(v === "all" ? "" : v)}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Todos los tipos" />
+                <SelectTrigger className="h-10 w-full md:w-[180px] bg-white">
+                  <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los tipos</SelectItem>
@@ -799,29 +826,15 @@ export default function ReintegrosPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+           </div>
+        </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground mb-2 block font-medium">Afiliado</label>
-              <AfiliadoSearchInput
-                value={afiliadoFilterSearch}
-                onChange={(v) => {
-                  setAfiliadoFilterSearch(v);
-                  if (!v) setAfiliadoFilterSelected(null);
-                }}
-                onSelect={setAfiliadoFilterSelected}
-                placeholder="Búscar afiliado..."
-              />
-            </div>
-          </div>
-
-          {afiliadoFilterSelected && (
-            <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-              Filtrando por: <span className="text-foreground font-medium">{afiliadoFilterSelected.display}</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        <div className="flex items-center gap-2">
+           <span className="text-sm text-muted-foreground mr-2 hidden lg:block">
+             {lista.total === 0 ? "0 resultados" : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, lista.total)} de ${lista.total}`}
+           </span>
+        </div>
+      </div>
 
       {/* Listado */}
       <Card className="rounded-lg">
@@ -834,37 +847,49 @@ export default function ReintegrosPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {listLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : lista.items.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              No hay solicitudes para mostrar
-            </div>
-          ) : (
-            <>
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-xs font-semibold">ID</TableHead>
-                      <TableHead className="text-xs font-semibold">Persona</TableHead>
-                      <TableHead className="text-xs font-semibold">Tipo</TableHead>
-                      <TableHead className="text-xs font-semibold">Estado</TableHead>
-                      <TableHead className="text-xs font-semibold">Fecha factura</TableHead>
-                      <TableHead className="text-xs font-semibold text-right">Importe</TableHead>
-                      <TableHead className="text-xs font-semibold text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lista.items.map((s) => (
-                      <TableRow key={s.id} className="hover:bg-muted/40 transition-colors">
-                        <TableCell className="font-mono text-xs">{s.id.slice(0, 8)}...</TableCell>
-                        <TableCell className="text-sm">
-                          <div className="font-medium">
+      {listLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : lista.items.length === 0 ? (
+        <div className="py-12 text-center text-muted-foreground">
+          No hay solicitudes para mostrar
+        </div>
+      ) : (
+        <>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Persona</th>
+                  <th>Tipo</th>
+                  <th>Estado</th>
+                  <th>Fecha factura</th>
+                  <th className="table-col-numeric">Importe</th>
+                  <th className="table-col-numeric">Reintegro</th>
+                  <th className="table-col-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lista.items.map((s) => (
+                  <tr key={s.id}>
+                    <td><span className="font-mono text-xs text-muted-foreground">{s.id.slice(0, 8)}...</span></td>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9 border hidden md:flex">
+                          <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+                            {getInitials(
+                              s.personaTipo === "FAMILIAR" && s.familiarNombre
+                                ? s.familiarNombre
+                                : s.afiliadoNombre || "?"
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-sm">
                             {s.personaTipo === "FAMILIAR" && s.familiarNombre
                               ? s.familiarNombre
                               : s.afiliadoNombre || "—"}
@@ -872,67 +897,94 @@ export default function ReintegrosPage() {
                           <div className="text-xs text-muted-foreground">
                             {s.personaTipo === "FAMILIAR" ? "Familiar" : "Titular"}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {s.tipo}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <EstadoBadge estado={s.estado} />
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {new Date(s.fechaFactura).toLocaleDateString("es-AR")}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums text-sm">
-                          {s.importeReintegro 
-                            ? moneyARS.format(Number(s.importeReintegro))
-                            : moneyARS.format(Number(s.importeTotal))}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openRow(s)}
-                            className="h-8"
-                          >
-                            Ver
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <Badge variant="outline" className="text-xs font-normal">
+                        {s.tipo}
+                      </Badge>
+                    </td>
+                    <td>
+                      <EstadoBadge estado={s.estado} />
+                    </td>
+                    <td>
+                      <div className="flex flex-col">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                               <span className="text-sm cursor-help hover:text-foreground transition-colors">
+                                 {new Date(s.fechaFactura).toLocaleDateString("es-AR")}
+                               </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {timeAgo(s.fechaFactura)}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </td>
+                    <td className="table-col-numeric tabular-nums text-sm">
+                      {moneyARS.format(Number(s.importeTotal))}
+                    </td>
+                    <td className="table-col-numeric tabular-nums font-semibold text-emerald-600 text-sm">
+                      {s.importeReintegro 
+                        ? moneyARS.format(Number(s.importeReintegro))
+                        : moneyARS.format(Number(s.importeTotal))}
+                    </td>
+                    <td className="table-col-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                            <MoreVertical className="h-4 w-4" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openRow(s)}>
+                            Ver detalles
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => navigator.clipboard.writeText(s.id)}>
+                            Copiar ID
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-              {/* Paginación */}
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Página <span className="font-medium">{page}</span> de <span className="font-medium">{totalPages}</span> · {lista.total} total
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={!canPrev}
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-1.5" />
-                    Anterior
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={!canNext}
-                  >
-                    Siguiente
-                    <ArrowRight className="h-4 w-4 ml-1.5" />
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
+          {/* Paginación */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              Página <span className="font-medium">{page}</span> de <span className="font-medium">{totalPages}</span> · {lista.total} total
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                <ArrowLeft className="h-4 w-4 mr-1.5" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!canNext}
+              >
+                Siguiente
+                <ArrowRight className="h-4 w-4 ml-1.5" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
         </CardContent>
       </Card>
 
@@ -1016,7 +1068,7 @@ export default function ReintegrosPage() {
       {/* Sheet: Crear nueva solicitud */}
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>
         <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
+          <SheetHeader className="mb-6">
             <SheetTitle>Nueva solicitud</SheetTitle>
             <SheetDescription>
               Complete los datos para crear una nueva solicitud de reintegro
@@ -1024,219 +1076,197 @@ export default function ReintegrosPage() {
           </SheetHeader>
 
           <div className="mt-6 space-y-6">
-            {/* Persona + Afiliado + Familiar + Tipo */}
-            <Card className="rounded-lg">
-              <CardContent className="p-5 space-y-4">
-                <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-12 md:col-span-4">
-                    <label className="text-xs text-muted-foreground mb-2 block font-medium">Persona</label>
-                    <Select
-                      value={personaTipo}
-                      onValueChange={(v) => {
-                        setPersonaTipo(v as "TITULAR" | "FAMILIAR");
-                        setFamiliar(null);
-                        setFamQuery("");
-                        setFamOpts([]);
-                      }}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="TITULAR">Titular</SelectItem>
-                        <SelectItem value="FAMILIAR">Familiar</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            {/* SECCION 1: AFILIADO Y BENEFICIARIO */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 border-b pb-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
+                Beneficiario
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 px-1">
+                <div className="md:col-span-4">
+                  <label className="text-xs font-medium mb-1.5 block text-foreground">Tipo Persona</label>
+                  <Select
+                    value={personaTipo}
+                    onValueChange={(v) => {
+                      setPersonaTipo(v as "TITULAR" | "FAMILIAR");
+                      setFamiliar(null);
+                      setFamQuery("");
+                      setFamOpts([]);
+                    }}
+                  >
+                    <SelectTrigger className="h-10 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TITULAR">Titular</SelectItem>
+                      <SelectItem value="FAMILIAR">Familiar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  <div className="col-span-12 md:col-span-8">
-                    <label className={cn("text-xs mb-2 block font-medium", !afi?.id && "text-destructive")}>
-                      Afiliado {!afi?.id && <span className="text-destructive">*</span>}
-                    </label>
-                    <AfiliadoSearchInput
-                      value={afiliadoSearch}
-                      onChange={setAfiliadoSearch}
-                      onSelect={setAfi}
-                    />
-                    {afi ? (
-                      <div className="mt-2 space-y-2">
-                        <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                          <div className="h-2 w-2 rounded-full bg-emerald-600 flex-shrink-0" />
-                          <span className="text-sm text-emerald-900 font-medium truncate">{afi.display}</span>
+                <div className="md:col-span-8">
+                  <label className={cn("text-xs font-medium mb-1.5 block", !afi?.id ? "text-destructive" : "text-foreground")}>
+                    Afiliado Titular {!afi?.id && <span className="text-destructive">*</span>}
+                  </label>
+                  <AfiliadoSearchInput
+                    value={afiliadoSearch}
+                    onChange={setAfiliadoSearch}
+                    onSelect={setAfi}
+                    placeholder="Buscar titular..."
+                  />
+                  {afi && (
+                    <div className="mt-2">
+                       {coseguroInfo.loading ? (
+                        <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <RefreshCcw className="h-3 w-3 animate-spin" /> Verificando...
                         </div>
-                        {coseguroInfo.loading ? (
-                          <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/50 px-3 py-2">
-                            <RefreshCcw className="h-4 w-4 animate-spin text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">Verificando coseguro...</span>
-                          </div>
-                        ) : !coseguroInfo.tieneCoseguro ? (
-                          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-2">
-                            <div className="flex items-start gap-3">
-                              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                              <div className="space-y-1">
-                                <div className="text-xs font-semibold text-destructive">
-                                  Coseguro no disponible
-                                </div>
-                                <div className="text-xs text-destructive/80 leading-relaxed">
-                                  Este afiliado no tiene coseguro activo{coseguroInfo.estado === "baja" ? " (está dado de baja)" : coseguroInfo.estado === "suspendido" ? " (está suspendido)" : ""}.
-                                  Debe tener coseguro activo y vigente para crear solicitudes.
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-xs font-medium text-emerald-700">
-                              Coseguro activo - Puede crear reintegro
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="mt-2 text-xs text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5">
-                        Buscá por DNI, nombre o padrón
-                      </div>
-                    )}
-                  </div>
-
-                  {personaTipo === "FAMILIAR" && (
-                    <div className="col-span-12">
-                      <label className={cn("text-xs mb-2 block font-medium", !familiar?.id && "text-destructive")}>
-                        Familiar {!familiar?.id && <span className="text-destructive">*</span>}
-                      </label>
-                      <Popover open={famOpen} onOpenChange={setFamOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-9 w-full justify-start text-muted-foreground"
-                            disabled={!afi}
-                          >
-                            <Search className="h-4 w-4 mr-2" />
-                            {familiar ? familiar.display : "Seleccionar familiar..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
-                          <Command shouldFilter={false}>
-                            <CommandInput
-                              placeholder="Escribí DNI o nombre…"
-                              value={famQuery}
-                              onValueChange={(v) => {
-                                setFamQuery(v);
-                                if (familiar) setFamiliar(null);
-                              }}
-                            />
-                            <CommandList>
-                              {famQuery.trim().length < 2 ? (
-                                <div className="p-4 text-center text-sm text-muted-foreground">
-                                  Escribí al menos 2 caracteres
-                                  {famAll.length > 0 && ` o seleccioná de los ${famAll.length} disponibles`}
-                                </div>
-                              ) : (famQuery.trim().length >= 2 ? famOpts : famAll).length === 0 ? (
-                                <div className="p-4 text-center">
-                                  <div className="flex flex-col items-center gap-2">
-                                    <Search className="h-5 w-5 text-muted-foreground/50" />
-                                    <div className="text-sm font-medium text-muted-foreground">
-                                      No se encontraron resultados
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <CommandGroup heading="Familiares disponibles">
-                                  {(famQuery.trim().length >= 2 ? famOpts : famAll).map((o) => (
-                                    <CommandItem
-                                      key={o.id}
-                                      value={`${o.display} ${o.dni ?? ""}`}
-                                      onSelect={() => {
-                                        setFamiliar(o);
-                                        setFamQuery(o.display);
-                                        setFamOpen(false);
-                                      }}
-                                      className="cursor-pointer"
-                                    >
-                                      <span className="text-sm">{o.display}</span>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              )}
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                       ) : !coseguroInfo.tieneCoseguro ? (
+                         <div className="text-xs text-destructive font-medium flex items-center gap-1.5 bg-destructive/10 px-2 py-1 rounded w-fit">
+                           <AlertCircle className="h-3 w-3" /> Sin coseguro activo
+                         </div>
+                       ) : (
+                         <div className="text-xs text-emerald-600 font-medium flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded w-fit">
+                           <CheckCircle2 className="h-3 w-3" /> Coseguro activo
+                         </div>
+                       )}
                     </div>
                   )}
+                </div>
 
-                  <div className="col-span-12 md:col-span-4">
-                    <label className="text-xs text-muted-foreground mb-2 block font-medium">Tipo</label>
-                    <Select
-                      value={tipo}
-                      onValueChange={(v) => setTipo(v as "MEDICAMENTO" | "PRACTICA")}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIPOS.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="col-span-12 md:col-span-4">
-                    <label className={cn("text-xs mb-2 block font-medium", !fechaFactura && "text-destructive")}>
-                      Fecha factura {!fechaFactura && <span className="text-destructive">*</span>}
+                {personaTipo === "FAMILIAR" && (
+                  <div className="md:col-span-12">
+                    <label className={cn("text-xs font-medium mb-1.5 block", !familiar?.id ? "text-destructive" : "text-foreground")}>
+                      Familiar Beneficiario {!familiar?.id && <span className="text-destructive">*</span>}
                     </label>
-                    <Input
-                      className="h-9"
-                      type="date"
-                      value={fechaFactura}
-                      onChange={(e) => setFechaFactura(e.target.value)}
-                    />
+                    <Popover open={famOpen} onOpenChange={setFamOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-10 w-full justify-start text-muted-foreground bg-background font-normal"
+                          disabled={!afi}
+                        >
+                          <Search className="h-4 w-4 mr-2" />
+                          {familiar ? <span className="text-foreground">{familiar.display}</span> : "Seleccionar familiar..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Escribí DNI o nombre…"
+                            value={famQuery}
+                            onValueChange={(v) => {
+                              setFamQuery(v);
+                              if (familiar) setFamiliar(null);
+                            }}
+                          />
+                          <CommandList>
+                            {famQuery.trim().length < 2 ? (
+                              <div className="p-4 text-center text-sm text-muted-foreground">
+                                Escribí al menos 2 caracteres
+                              </div>
+                            ) : (famQuery.trim().length >= 2 ? famOpts : famAll).length === 0 ? (
+                              <div className="p-4 text-center text-sm text-muted-foreground">No encontrado</div>
+                            ) : (
+                              <CommandGroup heading="Familiares disponibles">
+                                {(famQuery.trim().length >= 2 ? famOpts : famAll).map((o) => (
+                                  <CommandItem
+                                    key={o.id}
+                                    value={`${o.display} ${o.dni ?? ""}`}
+                                    onSelect={() => {
+                                      setFamiliar(o);
+                                      setFamQuery(o.display);
+                                      setFamOpen(false);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <span className="text-sm">{o.display}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
+                )}
+              </div>
+            </div>
 
-                  <div className="col-span-12 md:col-span-6">
-                    <label className="text-xs text-muted-foreground mb-2 block font-medium">Total factura</label>
-                    <Input
-                      className="h-9 bg-muted/50 font-semibold tabular-nums"
-                      value={moneyARS.format(totalFactura)}
-                      readOnly
-                    />
-                  </div>
-
-                  <div className="col-span-12 md:col-span-6">
-                    <label className="text-xs text-muted-foreground mb-2 block font-medium">Total reintegro</label>
-                    <Input
-                      className="h-9 bg-emerald-50 border-emerald-200 font-semibold tabular-nums text-emerald-700"
-                      value={moneyARS.format(totalReintegro)}
-                      readOnly
-                    />
-                  </div>
+            {/* SECCION 2: DATOS DE FACTURA */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 border-b pb-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
+                Datos de Facturación
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 px-1">
+                <div className="md:col-span-4">
+                  <label className="text-xs font-medium mb-1.5 block text-foreground">Tipo</label>
+                  <Select
+                    value={tipo}
+                    onValueChange={(v) => setTipo(v as "MEDICAMENTO" | "PRACTICA")}
+                  >
+                    <SelectTrigger className="h-10 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Items */}
-            <Card className="rounded-lg">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Ítems</CardTitle>
-                    <CardDescription className="text-xs mt-0.5">
-                      Agregue los ítems de la solicitud
-                    </CardDescription>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={addItem}>
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    Agregar
-                  </Button>
+                <div className="md:col-span-4">
+                  <label className={cn("text-xs font-medium mb-1.5 block", !fechaFactura ? "text-destructive" : "text-foreground")}>
+                    Fecha Factura {!fechaFactura && <span className="text-destructive">*</span>}
+                  </label>
+                  <Input
+                    className="h-10 bg-background"
+                    type="date"
+                    value={fechaFactura}
+                    onChange={(e) => setFechaFactura(e.target.value)}
+                  />
                 </div>
-              </CardHeader>
 
-              <CardContent className="p-5 pt-0 space-y-3">
+                <div className="md:col-span-4">
+                  <label className="text-xs font-medium mb-1.5 block text-foreground">Total Factura</label>
+                  <Input
+                    className="h-10 bg-background font-semibold tabular-nums"
+                    value={moneyARS.format(totalFactura)}
+                    readOnly
+                  />
+                </div>
+              </div>
+            </div>
+              
+            {/* SECCION 3: ITEMS */}
+            <div className="space-y-4">
+               <div className="flex items-center justify-between border-b pb-2">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
+                    Items del Reintegro
+                  </h3>
+                  <div className="flex items-center gap-4">
+                     <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:block">
+                        Reintegro Est:
+                        <span className="ml-2 text-base font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                           {moneyARS.format(totalReintegro)}
+                        </span>
+                     </div>
+                     <Button variant="outline" size="sm" onClick={addItem} className="h-8">
+                       <Plus className="h-3.5 w-3.5 mr-1.5" />
+                       Agregar ítem
+                     </Button>
+                  </div>
+               </div>
+               
+               <div className="space-y-3">
                 {items.map((it, idx) => {
                   const descOk = (it.descripcion || "").trim().length >= 2;
                   const cantOk = Number(it.cantidad || 0) > 0;
@@ -1251,43 +1281,45 @@ export default function ReintegrosPage() {
                     <div
                       key={idx}
                       className={cn(
-                        "rounded-lg border p-4 transition-colors",
-                        !rowOk ? "border-destructive/40 bg-destructive/5" : "border-border bg-background",
+                        "rounded-lg border p-4 transition-all bg-card/50",
+                        !rowOk ? "border-destructive/40" : "border-border",
                       )}
                     >
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-12 gap-3 items-end">
-                          <div className="col-span-12 md:col-span-5">
-                            <label className={cn("text-xs mb-2 block font-medium", !descOk && "text-destructive")}>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                          <div className="md:col-span-5">
+                            <label className={cn("text-xs font-medium mb-1.5 block", !descOk ? "text-destructive" : "text-foreground")}>
                               Descripción {!descOk && <span className="text-destructive">*</span>}
                             </label>
                             <Input
-                              className={cn("h-9", !descOk && "border-destructive")}
+                              className={cn("h-10", !descOk && "border-destructive")}
                               placeholder="Ej: Amoxicilina 500mg"
                               value={it.descripcion}
                               onChange={(e) => updateItem(idx, { descripcion: e.target.value })}
                             />
                           </div>
 
-                          <div className="col-span-6 md:col-span-2">
-                            <label className={cn("text-xs mb-2 block font-medium", !cantOk && "text-destructive")}>
-                              Cantidad {!cantOk && <span className="text-destructive">*</span>}
-                            </label>
-                            <Input
-                              className={cn("h-9 tabular-nums", !cantOk && "border-destructive")}
-                              type="number"
-                              min={1}
-                              value={it.cantidad}
-                              onChange={(e) => updateItem(idx, { cantidad: Number(e.target.value) })}
-                            />
+                          <div className="grid grid-cols-2 md:col-span-2 gap-4">
+                             <div>
+                                <label className={cn("text-xs font-medium mb-1.5 block", !cantOk ? "text-destructive" : "text-foreground")}>
+                                  Cant. {!cantOk && <span className="text-destructive">*</span>}
+                                </label>
+                                <Input
+                                  className={cn("h-10 tabular-nums", !cantOk && "border-destructive")}
+                                  type="number"
+                                  min={1}
+                                  value={it.cantidad}
+                                  onChange={(e) => updateItem(idx, { cantidad: Number(e.target.value) })}
+                                />
+                             </div>
                           </div>
 
-                          <div className="col-span-6 md:col-span-2">
-                            <label className={cn("text-xs mb-2 block font-medium", !impOk && "text-destructive")}>
+                          <div className="md:col-span-2">
+                            <label className={cn("text-xs font-medium mb-1.5 block", !impOk ? "text-destructive" : "text-foreground")}>
                               Importe {!impOk && <span className="text-destructive">*</span>}
                             </label>
                             <Input
-                              className={cn("h-9 tabular-nums", !impOk && "border-destructive")}
+                              className={cn("h-10 tabular-nums", !impOk && "border-destructive")}
                               type="number"
                               min={0}
                               step="0.01"
@@ -1297,13 +1329,13 @@ export default function ReintegrosPage() {
                             />
                           </div>
 
-                          <div className="col-span-6 md:col-span-2">
-                            <label className={cn("text-xs mb-2 block font-medium", !porcentajeOk && "text-destructive")}>
-                              % {!porcentajeOk && <span className="text-destructive">*</span>}
+                          <div className="md:col-span-2">
+                            <label className="text-xs font-medium mb-1.5 block text-foreground">
+                              % Cobertura
                             </label>
                             <div className="relative">
                               <Input
-                                className={cn("h-9 tabular-nums pr-7", !porcentajeOk && "border-destructive")}
+                                className={cn("h-10 tabular-nums pr-7", !porcentajeOk && "border-destructive")}
                                 type="number"
                                 min={0}
                                 max={100}
@@ -1318,35 +1350,14 @@ export default function ReintegrosPage() {
                             </div>
                           </div>
 
-                          <div className="col-span-4 md:col-span-2">
-                            <label className="text-xs text-muted-foreground mb-2 block font-medium">Tipo</label>
-                            <Select
-                              value={it.tipoItem ?? tipo}
-                              onValueChange={(v) =>
-                                updateItem(idx, { tipoItem: v as "MEDICAMENTO" | "PRACTICA" })
-                              }
-                            >
-                              <SelectTrigger className="h-9">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIPOS.map((t) => (
-                                  <SelectItem key={t} value={t}>
-                                    {t}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="col-span-2 md:col-span-1 flex justify-end">
+                          <div className="md:col-span-1 flex justify-end md:justify-center md:pt-8">
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               onClick={() => removeItem(idx)}
                               disabled={items.length === 1}
-                              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               title="Quitar ítem"
                             >
                               <X className="h-4 w-4" />
@@ -1355,14 +1366,15 @@ export default function ReintegrosPage() {
                         </div>
 
                         {subtotalItem > 0 && porcentajeOk && (
-                          <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                            <div className="flex items-center gap-1 text-xs text-emerald-700">
-                              <span>{moneyARS.format(subtotalItem)}</span>
-                              <span className="text-emerald-600/60">×</span>
-                              <span className="font-medium">{it.porcentaje}%</span>
+                          <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/30 px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground hidden sm:flex">
+                              <span>Subtotal: {moneyARS.format(subtotalItem)}</span>
                             </div>
-                            <div className="text-xs font-semibold text-emerald-700 tabular-nums">
-                              {moneyARS.format(reintegroItem)}
+                            <div className="flex items-center gap-2 text-sm ml-auto">
+                                <span className="text-xs text-muted-foreground">Reintegro:</span>
+                                <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                  {moneyARS.format(reintegroItem)}
+                                </span>
                             </div>
                           </div>
                         )}
@@ -1370,39 +1382,36 @@ export default function ReintegrosPage() {
 
                       {!rowOk && (
                         <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2.5">
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5 flex-shrink-0" />
-                            <div className="text-xs text-destructive/90 space-y-0.5">
-                              {!descOk && <div>• Descripción: Mínimo 2 caracteres</div>}
-                              {!cantOk && <div>• Cantidad: Debe ser mayor a 0</div>}
-                              {!impOk && <div>• Importe: Debe ser mayor a $0</div>}
-                              {!porcentajeOk && <div>• %: Debe estar entre 0 y 100</div>}
-                            </div>
-                          </div>
+                           <p className="text-[11px] text-destructive flex items-center gap-1.5">
+                             <AlertCircle className="h-3 w-3" />
+                             Complete todos los campos obligatorios
+                           </p>
                         </div>
                       )}
                     </div>
                   );
                 })}
+               </div>
+            </div>
               </CardContent>
             </Card>
           </div>
 
-          <SheetFooter className="mt-6 flex flex-col-reverse sm:flex-row gap-3 sm:justify-between">
-            <Button variant="outline" onClick={resetCreateForm} disabled={createLoading} size="sm">
-              Limpiar
+          <SheetFooter className="mt-6 flex flex-col-reverse sm:flex-row gap-3 sm:justify-between sticky bottom-0 bg-background pt-4 pb-6 z-10 border-t items-center">
+            <Button variant="ghost" onClick={resetCreateForm} disabled={createLoading} size="sm" className="text-muted-foreground">
+              Limpiar formulario
             </Button>
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <div className="flex flex-col gap-2 w-full sm:w-auto items-end">
               {!canCreate && (
-                <div className="text-xs text-muted-foreground text-center px-1">
+                <div className="text-[10px] text-destructive font-medium uppercase tracking-wide px-1 animate-pulse">
                   {!afi?.id
-                    ? "Seleccionar afiliado"
+                    ? "Falta seleccionar afiliado"
                     : !coseguroInfo.tieneCoseguro
-                      ? "Coseguro no disponible"
+                      ? "Afiliado sin coseguro"
                       : !fechaFactura
-                        ? "Completar fecha"
+                        ? "Falta fecha factura"
                         : personaTipo === "FAMILIAR" && !familiar?.id
-                          ? "Seleccionar familiar"
+                          ? "Falta seleccionar familiar"
                           : items.filter((it) => {
                               const desc = (it.descripcion || "").trim();
                               const cant = Number(it.cantidad || 0);
@@ -1410,8 +1419,8 @@ export default function ReintegrosPage() {
                               const porc = Number(it.porcentaje || 0);
                               return desc.length >= 2 && cant > 0 && imp > 0 && porc >= 0 && porc <= 100;
                             }).length === 0
-                            ? "Agregar al menos un ítem"
-                            : "Completar campos requeridos"}
+                            ? "Revise los ítems"
+                            : "Complete los campos requeridos"}
                 </div>
               )}
               <div className="flex gap-2">
@@ -1419,33 +1428,46 @@ export default function ReintegrosPage() {
                   variant="outline"
                   onClick={() => setCreateOpen(false)}
                   disabled={createLoading}
-                  size="sm"
                 >
                   Cancelar
                 </Button>
-                <Button
-                  onClick={crear}
-                  disabled={!canCreate || createLoading}
-                  className="min-w-[140px]"
-                  size="sm"
-                >
-                  {createLoading ? (
-                    <>
-                      <RefreshCcw className="h-4 w-4 animate-spin mr-2" />
-                      Creando...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Crear
-                    </>
-                  )}
-                </Button>
+                    {/* Boton Crear (Fixed Tooltip) */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <Button
+                              onClick={crear}
+                              disabled={!canCreate || createLoading}
+                              className="min-w-[140px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              {createLoading ? (
+                                <>
+                                  <RefreshCcw className="h-4 w-4 animate-spin mr-2" />
+                                  Procesando...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Crear Solicitud
+                                </>
+                              )}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {!canCreate && (
+                          <TooltipContent side="top" className="max-w-[200px] text-center bg-destructive text-destructive-foreground">
+                            <p>Complete todos los campos obligatorios marcados en rojo</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
               </div>
             </div>
           </SheetFooter>
         </SheetContent>
       </Sheet>
-    </main>
+    </div>
+    </div>
   );
 }

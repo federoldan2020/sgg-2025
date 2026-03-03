@@ -3,6 +3,7 @@ import { Controller, Get, Param, Query, Post, Body, BadRequestException, Delete 
 import { MovimientosService } from './movimientos.service';
 import { OrgId } from 'src/common/decorators/org-id.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { clampPageLimit } from '../../common/sanitize';
 
 @Controller('movimientos')
 export class MovimientosController {
@@ -22,7 +23,7 @@ export class MovimientosController {
       afiliadoId,
       desde ? new Date(desde) : undefined,
       hasta ? new Date(hasta) : undefined,
-      take ? Math.max(1, Number(take) || 200) : 200,
+      take ? clampPageLimit(Number(take) || 200) : clampPageLimit(200),
     );
   }
 
@@ -62,7 +63,7 @@ export class MovimientosController {
       }
     }
     
-    const take = takeStr ? Math.min(Math.max(Number(takeStr) || 200, 1), 1000) : 200;
+    const take = takeStr ? clampPageLimit(Number(takeStr) || 200) : clampPageLimit(200);
     
     // Validar formato de periodoContable si se proporciona
     const periodoContable = periodoContableStr && /^\d{4}-\d{2}$/.test(periodoContableStr)

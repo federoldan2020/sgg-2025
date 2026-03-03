@@ -1,8 +1,11 @@
 // src/modulos/contabilidad/mapeos.controller.ts
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Request } from 'express';
 import { ContabilidadService } from './contabilidad.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { ListarMapeosQueryDto } from './dto/listar-mapeos-query.dto';
+import { BuscarCuentasQueryDto } from './dto/buscar-cuentas-query.dto';
+import { clampPageLimit } from '../../common/sanitize';
 
 type ReqOrg = Request & { organizacionId?: string };
 
@@ -19,33 +22,19 @@ type UpsertMapeoDto = {
 type CrearMapeoDto = UpsertMapeoDto;
 type ActualizarMapeoDto = Partial<UpsertMapeoDto> & { activo?: boolean };
 
-type ListarQuery = {
-  q?: string;
-  origen?: string;
-  activo?: string; // 'true' | 'false' | undefined
-  page?: string; // números como string
-  pageSize?: string; // números como string
-};
-
-type BuscarCuentasQuery = {
-  q: string;
-  imputableOnly?: string; // 'true' | 'false'
-  limit?: string; // número como string
-};
-
 @Controller('contabilidad/mapeos')
 export class MapeosController {
   constructor(private readonly svc: ContabilidadService) {}
 
   // === LISTAR (compat simple o paginado/filtrado) ===
   @Get()
-  async listar(@Req() req: ReqOrg, @Query() q: ListarQuery) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async listar(@Req() req: ReqOrg, @Query() q: ListarMapeosQueryDto) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
     const usingPaging = Boolean(q.page || q.pageSize || q.q || q.origen || q.activo !== undefined);
     if (!usingPaging) {
-      // compat: listado activo=true
       return this.svc.listarMapeos(org);
     }
 
@@ -62,8 +51,8 @@ export class MapeosController {
       q: q.q ?? null,
       origen: q.origen ?? null,
       activo,
-      page: q.page ? Number(q.page) : 1,
-      pageSize: q.pageSize ? Number(q.pageSize) : 20,
+      page: q.page ? Math.max(1, Number(q.page)) : 1,
+      pageSize: clampPageLimit(q.pageSize ? Number(q.pageSize) : 20),
     });
   }
 
@@ -112,9 +101,9 @@ export class MapeosController {
   }
 
   // === Extra útil para la UI: autocompletar cuentas ===
-  // GET /contabilidad/mapeos/cuentas?q=1101&imputableOnly=true&limit=10
   @Get('cuentas/search')
-  async buscarCuentas(@Req() req: ReqOrg, @Query() query: BuscarCuentasQuery) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async buscarCuentas(@Req() req: ReqOrg, @Query() query: BuscarCuentasQueryDto) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
@@ -122,7 +111,7 @@ export class MapeosController {
     if (!q) return [];
 
     const imputableOnly = query.imputableOnly === 'true';
-    const limit = query.limit ? Number(query.limit) : 20;
+    const limit = clampPageLimit(query.limit ? Number(query.limit) : 20);
 
     return this.svc.buscarCuentas({ organizacionId: org, q, imputableOnly, limit });
   }

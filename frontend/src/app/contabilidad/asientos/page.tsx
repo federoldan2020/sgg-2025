@@ -167,7 +167,7 @@ export default function AsientosPage() {
                 placeholder="Buscar descripción..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="pl-9"
+                className="pl-12"
                 onKeyDown={(e) => e.key === "Enter" && cargar(1)}
               />
             </div>

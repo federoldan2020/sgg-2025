@@ -35,10 +35,40 @@ import {
   AlertCircle,
   FileText,
   Link as LinkIcon,
+  Phone,
+  Mail,
+  MoreVertical,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
-import { mon } from "@/utiles/formatos";
+import { timeAgo, moneyARS, getInitials } from "@/utiles/ui-helpers";
+
+function mon(val: number | string | undefined | null) {
+  return moneyARS.format(Number(val || 0));
+}
 
 type Solicitud = {
   id: string;
@@ -104,7 +134,7 @@ function EstadoBadge({ estado }: { estado: string }) {
   const Icon = config.icon;
 
   return (
-    <Badge variant={config.variant} className="inline-flex items-center gap-1.5">
+    <Badge variant={config.variant} className="rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium border-0 ring-1 ring-inset ring-current">
       <Icon className="h-3.5 w-3.5" />
       {config.label}
     </Badge>
@@ -140,9 +170,10 @@ export default function ReintegroDetallePage() {
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Acciones
-  const [observacion, setObservacion] = useState("");
-  const [importeAprobado, setImporteAprobado] = useState("");
+  // Acciones con Dialog
+  const [actionOpen, setActionOpen] = useState<"observar" | "rechazar" | "aprobar" | null>(null);
+  const [actionObs, setActionObs] = useState("");
+  const [actionMonto, setActionMonto] = useState("");
 
   // Adjuntos
   const [adjTipo, setAdjTipo] = useState<(typeof ADJUNTOS)[number]>("FACTURA");
@@ -192,15 +223,24 @@ export default function ReintegroDetallePage() {
   }, [id]);
 
   const accion = async (path: string, body?: unknown) => {
+    const promise = api(path, { method: "PATCH", body: JSON.stringify(body ?? {}) });
+
+    toast.promise(promise, {
+       loading: "Procesando...",
+       success: () => {
+         cargar();
+         setActionOpen(null);
+         setActionObs("");
+         setActionMonto("");
+         return "Acción realizada con éxito";
+       },
+       error: (e) => getErrorMessage(e),
+    });
+
     try {
-      setIsLoading(true);
-      await api(path, { method: "PATCH", body: JSON.stringify(body ?? {}) });
-      setMsg({ type: "success", text: "Acción aplicada correctamente" });
-      await cargar();
+      await promise;
     } catch (e) {
-      setMsg({ type: "error", text: getErrorMessage(e) });
-    } finally {
-      setIsLoading(false);
+      // Handled by toast
     }
   };
 
@@ -245,46 +285,47 @@ export default function ReintegroDetallePage() {
   return (
     <main className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
       {/* Page Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      <div className="flex items-start justify-between gap-4 border-b pb-6">
+        <div className="flex items-start gap-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => router.push("/coseguro/reintegros")}
-            className="h-9 w-9 mt-0.5"
+            className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
             title="Volver"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-5 w-5" />
           </Button>
 
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Detalle de solicitud</h1>
-            <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{personaNombre}</span>
-              <span className="mx-2">·</span>
-              <span>{data.tipo}</span>
-              <span className="mx-2">·</span>
-              <span className="font-mono text-xs">#{data.id}</span>
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 border shadow-sm">
+                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                  {getInitials(personaNombre)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">{personaNombre}</h1>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal uppercase tracking-wider">
+                    {data.personaTipo === "FAMILIAR" ? "Familiar" : "Titular"}
+                  </Badge>
+                  <span>Solicitud #{data.id.slice(0, 8)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <EstadoBadge estado={data.estado} />
+        <div className="flex flex-col items-end gap-2">
+           <EstadoBadge estado={data.estado} />
+           <div className="text-xs text-muted-foreground">
+              {timeAgo(data.fechaPresentacion || data.fechaFactura)}
+           </div>
         </div>
       </div>
 
-      {/* Mensajes */}
-      {msg && (
-        <Alert variant={msg.type === "error" ? "destructive" : "default"} className="border-l-4">
-          <AlertDescription className="flex items-start justify-between gap-3">
-            <span className="text-sm">{msg.text}</span>
-            <button className="text-xs underline shrink-0" onClick={() => setMsg(null)}>
-              Cerrar
-            </button>
-          </AlertDescription>
-        </Alert>
-      )}
+
 
       {/* Layout principal: contenido + panel lateral */}
       <section className="grid grid-cols-12 gap-4">
@@ -292,44 +333,46 @@ export default function ReintegroDetallePage() {
         <div className="col-span-12 lg:col-span-8 space-y-4">
           {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Total factura
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold tabular-nums">{mon(importeTotal)}</div>
-              </CardContent>
+            <Card className="border border-border/50 shadow-sm rounded-xl overflow-hidden">
+               <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Total Factura</div>
+                    <div className="text-2xl font-bold tracking-tight">{mon(importeTotal)}</div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                     <DollarSign className="h-5 w-5" />
+                  </div>
+               </CardContent>
             </Card>
 
-            <Card className="border border-emerald-200/60 bg-emerald-50/50">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs text-emerald-700 font-medium flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Reintegro estimado
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold tabular-nums text-emerald-700">{mon(importeReintegro)}</div>
-                <div className="text-xs text-emerald-700/80 mt-1 tabular-nums">{ratio.toFixed(1)}% del total</div>
-              </CardContent>
+            <Card className="border border-emerald-100 bg-emerald-50/40 shadow-sm rounded-xl overflow-hidden">
+               <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-emerald-800/80 mb-1">Reintegro Estimado</div>
+                    <div className="text-2xl font-bold tracking-tight text-emerald-700">{mon(importeReintegro)}</div>
+                    <div className="text-[10px] text-emerald-600 font-medium mt-1">
+                       {ratio.toFixed(1)}% de cobertura
+                    </div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                     <CheckCircle2 className="h-5 w-5" />
+                  </div>
+               </CardContent>
             </Card>
 
-            <Card className="border border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Fecha factura
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold">{fmtDate(data.fechaFactura)}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Presentación: {fmtDate(data.fechaPresentacion)}
-                </div>
-              </CardContent>
+             <Card className="border border-border/50 shadow-sm rounded-xl overflow-hidden">
+               <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Fecha Factura</div>
+                    <div className="text-xl font-bold tracking-tight">{fmtDate(data.fechaFactura)}</div>
+                     <div className="text-[10px] text-muted-foreground mt-1">
+                       Presentado: {data.fechaPresentacion ? fmtDate(data.fechaPresentacion) : "—"}
+                    </div>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600">
+                     <Calendar className="h-5 w-5" />
+                  </div>
+               </CardContent>
             </Card>
           </div>
 
@@ -526,23 +569,29 @@ export default function ReintegroDetallePage() {
                   <div className="text-xs text-muted-foreground mt-1">Los movimientos aparecerán acá.</div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {data.historial.map((h) => (
-                    <div key={h.id} className="rounded-xl border border-border/60 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <EstadoBadge estado={h.estadoNuevo} />
-                        <span className="text-xs text-muted-foreground">{fmtDateTime(h.fecha)}</span>
+                <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:h-[calc(100%-16px)] before:w-[2px] before:bg-muted/50">
+                  {data.historial.map((h, idx) => (
+                    <div key={h.id} className="relative">
+                      <div className="absolute -left-6 mt-1.5 h-3 w-3 rounded-full border-2 border-background bg-muted-foreground/30 ring-4 ring-background" />
+                      <div className="flex flex-col gap-1">
+                         <div className="flex items-center gap-2">
+                            <EstadoBadge estado={h.estadoNuevo} />
+                            <span className="text-xs text-muted-foreground">{timeAgo(h.fecha)}</span>
+                         </div>
+                         <div className="text-xs text-muted-foreground">
+                            {fmtDateTime(h.fecha)}
+                         </div>
+                         {h.observacion && (
+                           <div className="mt-2 text-sm bg-muted/30 p-3 rounded-md border text-foreground/90 leading-relaxed">
+                              {h.observacion}
+                           </div>
+                         )}
+                         {h.estadoAnterior && (
+                           <div className="mt-1 text-xs text-muted-foreground/60">
+                             Cambió desde <span className="font-medium">{h.estadoAnterior}</span>
+                           </div>
+                         )}
                       </div>
-
-                      {h.observacion ? (
-                        <p className="text-sm text-muted-foreground mt-2">{h.observacion}</p>
-                      ) : null}
-
-                      {h.estadoAnterior ? (
-                        <div className="text-xs text-muted-foreground/80 mt-2">
-                          Anterior: <span className="font-medium">{h.estadoAnterior}</span>
-                        </div>
-                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -604,82 +653,132 @@ export default function ReintegroDetallePage() {
             </CardContent>
           </Card>
 
-          {/* Acciones (más claro para usuario) */}
           <Card className="border border-border/60">
             <CardHeader>
               <CardTitle className="text-lg font-semibold">Acciones</CardTitle>
-              <CardDescription>Usá estos pasos para gestionar la solicitud</CardDescription>
+              <CardDescription>Gestioná el estado de la solicitud</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Observación */}
-              <div className="rounded-xl border border-border/60 p-3 space-y-2">
-                <div className="text-sm font-medium">Observación</div>
-                <textarea
-                  className="min-h-[84px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20"
-                  placeholder="Escribí un comentario breve (visible en el historial)…"
-                  value={observacion}
-                  onChange={(e) => setObservacion(e.target.value)}
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Button
-                    onClick={() => accion(`/reintegros/solicitudes/${id}/presentar`, { observacion })}
-                    disabled={isLoading}
-                    className="h-10"
-                  >
-                    Presentar
-                  </Button>
-                  <Button
+            <CardContent className="space-y-3">
+              <Button
+                className="w-full justify-start"
+                variant="outline"
+                onClick={() => accion(`/reintegros/solicitudes/${id}/presentar`)}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
+                Presentar
+              </Button>
+              <Button
+                 className="w-full justify-start"
+                 variant="outline"
+                 onClick={() => {
+                    setActionObs("");
+                    setActionMonto(importeTotal.toString());
+                    setActionOpen("aprobar");
+                 }}
+              >
+                 <DollarSign className="mr-2 h-4 w-4 text-blue-600" />
+                 Aprobar...
+              </Button>
+              <div className="flex gap-3">
+                 <Button
+                    className="flex-1"
                     variant="outline"
-                    onClick={() => accion(`/reintegros/solicitudes/${id}/observar`, { observacion })}
-                    disabled={isLoading || !observacion.trim()}
-                    className="h-10"
-                    title={!observacion.trim() ? "Agregá una observación para marcar como observado" : undefined}
-                  >
+                    onClick={() => {
+                       setActionObs("");
+                       setActionOpen("observar");
+                    }}
+                 >
+                    <AlertCircle className="mr-2 h-4 w-4 text-orange-500" />
                     Observar
-                  </Button>
-                </div>
-              </div>
-
-              {/* Aprobar / Rechazar */}
-              <div className="rounded-xl border border-border/60 p-3 space-y-2">
-                <div className="text-sm font-medium">Aprobación</div>
-                <Input
-                  className="h-10"
-                  placeholder="Importe aprobado (opcional)"
-                  value={importeAprobado}
-                  onChange={(e) => setImporteAprobado(e.target.value)}
-                  type="number"
-                  step="0.01"
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      accion(`/reintegros/solicitudes/${id}/aprobar`, {
-                        observacion,
-                        importeAprobado: importeAprobado ? Number(importeAprobado) : undefined,
-                      })
-                    }
-                    disabled={isLoading}
-                    className="h-10"
-                  >
-                    Aprobar
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => accion(`/reintegros/solicitudes/${id}/rechazar`, { observacion })}
-                    disabled={isLoading || !observacion.trim()}
-                    className="h-10"
-                    title={!observacion.trim() ? "Agregá una observación para rechazar" : undefined}
-                  >
+                 </Button>
+                 <Button
+                    className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                    variant="outline"
+                    onClick={() => {
+                        setActionObs("");
+                        setActionOpen("rechazar");
+                    }}
+                 >
+                    <XCircle className="mr-2 h-4 w-4" />
                     Rechazar
-                  </Button>
-                </div>
+                 </Button>
               </div>
             </CardContent>
           </Card>
         </aside>
       </section>
+
+      {/* Dialogos de Acción */}
+      <Dialog open={!!actionOpen} onOpenChange={(o) => !o && setActionOpen(null)}>
+        <DialogContent>
+           <DialogHeader>
+              <DialogTitle>
+                 {actionOpen === "aprobar" && "Aprobar Solicitud"}
+                 {actionOpen === "observar" && "Observar Solicitud"}
+                 {actionOpen === "rechazar" && "Rechazar Solicitud"}
+              </DialogTitle>
+              <DialogDescription>
+                 {actionOpen === "aprobar" && "Confirmá el monto aprobado y agregá una observación opcional."}
+                 {actionOpen === "observar" && "Indicá el motivo de la observación para que el solicitante pueda corregirlo."}
+                 {actionOpen === "rechazar" && "Indicá el motivo del rechazo. Esta acción no se puede deshacer."}
+              </DialogDescription>
+           </DialogHeader>
+
+           <div className="space-y-4 py-2">
+              {actionOpen === "aprobar" && (
+                 <div className="space-y-2">
+                    <label className="text-sm font-medium">Monto Aprobado</label>
+                    <div className="relative">
+                       <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                       <Input
+                          value={actionMonto}
+                          onChange={(e) => setActionMonto(e.target.value)}
+                          className="pl-11 font-semibold"
+                          type="number"
+                       />
+                    </div>
+                 </div>
+              )}
+              <div className="space-y-2">
+                 <label className="text-sm font-medium">
+                    Observación {actionOpen !== "aprobar" && <span className="text-destructive">*</span>}
+                 </label>
+                 <textarea
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Escribí un comentario..."
+                    value={actionObs}
+                    onChange={(e) => setActionObs(e.target.value)}
+                 />
+              </div>
+           </div>
+
+           <DialogFooter>
+              <Button variant="outline" onClick={() => setActionOpen(null)}>Cancelar</Button>
+              <Button
+                 variant={actionOpen === "rechazar" ? "destructive" : "default"}
+                 disabled={
+                    (actionOpen !== "aprobar" && !actionObs.trim()) ||
+                    (actionOpen === "aprobar" && !actionMonto)
+                 }
+                 onClick={() => {
+                    if (actionOpen === "aprobar") {
+                       accion(`/reintegros/solicitudes/${id}/aprobar`, {
+                          observacion: actionObs,
+                          importeAprobado: Number(actionMonto)
+                       });
+                    } else if (actionOpen === "observar") {
+                       accion(`/reintegros/solicitudes/${id}/observar`, { observacion: actionObs });
+                    } else if (actionOpen === "rechazar") {
+                       accion(`/reintegros/solicitudes/${id}/rechazar`, { observacion: actionObs });
+                    }
+                 }}
+              >
+                 Confirmar
+              </Button>
+           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </main>
   );
 }

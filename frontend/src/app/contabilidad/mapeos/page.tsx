@@ -559,7 +559,7 @@ export default function MapeosPage() {
                 placeholder="Buscar cuentas, descripción, método..."
                 value={q}
                 onChange={(e) => { setPage(1); setQ(e.target.value); }}
-                className="pl-9"
+                className="pl-12"
               />
             </div>
 

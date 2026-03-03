@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import type { Request, Response, NextFunction } from 'express';
 import { orgMiddleware } from './middleware/org.middleware';
@@ -6,6 +7,15 @@ import { SerializeInterceptor } from './core/interceptores/serialize.interceptor
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  // Validación global: whitelist quita propiedades no declaradas en el DTO (reduce superficie de ataque)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   app.enableCors({
     origin: [

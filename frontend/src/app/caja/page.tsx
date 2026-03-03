@@ -651,7 +651,7 @@ function CajaCobrosInner() {
                     setPadrones([]);
                     setPadronId("");
                   }}
-                  className="h-11 rounded-xl pl-10"
+                  className="h-11 rounded-xl pl-12"
                   autoFocus
                 />
               </div>

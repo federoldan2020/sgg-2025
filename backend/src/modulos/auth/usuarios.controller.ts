@@ -19,6 +19,7 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { RolUsuario, EstadoUsuario } from '@prisma/client';
 import type { Usuario } from '@prisma/client';
 import type { Request } from 'express';
+import { sanitizeSearchTerm } from '../../common/sanitize';
 
 @Controller('usuarios')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -54,7 +55,7 @@ export class UsuariosController {
     const filtros: Record<string, unknown> = {};
     if (estado) filtros.estado = estado;
     if (roles) filtros.roles = roles.split(',') as RolUsuario[];
-    if (busqueda) filtros.busqueda = busqueda;
+    if (busqueda) filtros.busqueda = sanitizeSearchTerm(busqueda);
     return this.usuariosService.listar(orgId, filtros);
   }
 

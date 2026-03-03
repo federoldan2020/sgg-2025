@@ -140,11 +140,10 @@ jobs:
             npx prisma migrate deploy
             npm run build
             
-            # Frontend (necesita devDependencies para build; reinstalar evita error "Failed to load native binding" de @tailwindcss/oxide)
+            # Frontend
             echo "📦 Actualizando frontend..."
             cd ../frontend
-            rm -rf node_modules .next
-            npm ci
+            npm ci --only=production
             npm run build
             
             # Restart con PM2

@@ -22,20 +22,14 @@ import { orgMiddleware } from './middleware/org.middleware';
 import { ComerciosModule } from './modulos/comercios/comercios.module';
 import { MovimientosModule } from './modulos/movimientos/movimientos.module';
 import { AuthModule } from './modulos/auth/auth.module';
-import { OrganizacionesModule } from './modulos/organizaciones/organizaciones.module';
 import { JwtAuthGuard } from './modulos/auth/guards/jwt-auth.guard';
 import { ReintegrosModule } from './modulos/reintegros/reintegros.module';
 import { HealthModule } from './health/health.module';
-import { AuditService } from './common/audit.service';
-import { PrismaService } from './common/prisma.service';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     HealthModule,
     AuthModule,
-    OrganizacionesModule,
     AfiliadosModule,
     PadronesModule,
     CoseguroModule,
@@ -61,10 +55,10 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     AsientosController,
   ],
   providers: [
-    PrismaService,
-    AuditService,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {

@@ -9,9 +9,13 @@ import {
   Post,
   Query,
   Res,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReintegrosService } from './reintegros.service';
+import { ListarSolicitudesQueryDto } from './dto/listar-solicitudes-query.dto';
+import { clampPageLimit, sanitizeSearchTerm } from '../../common/sanitize';
 
 function getOrgIdFromHeaders(headers: Record<string, any>): string | undefined {
   const h = Object.fromEntries(Object.entries(headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
@@ -151,27 +155,21 @@ export class ReintegrosController {
   }
 
   @Get('solicitudes')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async listarSolicitudes(
     @Headers() headers: Record<string, any>,
-    @Query('q') q?: string,
-    @Query('estado') estado?: string,
-    @Query('tipo') tipo?: string,
-    @Query('afiliadoId') afiliadoId?: string,
-    @Query('desde') desde?: string,
-    @Query('hasta') hasta?: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
+    @Query() query: ListarSolicitudesQueryDto,
   ) {
     const organizacionId = requireOrgId(headers);
     return this.service.listar(organizacionId, {
-      q,
-      estado,
-      tipo,
-      afiliadoId,
-      desde,
-      hasta,
-      page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      q: query.q ? sanitizeSearchTerm(query.q) : undefined,
+      estado: query.estado,
+      tipo: query.tipo,
+      afiliadoId: query.afiliadoId,
+      desde: query.desde,
+      hasta: query.hasta,
+      page: query.page ? Math.max(1, Number(query.page)) : undefined,
+      pageSize: query.pageSize ? clampPageLimit(Number(query.pageSize)) : undefined,
     });
   }
 

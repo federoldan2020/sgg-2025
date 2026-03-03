@@ -1,7 +1,9 @@
 // src/modulos/contabilidad/asientos.controller.ts
-import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, Res, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ContabilidadService } from './contabilidad.service';
+import { ListarAsientosQueryDto } from './dto/listar-asientos-query.dto';
+import { clampPageLimit } from '../../common/sanitize';
 
 type ReqOrg = Request & { organizacionId?: string };
 
@@ -10,18 +12,8 @@ export class AsientosController {
   constructor(private readonly svc: ContabilidadService) {}
 
   @Get()
-  async listar(
-    @Req() req: ReqOrg,
-    @Query()
-    q: {
-      desde?: string;
-      hasta?: string;
-      origen?: string;
-      q?: string;
-      page?: string;
-      pageSize?: string;
-    },
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async listar(@Req() req: ReqOrg, @Query() q: ListarAsientosQueryDto) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
@@ -30,8 +22,8 @@ export class AsientosController {
       hasta: q.hasta ?? null,
       origen: q.origen ?? null,
       q: q.q ?? null,
-      page: q.page ? Number(q.page) : 1,
-      pageSize: q.pageSize ? Number(q.pageSize) : 20,
+      page: q.page ? Math.max(1, Number(q.page)) : 1,
+      pageSize: clampPageLimit(q.pageSize ? Number(q.pageSize) : 20),
     });
   }
 
@@ -42,12 +34,11 @@ export class AsientosController {
     return this.svc.obtenerAsiento(org, BigInt(id));
   }
 
-  // Export CSV (usa mismos filtros del listado)
   @Get('export/csv')
   async exportCsv(
     @Req() req: ReqOrg,
     @Res() res: Response,
-    @Query() q: { desde?: string; hasta?: string; origen?: string; q?: string },
+    @Query() q: ListarAsientosQueryDto,
   ) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
@@ -58,7 +49,7 @@ export class AsientosController {
       origen: q.origen ?? null,
       q: q.q ?? null,
       page: 1,
-      pageSize: 1000, // límite razonable para export
+      pageSize: 1000,
     });
 
     const csv = this.svc.buildAsientosCSV(data);

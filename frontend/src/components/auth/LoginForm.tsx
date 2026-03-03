@@ -1,31 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/auth';
-import { authOrganizaciones, ORG } from '@/servicios/api';
 
 interface LoginFormProps {
   onSuccess?: () => void;
 }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
-  const [organizacionId, setOrganizacionId] = useState(ORG);
-  const [organizaciones, setOrganizaciones] = useState<Array<{ id: string; nombre: string }>>([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
+  
   const { login } = useAuth();
-
-  useEffect(() => {
-    authOrganizaciones().then((orgs) => {
-      setOrganizaciones(orgs);
-      if (orgs.length > 0 && !orgs.some((o) => o.id === organizacionId)) {
-        setOrganizacionId(orgs[0].id);
-      }
-    });
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +21,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password, organizacionId || ORG || undefined);
+      const success = await login(email, password);
       if (success) {
         onSuccess?.();
       } else {
@@ -57,28 +45,9 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             Sistema de Gestión Gremial
           </p>
         </div>
-
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
-            {organizaciones.length > 1 && (
-              <div>
-                <label htmlFor="organizacion" className="sr-only">
-                  Organización
-                </label>
-                <select
-                  id="organizacion"
-                  value={organizacionId}
-                  onChange={(e) => setOrganizacionId(e.target.value)}
-                  className="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                >
-                  {organizaciones.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
             <div>
               <label htmlFor="email" className="sr-only">
                 Email
@@ -91,7 +60,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm ${organizaciones.length <= 1 ? 'rounded-t-md' : ''}`}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email"
               />
             </div>
@@ -107,7 +76,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Contraseña"
               />
             </div>

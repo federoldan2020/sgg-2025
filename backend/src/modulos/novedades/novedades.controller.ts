@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Express } from 'express';
 import type { Request, Response } from 'express';
 import { NovedadesService } from './novedades.service';
+import { clampPageLimit, sanitizeSearchTerm } from '../../common/sanitize';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @Controller('novedades')
@@ -48,15 +49,15 @@ export class NovedadesController {
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean) as ('J17' | 'J22' | 'J38')[];
 
-    const p = Number.isFinite(Number(page)) ? Number(page) : 1;
-    const l = Number.isFinite(Number(limit)) ? Number(limit) : 20;
+    const p = Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1;
+    const l = clampPageLimit(Number.isFinite(Number(limit)) ? Number(limit) : 20);
 
     return this.svc.listarPendientes(organizacionId, {
       from,
       to,
       tipos,
       accion: (accion ?? '') as any,
-      q,
+      q: q ? sanitizeSearchTerm(q) : undefined,
       page: p,
       limit: l,
       sort,
@@ -86,7 +87,7 @@ export class NovedadesController {
       to,
       tipos,
       accion: (accion ?? '') as any,
-      q,
+      q: q ? sanitizeSearchTerm(q) : undefined,
     });
   }
 
@@ -101,16 +102,15 @@ export class NovedadesController {
     @Query('q') q?: string,
   ) {
     const organizacionId = req.organizacionId!;
-    const p = Number.isFinite(Number(page)) ? Number(page) : 1;
-    const l = Number.isFinite(Number(limit)) ? Number(limit) : 20;
+    const p = Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1;
+    const l = clampPageLimit(Number.isFinite(Number(limit)) ? Number(limit) : 20);
 
-    // 'await' para cumplir con @typescript-eslint/require-await
     return await this.svc.listarPendientesResumen(organizacionId, {
       periodo,
       sistema: (sistema as 'ES' | 'SG' | '') || undefined,
       page: p,
       limit: l,
-      q,
+      q: q ? sanitizeSearchTerm(q) : undefined,
     });
   }
 
@@ -177,8 +177,8 @@ export class NovedadesController {
     @Query('limit') limit?: string,
   ) {
     const organizacionId = req.organizacionId!;
-    const p = Number.isFinite(Number(page)) ? Number(page) : 1;
-    const l = Number.isFinite(Number(limit)) ? Number(limit) : 20;
+    const p = Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1;
+    const l = clampPageLimit(Number.isFinite(Number(limit)) ? Number(limit) : 20);
 
     return this.svc.listarNovedadesGeneradas(organizacionId, {
       periodo,
@@ -240,13 +240,13 @@ export class NovedadesController {
     @Query('limit') limit?: string,
   ) {
     const organizacionId = req.organizacionId!;
-    const p = Number.isFinite(Number(page)) ? Number(page) : 1;
-    const l = Number.isFinite(Number(limit)) ? Number(limit) : 20;
+    const p = Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1;
+    const l = clampPageLimit(Number.isFinite(Number(limit)) ? Number(limit) : 20);
 
     return this.svc.listarNovedadesManuales(organizacionId, {
       periodo,
       codigo,
-      q,
+      q: q ? sanitizeSearchTerm(q) : undefined,
       page: p,
       limit: l,
     });

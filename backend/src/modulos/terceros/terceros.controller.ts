@@ -9,6 +9,8 @@ import {
   Put,
   Query,
   Req,
+  UsePipes,
+  ValidationPipe,
   BadRequestException,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -16,7 +18,10 @@ import { RolTercero } from '@prisma/client';
 import { TercerosService, type TerceroUpsert } from './terceros.service';
 import { AuditService } from '../../common/audit.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { BuscarTercerosQueryDto } from './dto/buscar-terceros-query.dto';
+import { ListarTercerosQueryDto } from './dto/listar-terceros-query.dto';
 import type { Usuario } from '@prisma/client';
+import { clampPageLimit } from '../../common/sanitize';
 
 type ReqOrg = Request & { organizacionId?: string; ip?: string; headers?: Record<string, string> };
 
@@ -28,20 +33,19 @@ export class TercerosController {
   ) {}
 
   @Get('buscar')
-  async buscar(@Req() req: ReqOrg, @Query() q: { q: string; rol?: RolTercero; limit?: string }) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async buscar(@Req() req: ReqOrg, @Query() q: BuscarTercerosQueryDto) {
     const org = req.organizacionId;
     if (!org) throw new BadRequestException('Falta organización');
     const term = (q.q ?? '').trim();
     if (!term) return [];
-    const limit = q.limit ? Number(q.limit) : 20;
+    const limit = clampPageLimit(q.limit ? Number(q.limit) : 20);
     return this.svc.buscar(org, term, q.rol ?? null, limit);
   }
 
   @Get()
-  async listar(
-    @Req() req: ReqOrg,
-    @Query() q: { q?: string; rol?: RolTercero; activo?: string; page?: string; pageSize?: string },
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async listar(@Req() req: ReqOrg, @Query() q: ListarTercerosQueryDto) {
     const org = req.organizacionId;
     if (!org) throw new BadRequestException('Falta organización');
 
@@ -58,8 +62,8 @@ export class TercerosController {
       q: q.q ?? null,
       rol: q.rol ?? null,
       activo,
-      page: q.page ? Number(q.page) : 1,
-      pageSize: q.pageSize ? Number(q.pageSize) : 20,
+      page: q.page ? Math.max(1, Number(q.page)) : 1,
+      pageSize: clampPageLimit(q.pageSize ? Number(q.pageSize) : 20),
     });
   }
 

@@ -1,10 +1,20 @@
 # Script PowerShell para limpiar movimientos en PostgreSQL
 # Uso: .\limpiar_movimientos.ps1 [--full] [--org ORGANIZACION_ID]
+# NOTA: Si se usa --org, debe ser un UUID válido (evita inyección SQL).
 
 param(
     [switch]$Full,
     [string]$OrgId = $null
 )
+
+# Validar OrgId como UUID si se proporciona (evita inyección SQL al interpolar en el script)
+if ($OrgId) {
+    $uuidRegex = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+    if ($OrgId -notmatch $uuidRegex) {
+        Write-Host "ERROR: --org debe ser un UUID válido (ej: 550e8400-e29b-41d4-a716-446655440000)" -ForegroundColor Red
+        exit 1
+    }
+}
 
 # Configuración de conexión (ajustar según tu .env)
 $env:PGPASSWORD = $env:DATABASE_URL -replace '.*:([^@]+)@.*', '$1'

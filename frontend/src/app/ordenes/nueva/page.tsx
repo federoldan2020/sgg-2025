@@ -41,7 +41,20 @@ import {
 } from "@/components/ui/table";
 
 // icons
-import { Search, X } from "lucide-react";
+import {
+  Search,
+  X,
+  User,
+  CreditCard,
+  Wallet,
+  TrendingUp,
+  DollarSign,
+  Hash,
+  Store,
+  CheckCircle,
+  FileText,
+  AlertCircle,
+} from "lucide-react";
 
 // ============================
 // Tipos según TUS endpoints
@@ -191,18 +204,48 @@ function normalizeOrdenBackend(o: any): OrdenCreditoLite {
 }
 
 const EstadoBadge = ({ estado }: { estado: string }) => {
-  const cls =
-    estado === "OK"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : estado === "PEND"
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : estado === "ANULADA"
-      ? "border-rose-200 bg-rose-50 text-rose-700"
-      : "border-border bg-muted text-muted-foreground";
+  const config = {
+    OK: {
+      bg: "bg-emerald-100",
+      border: "border-emerald-300",
+      text: "text-emerald-700",
+      dot: "bg-emerald-500",
+    },
+    PEND: {
+      bg: "bg-amber-100",
+      border: "border-amber-300",
+      text: "text-amber-700",
+      dot: "bg-amber-500",
+    },
+    ANULADA: {
+      bg: "bg-rose-100",
+      border: "border-rose-300",
+      text: "text-rose-700",
+      dot: "bg-rose-500",
+    },
+  };
+
+  const style = config[estado as keyof typeof config] || {
+    bg: "bg-gray-100",
+    border: "border-gray-300",
+    text: "text-gray-700",
+    dot: "bg-gray-500",
+  };
 
   return (
-    <Badge variant="outline" className={cn("rounded-full", cls)}>
-      {estado}
+    <Badge
+      variant="outline"
+      className={cn(
+        "rounded-full px-3 py-1 font-medium",
+        style.bg,
+        style.border,
+        style.text
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <div className={cn("w-1.5 h-1.5 rounded-full", style.dot)} />
+        {estado}
+      </div>
     </Badge>
   );
 };
@@ -244,105 +287,164 @@ export default function OrdenesCreditoPage() {
   );
 
   return (
-    <div className="min-h-dvh bg-muted/40">
+    <div className="min-h-dvh bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/20">
       <Header afiliado={afiliado} onSelectAfiliado={setAfiliado} />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-6 space-y-6">
-        {/* Summary */}
-        <Card className="p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <div className="text-sm text-muted-foreground">Afiliado</div>
-              <div className="mt-1 text-base font-semibold truncate">
-                {afiliado ? afiliado.display : "Sin afiliado seleccionado"}
-              </div>
-              {afiliado && (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  DNI {afiliado.dni || "—"}
-                </div>
-              )}
+        {/* Estado vacío cuando no hay afiliado */}
+        {!afiliado ? (
+          <Card className="p-12 text-center border-2 border-dashed border-blue-200 bg-white/50 backdrop-blur-sm">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center">
+              <User className="h-8 w-8 text-blue-600" />
+            </div>
+            <h3 className="mt-4 text-lg font-bold text-gray-900">Seleccioná un afiliado</h3>
+            <p className="text-sm text-gray-600 mt-2 max-w-md mx-auto">
+              Usá el buscador en el encabezado o presioná{" "}
+              <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs font-mono">
+                Ctrl+K
+              </kbd>{" "}
+              para comenzar
+            </p>
+          </Card>
+        ) : (
+          <>
+            {/* Summary */}
+            <Card className="p-5 border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-50/50 to-white shadow-md">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm text-blue-600 font-semibold">
+                    <User className="h-4 w-4" />
+                    Afiliado Seleccionado
+                  </div>
+                  <div className="mt-2 text-lg font-bold text-gray-900 truncate">
+                    {afiliado.display}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    DNI {afiliado.dni || "—"}
+                  </div>
 
-              {padronSel && (
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "rounded-full",
-                      padronSel.activo
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-border bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {padronSel.activo ? "Activo" : "Inactivo"}
-                  </Badge>
+                  {padronSel && (
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Estado */}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={cn(
+                            "w-2.5 h-2.5 rounded-full ring-2 ring-offset-2",
+                            padronSel.activo
+                              ? "bg-emerald-500 ring-emerald-200"
+                              : "bg-gray-400 ring-gray-200"
+                          )}
+                        />
+                        <span className="text-xs font-semibold text-gray-700">
+                          {padronSel.activo ? "Activo" : "Inactivo"}
+                        </span>
+                      </div>
 
-                  <span className="text-muted-foreground">
-                    Saldo:{" "}
-                    <span className="font-semibold text-foreground tabular-nums">
-                      {money(padronSel.saldo)}
-                    </span>
-                  </span>
+                      {/* Saldo */}
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500 flex items-center gap-1 mb-0.5">
+                          <Wallet className="h-3 w-3" />
+                          Saldo
+                        </span>
+                        <span className="text-sm font-bold text-rose-600 tabular-nums">
+                          {money(padronSel.saldo)}
+                        </span>
+                      </div>
 
-                  <span className="text-muted-foreground">
-                    Cupo:{" "}
-                    <span className="font-semibold text-foreground tabular-nums">
-                      {money(padronSel.cupo)}
-                    </span>
-                  </span>
+                      {/* Cupo */}
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500 flex items-center gap-1 mb-0.5">
+                          <TrendingUp className="h-3 w-3" />
+                          Cupo
+                        </span>
+                        <span className="text-sm font-bold text-emerald-600 tabular-nums">
+                          {money(padronSel.cupo)}
+                        </span>
+                      </div>
 
-                  {padronSel.sistema && (
-                    <span className="text-muted-foreground">
-                      Sistema:{" "}
-                      <span className="font-semibold text-foreground">{padronSel.sistema}</span>
-                    </span>
+                      {/* Disponible */}
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500 flex items-center gap-1 mb-0.5">
+                          <DollarSign className="h-3 w-3" />
+                          Disponible
+                        </span>
+                        <span className="text-sm font-bold text-blue-600 tabular-nums">
+                          {money(Number(padronSel.cupo) - Number(padronSel.saldo))}
+                        </span>
+                      </div>
+
+                      {/* Sistema */}
+                      {padronSel.sistema && (
+                        <div className="flex flex-col col-span-2 md:col-span-4">
+                          <span className="text-xs text-gray-500 mb-0.5">Sistema</span>
+                          <span className="text-sm font-semibold text-indigo-600">
+                            {padronSel.sistema}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            <div className="flex items-center gap-3 md:pt-1">
-              <div className="text-xs font-medium text-muted-foreground">Padrón</div>
-              <Select
-                value={padronId}
-                onValueChange={setPadronId}
-                disabled={!afiliado || padrones.length === 0}
-              >
-                <SelectTrigger className="h-10 w-[220px]">
-                  <SelectValue placeholder="Seleccionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {padrones.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.padron} {!p.activo ? "(inactivo)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </Card>
-
-        {/* Form */}
-        <OrdenForm
-          afiliado={afiliado}
-          padronId={padronId}
-          padronLabel={padronSel?.padron ?? ""}
-          onCreada={(nueva) => setUltimas((prev) => [nueva, ...prev].slice(0, 50))}
-        />
-
-        {/* Últimas órdenes */}
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4">
-            <div>
-              <div className="text-sm font-semibold">Últimas órdenes</div>
-              <div className="text-xs text-muted-foreground">
-                Listado de órdenes del afiliado seleccionado
+                {/* Selector de padrón con estilo */}
+                <div className="flex items-center gap-3 md:pt-1 bg-white rounded-lg p-3 border-2 border-blue-100 shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700">Padrón</div>
+                  <Select
+                    value={padronId}
+                    onValueChange={setPadronId}
+                    disabled={!afiliado || padrones.length === 0}
+                  >
+                    <SelectTrigger className="h-10 w-[220px] border-blue-200 focus:border-blue-500 focus:ring-blue-500">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {padrones.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cn(
+                                "w-2 h-2 rounded-full",
+                                p.activo ? "bg-emerald-500" : "bg-gray-400"
+                              )}
+                            />
+                            {p.padron}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </div>
-          <Separator />
-          <TablaOrdenes rows={ultimas} />
-        </Card>
+            </Card>
+
+            {/* Form */}
+            <OrdenForm
+              afiliado={afiliado}
+              padronId={padronId}
+              padronSel={padronSel}
+              padronLabel={padronSel?.padron ?? ""}
+              onCreada={(nueva) => setUltimas((prev) => [nueva, ...prev].slice(0, 50))}
+            />
+
+            {/* Últimas órdenes */}
+            <Card className="overflow-hidden shadow-md border-t-4 border-t-indigo-500">
+              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b">
+                <div>
+                  <div className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-indigo-600" />
+                    Últimas Órdenes
+                  </div>
+                  <div className="text-xs text-gray-600 mt-0.5">
+                    {ultimas.length} orden{ultimas.length !== 1 ? "es" : ""} registrada
+                    {ultimas.length !== 1 ? "s" : ""}
+                  </div>
+                </div>
+              </div>
+              <TablaOrdenes rows={ultimas} />
+            </Card>
+          </>
+        )}
       </main>
     </div>
   );
@@ -363,7 +465,6 @@ function Header({
     const h = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        // Abrimos popover desde botón (UX simple)
         const el = document.getElementById("afiliado-combobox-trigger");
         (el as HTMLButtonElement | null)?.click();
       }
@@ -373,19 +474,24 @@ function Header({
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
+    <header className="sticky top-0 z-30 border-b bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-4">
         <div className="min-w-0">
-          <div className="text-base font-semibold tracking-tight">Órdenes de Crédito</div>
-          <div className="text-xs text-muted-foreground">Gestión y emisión</div>
+          <div className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <CreditCard className="h-5 w-5 text-white" />
+            </div>
+            Órdenes de Crédito
+          </div>
+          <div className="text-xs text-blue-100 ml-10">Gestión y emisión</div>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           <AfiliadoCombobox value={afiliado} onSelect={onSelectAfiliado} />
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            className="h-10"
+            className="h-10 bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm"
             onClick={() => onSelectAfiliado(null)}
             disabled={!afiliado}
           >
@@ -428,10 +534,10 @@ function AfiliadoCombobox({
         <Button
           id="afiliado-combobox-trigger"
           variant="outline"
-          className="h-10 w-[420px] justify-start gap-2"
+          className="h-10 w-[420px] justify-start gap-2 bg-white/95 hover:bg-white border-white/50 backdrop-blur-sm"
         >
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <span className={cn("truncate", value ? "text-foreground" : "text-muted-foreground")}>
+          <Search className="h-4 w-4 text-blue-600" />
+          <span className={cn("truncate", value ? "text-gray-900 font-medium" : "text-gray-500")}>
             {value ? value.display : "Buscar afiliado… (Ctrl+K)"}
           </span>
         </Button>
@@ -439,11 +545,7 @@ function AfiliadoCombobox({
 
       <PopoverContent className="p-0 w-[420px]" align="end">
         <Command>
-          <CommandInput
-            placeholder="DNI, nombre o padrón…"
-            value={q}
-            onValueChange={setQ}
-          />
+          <CommandInput placeholder="DNI, nombre o padrón…" value={q} onValueChange={setQ} />
           <CommandList>
             {loading ? (
               <div className="p-3 text-sm text-muted-foreground">Buscando…</div>
@@ -509,13 +611,12 @@ function ComercioCombobox({
         <Button
           variant="outline"
           className={cn(
-            "h-10 w-full justify-start",
-            value ? "text-foreground" : "text-muted-foreground"
+            "h-11 w-full justify-start border-purple-200 focus:border-purple-500 bg-white",
+            value ? "text-gray-900 font-medium" : "text-gray-500"
           )}
         >
-          <span className="truncate">
-            {value ? value.razonSocial : "Seleccionar comercio…"}
-          </span>
+          <Store className="h-4 w-4 mr-2 text-purple-600" />
+          <span className="truncate">{value ? value.razonSocial : "Seleccionar comercio…"}</span>
         </Button>
       </PopoverTrigger>
 
@@ -564,16 +665,18 @@ function ComercioCombobox({
 }
 
 // ============================
-// Form premium (SIN preview)
+// Form premium con validaciones visuales
 // ============================
 function OrdenForm({
   afiliado,
   padronId,
+  padronSel,
   padronLabel,
   onCreada,
 }: {
   afiliado: AfiliadoSuggest | null;
   padronId: string;
+  padronSel: PadronLite | undefined;
   padronLabel: string;
   onCreada: (op: OrdenCreditoLite) => void;
 }) {
@@ -583,7 +686,22 @@ function OrdenForm({
   const [loading, setLoading] = useState(false);
 
   const enCuotas = Number(cuotas) > 1;
-  const canSubmit = Boolean(afiliado?.id && padronId && comercio?.id && Number(monto) > 0 && cuotas >= 1);
+  const montoNum = Number(monto) || 0;
+  const cupoDisponible = padronSel
+    ? Number(padronSel.cupo) - Number(padronSel.saldo)
+    : 0;
+  const excedeCupo = montoNum > cupoDisponible && padronSel;
+  const excedeCuotasMax = comercio?.cuoMax ? cuotas > comercio.cuoMax : false;
+
+  const canSubmit = Boolean(
+    afiliado?.id &&
+      padronId &&
+      comercio?.id &&
+      montoNum > 0 &&
+      cuotas >= 1 &&
+      !excedeCupo &&
+      !excedeCuotasMax
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -595,7 +713,7 @@ function OrdenForm({
         afiliadoId: afiliado.id,
         padronId,
         comercioId: comercio.id,
-        monto: Number(monto),
+        monto: montoNum,
         cuotas: Number(cuotas),
       });
 
@@ -603,7 +721,7 @@ function OrdenForm({
         id: crypto.randomUUID(),
         fecha: new Date().toISOString(),
         comercioRazon: comercio.razonSocial,
-        monto: Number(monto),
+        monto: montoNum,
         cuotas: Number(cuotas),
         padron: padronLabel || padronId,
         estado: "OK",
@@ -618,24 +736,46 @@ function OrdenForm({
   };
 
   return (
-    <Card className="p-5">
-      <div className="mb-4">
-        <div className="text-sm font-semibold">Nueva orden</div>
-        <div className="text-xs text-muted-foreground">
+    <Card className="p-6 border-l-4 border-l-indigo-500 shadow-md bg-gradient-to-br from-indigo-50/30 to-white">
+      <div className="mb-5">
+        <div className="text-base font-bold text-gray-900 flex items-center gap-2">
+          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+            <CheckCircle className="h-5 w-5 text-indigo-600" />
+          </div>
+          Nueva Orden
+        </div>
+        <div className="text-sm text-gray-600 mt-1 ml-10">
           Completá los datos y confirmá para generar la orden
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-12">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-12">
+        {/* Padrón (readonly) */}
         <div className="md:col-span-3">
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Padrón</label>
-          <Input readOnly className="h-10 bg-muted/40" value={padronId ? padronLabel || "—" : "—"} />
+          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <CreditCard className="h-3.5 w-3.5 text-gray-600" />
+            Padrón
+          </label>
+          <Input
+            readOnly
+            className="h-11 bg-gray-100 border-gray-200 text-gray-700 font-medium"
+            value={padronId ? padronLabel || "—" : "—"}
+          />
         </div>
 
+        {/* Monto */}
         <div className="md:col-span-3">
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Monto</label>
+          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+            Monto
+          </label>
           <Input
-            className="h-10"
+            className={cn(
+              "h-11 bg-white font-semibold",
+              excedeCupo
+                ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500"
+                : "border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500"
+            )}
             type="number"
             min={0}
             step="0.01"
@@ -644,39 +784,86 @@ function OrdenForm({
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
           />
+          {excedeCupo && (
+            <div className="mt-1.5 text-xs text-rose-600 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Excede el cupo disponible ({money(cupoDisponible)})
+            </div>
+          )}
+          {!excedeCupo && montoNum > 0 && padronSel && (
+            <div className="mt-1.5 text-xs text-emerald-600 flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" />
+              Disponible: {money(cupoDisponible - montoNum)}
+            </div>
+          )}
         </div>
 
+        {/* Cuotas */}
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Cuotas</label>
+          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <Hash className="h-3.5 w-3.5 text-blue-600" />
+            Cuotas
+          </label>
           <Input
-            className="h-10"
+            className={cn(
+              "h-11 bg-white font-semibold",
+              excedeCuotasMax
+                ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500"
+                : "border-blue-200 focus:border-blue-500 focus:ring-blue-500"
+            )}
             type="number"
             min={1}
             step={1}
             value={cuotas}
             onChange={(e) => setCuotas(Math.max(1, Number(e.target.value) || 1))}
           />
-          <div className="mt-1 text-xs text-muted-foreground">
-            Modo:{" "}
-            <span className="font-medium text-foreground">
-              {enCuotas ? `En cuotas (${cuotas})` : "Un pago"}
-            </span>
-            {comercio?.cuoMax ? (
-              <span className="text-muted-foreground"> · Máx {comercio.cuoMax}</span>
-            ) : null}
-          </div>
+          {excedeCuotasMax && (
+            <div className="mt-1.5 text-xs text-rose-600 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Máximo {comercio?.cuoMax} cuotas
+            </div>
+          )}
+          {!excedeCuotasMax && montoNum > 0 && enCuotas && (
+            <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-xs text-blue-700 font-medium">
+                {cuotas}x {money(montoNum / cuotas)}
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Comercio */}
         <div className="md:col-span-3">
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">
-            Comercio <span className="text-destructive">*</span>
+          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <Store className="h-3.5 w-3.5 text-purple-600" />
+            Comercio <span className="text-rose-500">*</span>
           </label>
           <ComercioCombobox value={comercio} onChange={setComercio} />
+          {comercio?.cuoMax && (
+            <div className="mt-1.5 text-xs text-purple-600">
+              Máx. {comercio.cuoMax} cuota{comercio.cuoMax !== 1 ? "s" : ""}
+            </div>
+          )}
         </div>
 
+        {/* Botón */}
         <div className="md:col-span-1 flex items-end">
-          <Button type="submit" className="h-10 w-full" disabled={!canSubmit || loading}>
-            {loading ? "Creando…" : "Crear"}
+          <Button
+            type="submit"
+            className="h-11 w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+            disabled={!canSubmit || loading}
+          >
+            {loading ? (
+              <>
+                <div className="h-4 w-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Creando…
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Crear
+              </>
+            )}
           </Button>
         </div>
       </form>
@@ -692,26 +879,42 @@ function TablaOrdenes({ rows }: { rows: OrdenCreditoLite[] }) {
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-[160px]">Fecha</TableHead>
-            <TableHead>Comercio</TableHead>
-            <TableHead className="w-[140px] text-right">Monto</TableHead>
-            <TableHead className="w-[110px] text-center">Cuotas</TableHead>
-            <TableHead className="w-[140px]">Padrón</TableHead>
-            <TableHead className="w-[140px]">Estado</TableHead>
+          <TableRow className="bg-gray-50/50">
+            <TableHead className="w-[160px] font-semibold text-gray-700">Fecha</TableHead>
+            <TableHead className="font-semibold text-gray-700">Comercio</TableHead>
+            <TableHead className="w-[140px] text-right font-semibold text-gray-700">
+              Monto
+            </TableHead>
+            <TableHead className="w-[110px] text-center font-semibold text-gray-700">
+              Cuotas
+            </TableHead>
+            <TableHead className="w-[140px] font-semibold text-gray-700">Padrón</TableHead>
+            <TableHead className="w-[140px] font-semibold text-gray-700">Estado</TableHead>
           </TableRow>
         </TableHeader>
 
         <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.id} className="hover:bg-muted/40">
-              <TableCell className="font-medium">{fmtFechaHora(r.fecha)}</TableCell>
-              <TableCell className="max-w-[520px] truncate">{r.comercioRazon}</TableCell>
-              <TableCell className="text-right font-semibold tabular-nums">
+          {rows.map((r, idx) => (
+            <TableRow
+              key={r.id}
+              className={cn(
+                "hover:bg-blue-50/50 transition-colors",
+                idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"
+              )}
+            >
+              <TableCell className="font-medium text-gray-700">
+                {fmtFechaHora(r.fecha)}
+              </TableCell>
+              <TableCell className="max-w-[520px] truncate text-gray-900">
+                {r.comercioRazon}
+              </TableCell>
+              <TableCell className="text-right font-bold tabular-nums text-gray-900">
                 {money(r.monto)}
               </TableCell>
-              <TableCell className="text-center">{r.cuotas}</TableCell>
-              <TableCell>{r.padron}</TableCell>
+              <TableCell className="text-center font-semibold text-gray-700">
+                {r.cuotas}
+              </TableCell>
+              <TableCell className="text-gray-700">{r.padron}</TableCell>
               <TableCell>
                 <EstadoBadge estado={r.estado} />
               </TableCell>
@@ -720,8 +923,21 @@ function TablaOrdenes({ rows }: { rows: OrdenCreditoLite[] }) {
 
           {rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                Sin órdenes
+              <TableCell
+                colSpan={6}
+                className="py-16 text-center text-sm text-gray-500"
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                    <FileText className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-700">Sin órdenes registradas</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Las órdenes creadas aparecerán aquí
+                    </div>
+                  </div>
+                </div>
               </TableCell>
             </TableRow>
           )}
