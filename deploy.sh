@@ -8,10 +8,10 @@ cd /var/www/sgg-2025
 # Pull cambios
 git pull origin main
 
-# Backend
+# Backend (instalar todo: nest y prisma están en devDependencies y se necesitan para build/migrate)
 echo "📦 Actualizando backend..."
 cd backend
-npm ci --only=production
+npm ci
 npx prisma generate
 npx prisma migrate deploy
 npm run build
