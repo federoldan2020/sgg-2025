@@ -151,7 +151,7 @@ export default function CuentasIndexPage() {
       <div className="page-header">
         <div className="page-title-section">
           <div className="breadcrumb-nav">
-            <Link href="/finanzas" className="breadcrumb-link">
+            <Link href="/finanzas/cuentas" className="breadcrumb-link">
               Finanzas
             </Link>
             <svg

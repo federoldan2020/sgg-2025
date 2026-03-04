@@ -1,4 +1,4 @@
-import { IsEnum, IsNumberString, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { RolTercero } from '@prisma/client';
 import { MAX_SEARCH_TERM_LENGTH, MAX_PAGE_LIMIT } from '../../../common/sanitize';
@@ -17,9 +17,9 @@ export class BuscarTercerosQueryDto {
   rol?: RolTercero;
 
   @IsOptional()
-  @IsNumberString()
   @Type(() => Number)
+  @IsInt()
   @Min(1, { message: 'limit debe ser al menos 1' })
   @Max(MAX_PAGE_LIMIT, { message: `limit máximo ${MAX_PAGE_LIMIT}` })
-  limit?: string;
+  limit?: number;
 }

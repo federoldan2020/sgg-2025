@@ -1,4 +1,4 @@
-import { IsEnum, IsNumberString, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { RolTercero } from '@prisma/client';
 import { EstadoOrdenPago } from '@prisma/client';
@@ -22,15 +22,15 @@ export class ListarOrdenesPagoQueryDto {
   q?: string;
 
   @IsOptional()
-  @IsNumberString()
   @Type(() => Number)
+  @IsInt()
   @Min(1)
-  page?: string;
+  page?: number;
 
   @IsOptional()
-  @IsNumberString()
   @Type(() => Number)
+  @IsInt()
   @Min(1)
   @Max(MAX_PAGE_LIMIT)
-  pageSize?: string;
+  pageSize?: number;
 }
