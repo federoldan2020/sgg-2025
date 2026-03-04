@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/auth';
-import { Mail, Lock, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -47,59 +47,50 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/40 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-12 px-4 sm:px-6 lg:px-8">
-      {/* Decoración sutil de fondo */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full bg-blue-500/5 blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_0.5px,transparent_0.5px),linear-gradient(to_bottom,#e2e8f0_0.5px,transparent_0.5px)] bg-[size:24px_24px] opacity-30 dark:opacity-10" />
-      </div>
-
-      <div className="relative w-full max-w-[400px]">
-        <Card className="border-0 shadow-xl shadow-black/5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-          <CardHeader className="space-y-1 text-center pb-2">
-            <CardTitle className="text-2xl font-bold tracking-tight">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] py-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-[380px]">
+        <Card className="border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-semibold text-[var(--text)]">
               Iniciar sesión
             </CardTitle>
-            <CardDescription className="text-base">
+            <CardDescription className="text-sm text-[var(--text-muted)]">
               Sistema de Gestión Gremial
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-2">
-            <form onSubmit={handleSubmit} className="space-y-5">
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="tu@email.com"
-                    className="pl-10 h-11"
-                  />
-                </div>
+                <Label htmlFor="email" className="text-[var(--text)]">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="h-10"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="pl-10 h-11"
-                  />
-                </div>
+                <Label htmlFor="password" className="text-[var(--text)]">
+                  Contraseña
+                </Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Contraseña"
+                  className="h-10"
+                />
               </div>
 
               {error && (
@@ -111,8 +102,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               <Button
                 type="submit"
                 disabled={isLoading}
-                size="lg"
-                className="w-full h-11 font-medium"
+                className="w-full h-10 font-medium bg-[var(--primary-600)] hover:bg-[var(--primary-700)]"
               >
                 {isLoading ? (
                   <>

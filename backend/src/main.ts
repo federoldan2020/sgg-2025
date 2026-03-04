@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import type { Request, Response, NextFunction } from 'express';
+import { requestLoggerMiddleware } from './middleware/request-logger.middleware';
 import { orgMiddleware } from './middleware/org.middleware';
 import { SerializeInterceptor } from './core/interceptores/serialize.interceptor';
 
@@ -29,6 +30,9 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Organizacion-ID', 'X-Org-Id'],
   });
   app.useGlobalInterceptors(new SerializeInterceptor());
+
+  // Log de requests (método, path; en login: email y organizacionId recibidos)
+  app.use(requestLoggerMiddleware as unknown as (req: Request, res: Response, next: NextFunction) => void);
 
   // Middleware de organización (multitenant) con validación contra usuario autenticado
   app.use(orgMiddleware as unknown as (req: Request, res: Response, next: NextFunction) => void);

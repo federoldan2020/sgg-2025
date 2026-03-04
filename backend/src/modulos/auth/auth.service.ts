@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit.service';
@@ -39,6 +39,8 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -61,23 +63,28 @@ export class AuthService {
     });
 
     if (!usuario) {
+      this.logger.warn(
+        `Login fallido: usuario no encontrado para email=${dto.email} organizacionId=${dto.organizacionId || '(vacío)'}. Verificá que el usuario exista en esa organización.`,
+      );
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
     // 2. Verificar estado del usuario
     if (usuario.estado !== EstadoUsuario.ACTIVO) {
+      this.logger.warn(`Login fallido: usuario inactivo o bloqueado id=${usuario.id} email=${dto.email}`);
       throw new UnauthorizedException('Usuario inactivo o bloqueado');
     }
 
     // 3. Verificar bloqueo temporal
     if (usuario.bloqueadoHasta && usuario.bloqueadoHasta > new Date()) {
+      this.logger.warn(`Login fallido: usuario bloqueado hasta ${usuario.bloqueadoHasta} id=${usuario.id}`);
       throw new UnauthorizedException('Usuario temporalmente bloqueado');
     }
 
     // 4. Verificar contraseña
     const passwordValida = await bcrypt.compare(dto.password, usuario.passwordHash);
     if (!passwordValida) {
-      // Incrementar intentos fallidos
+      this.logger.warn(`Login fallido: contraseña incorrecta para email=${dto.email} organizacionId=${dto.organizacionId}`);
       await this.incrementarIntentosFallidos(usuario.id);
       throw new UnauthorizedException('Credenciales inválidas');
     }
