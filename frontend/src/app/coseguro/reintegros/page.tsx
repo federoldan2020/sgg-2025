@@ -1393,8 +1393,6 @@ export default function ReintegrosPage() {
                 })}
                </div>
             </div>
-              </CardContent>
-            </Card>
           </div>
 
           <SheetFooter className="mt-6 flex flex-col-reverse sm:flex-row gap-3 sm:justify-between sticky bottom-0 bg-background pt-4 pb-6 z-10 border-t items-center">
