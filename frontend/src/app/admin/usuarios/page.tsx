@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Search, UserPlus, X, KeyRound, Monitor, Pencil } from 'lucide-react';
 import AuthGate from '@/components/auth/AuthGate';
 import { api, getErrorMessage } from '@/servicios/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -15,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui-kit';
 
 type UsuarioRow = {
   id: string;
@@ -209,78 +212,217 @@ export default function AdminUsuariosPage() {
     }
   };
 
+  const cerrarModal = () => {
+    setModal(null);
+    setMsg(null);
+  };
+
+  const ModalOverlay = ({ children }: { children: React.ReactNode }) => (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={cerrarModal}
+    >
+      {children}
+    </div>
+  );
+
+  const ModalDialog = ({
+    title,
+    description,
+    children,
+    maxWidth = 'max-w-md',
+    onClickStop,
+  }: {
+    title: string;
+    description?: string;
+    children: React.ReactNode;
+    maxWidth?: string;
+    onClickStop?: (e: React.MouseEvent) => void;
+  }) => (
+    <Card
+      className={`w-full ${maxWidth} rounded-xl border-neutral-200 shadow-xl`}
+      onClick={onClickStop ?? ((e) => e.stopPropagation())}
+    >
+      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-neutral-100 pb-4">
+        <div>
+          <CardTitle className="text-lg font-semibold text-neutral-900">{title}</CardTitle>
+          {description && (
+            <CardDescription className="mt-1">{description}</CardDescription>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
+          onClick={cerrarModal}
+          aria-label="Cerrar"
+        >
+          <X className="size-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-5">{children}</CardContent>
+    </Card>
+  );
+
+  const FormField = ({
+    id,
+    label,
+    type = 'text',
+    placeholder,
+    value,
+    onChange,
+    required,
+  }: {
+    id: string;
+    label: string;
+    type?: string;
+    placeholder?: string;
+    value: string;
+    onChange: (v: string) => void;
+    required?: boolean;
+  }) => (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-sm font-medium text-neutral-700">
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </Label>
+      <Input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-lg border-neutral-200 bg-white"
+      />
+    </div>
+  );
+
   return (
     <AuthGate roles={['ADMIN', 'SUPERADMIN']}>
-      <main className="p-6 max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">ABM Usuarios</h1>
-
-        <div className="flex gap-4 mb-4">
-          <Input
-            placeholder="Buscar por nombre, apellido, email..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="max-w-sm"
-          />
-          <Button onClick={abrirCrear}>Nuevo usuario</Button>
-        </div>
+      <div className="mx-auto max-w-6xl">
+        <PageHeader
+          title="ABM Usuarios"
+          subtitle="Administración de usuarios y roles de la organización"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+              <Input
+                placeholder="Buscar por nombre, apellido, email..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="w-64 rounded-lg border-neutral-200 pl-9"
+              />
+            </div>
+            <Button onClick={abrirCrear} className="gap-2">
+              <UserPlus className="size-4" />
+              Nuevo usuario
+            </Button>
+          </div>
+        </PageHeader>
 
         {msg && (
-          <div className="mb-4 p-3 rounded bg-blue-100 text-blue-800">{msg}</div>
+          <div
+            className="mb-6 rounded-lg border border-medical-200 bg-medical-50 px-4 py-3 text-sm font-medium text-medical-800"
+            role="alert"
+          >
+            {msg}
+          </div>
         )}
 
-        <Card>
+        <Card className="overflow-hidden rounded-xl border-neutral-200">
           <CardHeader>
-            <CardTitle>Usuarios de la organización</CardTitle>
+            <CardTitle className="text-neutral-900">Usuarios de la organización</CardTitle>
+            <CardDescription>Listado de usuarios con sus roles y estado</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
-              <p>Cargando…</p>
+              <div className="flex items-center justify-center py-12 text-sm text-neutral-500">
+                Cargando…
+              </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Roles</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Último login</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                  <TableRow className="border-neutral-200 hover:bg-transparent">
+                    <TableHead className="font-semibold text-neutral-700">Nombre</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Email</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Roles</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Estado</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Último login</TableHead>
+                    <TableHead className="text-right font-semibold text-neutral-700">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lista.map((u) => (
-                    <TableRow key={u.id}>
-                      <TableCell>{u.apellido}, {u.nombre}</TableCell>
-                      <TableCell>{u.email}</TableCell>
+                    <TableRow key={u.id} className="border-neutral-100">
+                      <TableCell className="font-medium text-neutral-900">
+                        {u.apellido}, {u.nombre}
+                      </TableCell>
+                      <TableCell className="text-neutral-600">{u.email}</TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {u.roles?.map((r) => (
-                            <Badge key={r} variant="secondary">{r}</Badge>
+                            <Badge key={r} variant="secondary" className="font-medium">
+                              {r}
+                            </Badge>
                           ))}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={u.estado === 'ACTIVO' ? 'default' : 'outline'}>
+                        <Badge
+                          variant={u.estado === 'ACTIVO' ? 'default' : 'outline'}
+                          className="font-medium"
+                        >
                           {u.estado}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-neutral-600">
                         {u.ultimoLogin
                           ? new Date(u.ultimoLogin).toLocaleString('es-AR')
-                          : '-'}
+                          : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end flex-wrap">
-                          <Button variant="outline" size="sm" onClick={() => abrirEditar(u)}>Editar</Button>
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => abrirEditar(u)}
+                          >
+                            <Pencil className="size-3.5" />
+                            Editar
+                          </Button>
                           {u.estado !== 'ACTIVO' && (
-                            <Button variant="outline" size="sm" onClick={() => activar(u)}>Activar</Button>
+                            <Button variant="outline" size="sm" onClick={() => activar(u)}>
+                              Activar
+                            </Button>
                           )}
                           {u.estado === 'ACTIVO' && (
-                            <Button variant="outline" size="sm" onClick={() => desactivar(u)}>Desactivar</Button>
+                            <Button variant="outline" size="sm" onClick={() => desactivar(u)}>
+                              Desactivar
+                            </Button>
                           )}
-                          <Button variant="outline" size="sm" onClick={() => bloquear(u)}>Bloquear</Button>
-                          <Button variant="outline" size="sm" onClick={() => abrirResetPassword(u)}>Reset pass</Button>
-                          <Button variant="outline" size="sm" onClick={() => abrirSesiones(u)}>Sesiones</Button>
+                          <Button variant="outline" size="sm" onClick={() => bloquear(u)}>
+                            Bloquear
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => abrirResetPassword(u)}
+                          >
+                            <KeyRound className="size-3.5" />
+                            Reset pass
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => abrirSesiones(u)}
+                          >
+                            <Monitor className="size-3.5" />
+                            Sesiones
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -292,48 +434,64 @@ export default function AdminUsuariosPage() {
         </Card>
 
         {modal === 'crear' && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md">
-              <CardHeader className="flex flex-row justify-between">
-                <CardTitle>Nuevo usuario</CardTitle>
-                <Button variant="ghost" onClick={() => setModal(null)}>✕</Button>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  placeholder="Email"
+          <ModalOverlay>
+            <ModalDialog title="Nuevo usuario" description="Completa los datos del nuevo usuario.">
+              <form
+                className="space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitCrear();
+                }}
+              >
+                <FormField
+                  id="crear-email"
+                  label="Email"
                   type="email"
+                  placeholder="correo@ejemplo.com"
                   value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+                  required
                 />
-                <Input
-                  placeholder="Usuario (opcional)"
+                <FormField
+                  id="crear-username"
+                  label="Usuario (opcional)"
+                  placeholder="Nombre de usuario"
                   value={form.username}
-                  onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, username: v }))}
                 />
-                <Input
-                  placeholder="Contraseña"
+                <FormField
+                  id="crear-password"
+                  label="Contraseña"
                   type="password"
+                  placeholder="Mínimo 6 caracteres"
                   value={form.password}
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, password: v }))}
+                  required
                 />
-                <Input
+                <FormField
+                  id="crear-nombre"
+                  label="Nombre"
                   placeholder="Nombre"
                   value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
+                  required
                 />
-                <Input
+                <FormField
+                  id="crear-apellido"
+                  label="Apellido"
                   placeholder="Apellido"
                   value={form.apellido}
-                  onChange={(e) => setForm((f) => ({ ...f, apellido: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, apellido: v }))}
+                  required
                 />
-                <div>
-                  <p className="text-sm mb-2">Roles</p>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-neutral-700">Roles</Label>
                   <div className="flex flex-wrap gap-2">
                     {ROLES_DISPONIBLES.filter((r) => r !== 'SUPERADMIN').map((r) => (
                       <Badge
                         key={r}
                         variant={form.roles.includes(r) ? 'default' : 'outline'}
-                        className="cursor-pointer"
+                        className="cursor-pointer transition-colors hover:opacity-90"
                         onClick={() => toggleRol(r)}
                       >
                         {r}
@@ -341,105 +499,67 @@ export default function AdminUsuariosPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button onClick={submitCrear}>Crear</Button>
-                  <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {modal === 'reset' && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md">
-              <CardHeader className="flex flex-row justify-between">
-                <CardTitle>Restablecer contraseña</CardTitle>
-                <Button variant="ghost" onClick={() => setModal(null)}>✕</Button>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  placeholder="Nueva contraseña (mín. 6 caracteres)"
-                  type="password"
-                  value={resetPasswordNueva}
-                  onChange={(e) => setResetPasswordNueva(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Button onClick={submitResetPassword} disabled={resetPasswordNueva.length < 6}>
-                    Restablecer
+                <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4">
+                  <Button type="button" variant="outline" onClick={cerrarModal}>
+                    Cancelar
                   </Button>
-                  <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
+                  <Button type="submit">Crear usuario</Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {modal === 'sesiones' && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-2xl">
-              <CardHeader className="flex flex-row justify-between">
-                <CardTitle>Sesiones activas</CardTitle>
-                <Button variant="ghost" onClick={() => setModal(null)}>✕</Button>
-              </CardHeader>
-              <CardContent>
-                {sesionesUsuario.length === 0 ? (
-                  <p className="text-gray-500">No hay sesiones activas</p>
-                ) : (
-                  <ul className="space-y-2 text-sm">
-                    {sesionesUsuario.map((s, i) => (
-                      <li key={i} className="border rounded p-2">
-                        <p>IP: {s.ipAddress || '-'} | {s.userAgent || '-'}</p>
-                        <p className="text-gray-500 text-xs">
-                          Creada: {new Date(s.creadoEn).toLocaleString('es-AR')} |
-                          Último uso: {new Date(s.ultimoUso).toLocaleString('es-AR')}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+              </form>
+            </ModalDialog>
+          </ModalOverlay>
         )}
 
         {modal === 'editar' && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md">
-              <CardHeader className="flex flex-row justify-between">
-                <CardTitle>Editar usuario</CardTitle>
-                <Button variant="ghost" onClick={() => setModal(null)}>✕</Button>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  placeholder="Email"
+          <ModalOverlay>
+            <ModalDialog title="Editar usuario" description="Modifica los datos del usuario.">
+              <form
+                className="space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitEditar();
+                }}
+              >
+                <FormField
+                  id="editar-email"
+                  label="Email"
                   type="email"
+                  placeholder="correo@ejemplo.com"
                   value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+                  required
                 />
-                <Input
-                  placeholder="Usuario (opcional)"
+                <FormField
+                  id="editar-username"
+                  label="Usuario (opcional)"
+                  placeholder="Nombre de usuario"
                   value={form.username}
-                  onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, username: v }))}
                 />
-                <Input
+                <FormField
+                  id="editar-nombre"
+                  label="Nombre"
                   placeholder="Nombre"
                   value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
+                  required
                 />
-                <Input
+                <FormField
+                  id="editar-apellido"
+                  label="Apellido"
                   placeholder="Apellido"
                   value={form.apellido}
-                  onChange={(e) => setForm((f) => ({ ...f, apellido: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, apellido: v }))}
+                  required
                 />
-                <div>
-                  <p className="text-sm mb-2">Roles</p>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-neutral-700">Roles</Label>
                   <div className="flex flex-wrap gap-2">
                     {ROLES_DISPONIBLES.filter((r) => r !== 'SUPERADMIN').map((r) => (
                       <Badge
                         key={r}
                         variant={form.roles.includes(r) ? 'default' : 'outline'}
-                        className="cursor-pointer"
+                        className="cursor-pointer transition-colors hover:opacity-90"
                         onClick={() => toggleRol(r)}
                       >
                         {r}
@@ -447,15 +567,93 @@ export default function AdminUsuariosPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button onClick={submitEditar}>Guardar</Button>
-                  <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
+                <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4">
+                  <Button type="button" variant="outline" onClick={cerrarModal}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Guardar cambios</Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </form>
+            </ModalDialog>
+          </ModalOverlay>
         )}
-      </main>
+
+        {modal === 'reset' && (
+          <ModalOverlay>
+            <ModalDialog
+              title="Restablecer contraseña"
+              description="Define una nueva contraseña para el usuario."
+            >
+              <form
+                className="space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitResetPassword();
+                }}
+              >
+                <FormField
+                  id="reset-password"
+                  label="Nueva contraseña"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={resetPasswordNueva}
+                  onChange={setResetPasswordNueva}
+                  required
+                />
+                <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4">
+                  <Button type="button" variant="outline" onClick={cerrarModal}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={resetPasswordNueva.length < 6}
+                  >
+                    Restablecer contraseña
+                  </Button>
+                </div>
+              </form>
+            </ModalDialog>
+          </ModalOverlay>
+        )}
+
+        {modal === 'sesiones' && (
+          <ModalOverlay>
+            <ModalDialog
+              title="Sesiones activas"
+              description="Dispositivos y sesiones del usuario."
+              maxWidth="max-w-2xl"
+            >
+              {sesionesUsuario.length === 0 ? (
+                <p className="py-6 text-center text-sm text-neutral-500">
+                  No hay sesiones activas
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {sesionesUsuario.map((s, i) => (
+                    <li
+                      key={i}
+                      className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 text-sm"
+                    >
+                      <p className="font-medium text-neutral-800">
+                        IP: {s.ipAddress || '—'} · {s.userAgent || '—'}
+                      </p>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Creada: {new Date(s.creadoEn).toLocaleString('es-AR')} · Último uso:{' '}
+                        {new Date(s.ultimoUso).toLocaleString('es-AR')}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-4 flex justify-end border-t border-neutral-100 pt-4">
+                <Button variant="outline" onClick={cerrarModal}>
+                  Cerrar
+                </Button>
+              </div>
+            </ModalDialog>
+          </ModalOverlay>
+        )}
+      </div>
     </AuthGate>
   );
 }

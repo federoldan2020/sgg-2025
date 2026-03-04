@@ -23,7 +23,7 @@ export default function RootLayout({
             <AppLayout>{children}</AppLayout>
           </OrgSelectorProvider>
         </AuthProvider>
-        <Toaster />
+        <Toaster position="top-right" expand richColors closeButton />
       </body>
     </html>
   );

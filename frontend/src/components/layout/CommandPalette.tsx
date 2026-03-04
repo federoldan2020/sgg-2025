@@ -26,23 +26,38 @@ export default function CommandPalette() {
       )
     : items.slice(0, 8); // Mostrar solo los primeros 8 si no hay query
 
+  const openDialog = () => {
+    if (dialogRef.current) {
+      dialogRef.current.showModal();
+      setQuery("");
+      setSelectedIndex(0);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  };
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        if (dialogRef.current) {
-          dialogRef.current.showModal();
-          setQuery("");
-          setSelectedIndex(0);
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 100);
-        }
+        openDialog();
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    function onOpen() {
+      if (dialogRef.current) {
+        dialogRef.current.showModal();
+        setQuery("");
+        setSelectedIndex(0);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+    }
+    window.addEventListener("open-command-palette", onOpen);
+    return () => window.removeEventListener("open-command-palette", onOpen);
   }, []);
 
   useEffect(() => {

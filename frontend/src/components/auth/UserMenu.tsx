@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/auth';
 
 export default function UserMenu() {
@@ -8,7 +9,6 @@ export default function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Cerrar menú al hacer click fuera
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -31,80 +31,73 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
+  const initials = `${usuario.nombre.charAt(0)}${usuario.apellido.charAt(0)}`.toUpperCase();
+
   return (
     <div className="relative" ref={menuRef}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 p-2 hover:bg-gray-100"
+        className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-medical-500 focus:ring-offset-2 hover:bg-neutral-50 hover:border-neutral-200"
+        aria-expanded={isOpen}
+        aria-haspopup="true"
       >
-        <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
-          <span className="text-white font-medium">
-            {usuario.nombre.charAt(0)}{usuario.apellido.charAt(0)}
-          </span>
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-medical-100 text-xs font-semibold text-medical-700">
+          {initials}
         </div>
-        <div className="hidden md:block text-left">
-          <div className="font-medium text-gray-900">
-            {usuario.nombre} {usuario.apellido}
-          </div>
-          <div className="text-xs text-gray-500">
-            {usuario.roles.join(', ')}
-          </div>
-        </div>
-        <svg
-          className={`h-4 w-4 text-gray-400 transition-transform ${
-            isOpen ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+        <span className="hidden max-w-[120px] truncate text-left text-neutral-700 lg:inline-block">
+          {usuario.nombre} {usuario.apellido}
+        </span>
+        <ChevronDown
+          className={`size-4 shrink-0 text-neutral-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-          <div className="py-1">
-            <div className="px-4 py-2 text-sm text-gray-700 border-b">
-              <div className="font-medium">{usuario.nombre} {usuario.apellido}</div>
-              <div className="text-xs text-gray-500">{usuario.email}</div>
+        <div
+          className="absolute right-0 z-50 mt-2 w-64 origin-top-right rounded-xl border border-neutral-200 bg-white py-1.5 shadow-lg ring-1 ring-black/5"
+          role="menu"
+        >
+          <div className="border-b border-neutral-100 px-4 py-3">
+            <div className="truncate text-sm font-semibold text-neutral-900">
+              {usuario.nombre} {usuario.apellido}
             </div>
-            
+            <div className="mt-0.5 truncate text-xs text-neutral-500">{usuario.email}</div>
+            <span className="mt-1.5 inline-block rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+              {usuario.roles?.[0] ?? 'Usuario'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-50"
+            role="menuitem"
+          >
+            <User className="size-4 text-neutral-500" />
+            Mi Perfil
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-50"
+            role="menuitem"
+          >
+            <Settings className="size-4 text-neutral-500" />
+            Configuración
+          </button>
+
+          <div className="border-t border-neutral-100">
             <button
-              onClick={() => {
-                setIsOpen(false);
-                // Aquí podrías navegar a una página de perfil
-                console.log('Ir a perfil');
-              }}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+              role="menuitem"
             >
-              Mi Perfil
+              <LogOut className="size-4" />
+              Cerrar Sesión
             </button>
-            
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                // Aquí podrías navegar a configuración
-                console.log('Ir a configuración');
-              }}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              Configuración
-            </button>
-            
-            <div className="border-t">
-              <button
-                onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-              >
-                Cerrar Sesión
-              </button>
-            </div>
           </div>
         </div>
       )}

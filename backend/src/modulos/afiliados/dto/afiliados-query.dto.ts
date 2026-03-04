@@ -1,4 +1,4 @@
-import { IsEnum, IsNumberString, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { AfiliadoTipo } from './create-afiliado.dto';
@@ -31,15 +31,17 @@ export class AfiliadosQueryDto {
   @IsString()
   conColaterales?: string; // "true" | "false"
 
-  // Paginación
+  // Paginación (transform convierte query string → number; validamos como número)
   @IsOptional()
-  @IsNumberString()
-  page?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
 
   @IsOptional()
-  @IsNumberString()
   @Type(() => Number)
+  @IsInt()
   @Min(1, { message: 'limit debe ser al menos 1' })
   @Max(MAX_PAGE_LIMIT, { message: `limit máximo ${MAX_PAGE_LIMIT}` })
-  limit?: string;
+  limit?: number;
 }

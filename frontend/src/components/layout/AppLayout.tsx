@@ -40,6 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Header
             onOpenMobileNav={() => setMobileOpen(true)}
             onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+            sidebarCollapsed={sidebarCollapsed}
           />
 
           <SidebarNav
@@ -50,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
           />
 
-          <main className={`pt-14 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
+          <main className={`pt-14 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'} min-h-screen bg-neutral-50`}>
             <div className="min-h-[calc(100vh-3.5rem)] p-4 sm:p-6 lg:p-8">
               <div className="mx-auto max-w-7xl">
                 {children}
