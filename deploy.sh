@@ -25,10 +25,10 @@ npx prisma generate
 npx prisma migrate deploy
 npm run build
 
-# Frontend
+# Frontend (instalar todo: TypeScript y deps de build están en devDependencies)
 echo "📦 Actualizando frontend..."
 cd ../frontend
-npm ci --only=production
+npm ci
 npm run build
 
 # Restart con PM2 (solo apps definidas en ecosystem.config.js)
