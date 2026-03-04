@@ -273,7 +273,7 @@ export default function ImportarParentescosPage() {
                                 ? 'default'
                                 : op.operacion === 'ACTUALIZAR'
                                 ? 'secondary'
-                                : 'destructive'
+                                : 'error'
                             }
                           >
                             {op.operacion}
@@ -288,7 +288,7 @@ export default function ImportarParentescosPage() {
                                 ? 'default'
                                 : op.status === 'WARNING'
                                 ? 'secondary'
-                                : 'destructive'
+                                : 'error'
                             }
                           >
                             {op.status}

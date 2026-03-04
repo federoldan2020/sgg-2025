@@ -22,7 +22,7 @@ type DetailSheetProps = {
   primaryAction?: {
     label: string;
     onClick: () => void;
-    variant?: "default" | "destructive";
+    variant?: "default" | "error";
   };
   secondaryAction?: {
     label: string;

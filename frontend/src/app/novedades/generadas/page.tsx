@@ -210,7 +210,7 @@ export default function NovedadesGeneradasPage() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="destructive"
+                          variant="error"
                           onClick={() => eliminarGeneracion(item.id)}
                           disabled={loading}
                         >

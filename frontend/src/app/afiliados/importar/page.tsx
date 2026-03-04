@@ -244,7 +244,7 @@ export default function ImportarAfiliadosPage() {
                       <TableRow key={idx}>
                         <TableCell>{op.fila}</TableCell>
                         <TableCell>
-                          <Badge variant={op.operacion === 'CREAR' ? 'default' : op.operacion === 'ACTUALIZAR' ? 'secondary' : 'destructive'}>
+                          <Badge variant={op.operacion === 'CREAR' ? 'default' : op.operacion === 'ACTUALIZAR' ? 'secondary' : 'error'}>
                             {op.operacion}
                           </Badge>
                         </TableCell>

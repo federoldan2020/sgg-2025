@@ -143,41 +143,11 @@ export default function SidebarNav({
     <>
       {/* Desktop sidebar */}
       <aside
-        className="app-sidebar hidden-mobile"
+        className={`fixed left-0 top-14 z-50 hidden h-[calc(100vh-3.5rem)] w-64 flex-col border-r bg-white transition-all duration-300 lg:flex ${collapsed ? 'w-[72px]' : ''}`}
         data-collapsed={collapsed ? 1 : 0}
       >
-        <div className="sidebar-content">
-          {/* Logo y toggle */}
-          <div className="sidebar-brand">
-            <div className="brand-container">
-              <div className="brand-icon">
-                <span className="brand-letter">P</span>
-              </div>
-              {!collapsed && (
-                <div className="brand-text">
-                  <span className="brand-name">PGG</span>
-                  <span className="brand-year">2025</span>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={onToggleCollapse}
-              className="sidebar-toggle-btn"
-              aria-pressed={collapsed}
-              aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
-              title={
-                collapsed
-                  ? "Expandir menú (Ctrl/⌘+B)"
-                  : "Colapsar menú (Ctrl/⌘+B)"
-              }
-            >
-              <ChevronLeft
-                className={`sidebar-toggle-icon ${collapsed ? "collapsed" : ""}`}
-              />
-            </button>
-          </div>
-
-          <nav aria-label="Menú principal" ref={navRef} className="sidebar-nav">
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          <nav aria-label="Menú principal" ref={navRef} className="flex-1 space-y-4 p-4">
             {groups.map((g, idx) => (
               <div key={g.titulo} className="nav-group">
                 <div
@@ -191,28 +161,24 @@ export default function SidebarNav({
                     const active = isActive(it.href, pathname, it.exact);
                     return (
                       <li key={it.href}>
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="sm"
-                          className={`nav-link ${active ? "active" : ""}`}
+                        <Link
+                          href={it.href}
+                          aria-current={active ? "page" : undefined}
+                          title={collapsed ? `${it.label} - ${g.titulo}` : it.label}
+                          className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.98] ${
+                            active
+                              ? "bg-medical-50 text-medical-700 shadow-sm hover:bg-medical-100"
+                              : "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900"
+                          } ${collapsed ? "justify-center px-0" : ""}`}
                         >
-                          <Link
-                            href={it.href}
-                            aria-current={active ? "page" : undefined}
-                            title={
-                              collapsed ? `${it.label} - ${g.titulo}` : it.label
-                            }
-                          >
-                            <span className="nav-icon">
-                              {getNavIcon(it.label)}
-                            </span>
-                            {!collapsed && (
-                              <span className="nav-text">{it.label}</span>
-                            )}
-                            {active && <span className="nav-indicator" />}
-                          </Link>
-                        </Button>
+                          {active && (
+                            <div className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-medical-600" />
+                          )}
+                          <span className={`flex h-5 w-5 shrink-0 items-center justify-center transition-transform group-hover:scale-110 ${active ? "text-medical-600" : "text-neutral-500"}`}>
+                            {getNavIcon(it.label)}
+                          </span>
+                          {!collapsed && <span className="flex-1">{it.label}</span>}
+                        </Link>
                       </li>
                     );
                   })}
@@ -225,17 +191,16 @@ export default function SidebarNav({
               </div>
             ))}
           </nav>
-
           {/* User info en la parte inferior */}
-          <div className="sidebar-footer">
-            <div className="user-info">
-              <div className="user-avatar">
-                <span>OP</span>
+          <div className="border-t p-4">
+            <div className="flex items-center gap-3 rounded-lg bg-neutral-50 p-2 hover:bg-neutral-100 cursor-pointer transition-colors">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-medical-100 text-xs font-semibold text-medical-700">
+                OP
               </div>
               {!collapsed && (
-                <div className="user-details">
-                  <div className="user-name">Operador</div>
-                  <div className="user-role">Administrador</div>
+                <div className="flex flex-col min-w-0">
+                  <div className="truncate text-sm font-medium text-neutral-900">Operador</div>
+                  <div className="truncate text-xs text-neutral-500">Administrador</div>
                 </div>
               )}
             </div>
@@ -248,76 +213,67 @@ export default function SidebarNav({
         <div
           role="dialog"
           aria-modal="true"
-          className="mobile-overlay"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setMobileOpen && setMobileOpen(false)}
         >
-          <div className="mobile-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="sidebar-brand">
-              <div className="brand-container">
-                <div className="brand-icon">
-                  <span className="brand-letter">P</span>
-                </div>
-                <div className="brand-text">
-                  <span className="brand-name">PGG</span>
-                  <span className="brand-year">2025</span>
-                </div>
-              </div>
+          <div className="fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-white shadow-lg transition-transform" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-14 items-center justify-between border-b px-4">
+              <span className="text-sm font-bold text-neutral-900">Menú</span>
               <Button
-                className="mobile-close-btn"
                 variant="ghost"
                 size="icon"
                 onClick={() => setMobileOpen && setMobileOpen(false)}
                 aria-label="Cerrar menú"
+                className="text-neutral-500"
               >
-                <X size={18} />
+                <X className="h-5 w-5" />
               </Button>
             </div>
 
-            <nav aria-label="Menú principal" className="sidebar-nav">
-              {groups.map((g) => (
-                <div key={g.titulo} className="nav-group">
-                  <div className="nav-title">{g.titulo}</div>
-                  <ul className="nav-list">
-                    {g.items.map((it) => {
-                      const active = isActive(it.href, pathname, it.exact);
-                      return (
-                        <li key={it.href}>
-                          <Button
-                            asChild
-                            variant="ghost"
-                            size="sm"
-                            className={`nav-link ${active ? "active" : ""}`}
-                          >
+            <div className="flex flex-1 flex-col overflow-y-auto">
+              <nav aria-label="Menú principal" className="flex-1 space-y-4 p-4">
+                {groups.map((g) => (
+                  <div key={g.titulo} className="nav-group">
+                    <div className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">{g.titulo}</div>
+                    <ul className="space-y-1">
+                      {g.items.map((it) => {
+                        const active = isActive(it.href, pathname, it.exact);
+                        return (
+                          <li key={it.href}>
                             <Link
                               href={it.href}
                               aria-current={active ? "page" : undefined}
+                              className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                active
+                                  ? "bg-medical-50 text-medical-700"
+                                  : "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900"
+                              }`}
                               onClick={() =>
                                 setMobileOpen && setMobileOpen(false)
                               }
                             >
-                              <span className="nav-icon">
+                              <span className={`flex h-5 w-5 shrink-0 items-center justify-center transition-transform group-hover:scale-110 ${active ? "text-medical-600" : "text-neutral-500"}`}>
                                 {getNavIcon(it.label)}
                               </span>
-                              <span className="nav-text">{it.label}</span>
-                              {active && <span className="nav-indicator" />}
+                              <span className="flex-1">{it.label}</span>
                             </Link>
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </nav>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </nav>
 
-            <div className="sidebar-footer">
-              <div className="user-info">
-                <div className="user-avatar">
-                  <span>OP</span>
-                </div>
-                <div className="user-details">
-                  <div className="user-name">Operador</div>
-                  <div className="user-role">Administrador</div>
+              <div className="border-t p-4">
+                <div className="flex items-center gap-3 rounded-lg p-2 bg-neutral-50">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-medical-100 text-xs font-semibold text-medical-700">
+                    OP
+                  </div>
+                  <div className="flex min-w-0 flex-col">
+                    <div className="truncate text-sm font-medium text-neutral-900">Operador</div>
+                    <div className="truncate text-xs text-neutral-500">Administrador</div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -502,7 +502,7 @@ export default function ComprobantesListadoPage() {
                             )}
                             {r.estado !== "anulado" && (
                               <Button
-                                variant="destructive"
+                                variant="error"
                                 size="sm"
                                 onClick={() => anular(r.id)}
                                 disabled={anulando === r.id}

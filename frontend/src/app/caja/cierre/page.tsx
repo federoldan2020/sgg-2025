@@ -168,7 +168,7 @@ export default function CierreCajaPage() {
         </Table>
       </div>
 
-      <Button variant="destructive" onClick={cerrar} disabled={closing}>
+      <Button variant="error" onClick={cerrar} disabled={closing}>
         {closing ? "Cerrando…" : "Confirmar Cierre"}
       </Button>
     </div>

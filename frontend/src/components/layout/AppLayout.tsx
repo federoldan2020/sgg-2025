@@ -36,25 +36,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <UserContext.Provider value={ctx}>
-        <div className="app-shell">
-          {/* Header fijo en la parte superior */}
+        <div className="relative min-h-screen bg-neutral-50">
           <Header
             onOpenMobileNav={() => setMobileOpen(true)}
             onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           />
 
-          {/* Contenedor principal con sidebar y contenido */}
-          <div className="app-content">
-            <SidebarNav
-              roles={ctx.roles}
-              mobileOpen={mobileOpen}
-              setMobileOpen={setMobileOpen}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-            />
+          <SidebarNav
+            roles={ctx.roles}
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+          />
 
-            <main className="app-main">{children}</main>
-          </div>
+          <main className={`pt-14 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
+            <div className="min-h-[calc(100vh-3.5rem)] p-4 sm:p-6 lg:p-8">
+              <div className="mx-auto max-w-7xl">
+                {children}
+              </div>
+            </div>
+          </main>
         </div>
       </UserContext.Provider>
     </AuthGuard>

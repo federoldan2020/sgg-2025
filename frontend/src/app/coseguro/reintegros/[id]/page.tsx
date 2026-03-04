@@ -116,7 +116,7 @@ const ADJUNTOS = ["FACTURA", "RECETA", "ORDEN", "INFORME", "OTRO"] as const;
 
 const ESTADO_CONFIG: Record<
   string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }
+  { label: string; variant: "default" | "secondary" | "error" | "outline"; icon: LucideIcon }
 > = {
   BORRADOR: { label: "Borrador", variant: "outline", icon: FileText },
   PRESENTADO: { label: "Presentado", variant: "secondary", icon: Clock },
@@ -125,7 +125,7 @@ const ESTADO_CONFIG: Record<
   APROBADO: { label: "Aprobado", variant: "default", icon: CheckCircle2 },
   A_PAGAR: { label: "A pagar", variant: "secondary", icon: Clock },
   PAGADO: { label: "Pagado", variant: "default", icon: CheckCircle2 },
-  RECHAZADO: { label: "Rechazado", variant: "destructive", icon: XCircle },
+  RECHAZADO: { label: "Rechazado", variant: "error", icon: XCircle },
   CERRADO: { label: "Cerrado", variant: "outline", icon: CheckCircle2 },
 };
 
@@ -755,7 +755,7 @@ export default function ReintegroDetallePage() {
            <DialogFooter>
               <Button variant="outline" onClick={() => setActionOpen(null)}>Cancelar</Button>
               <Button
-                 variant={actionOpen === "rechazar" ? "destructive" : "default"}
+                 variant={actionOpen === "rechazar" ? "error" : "default"}
                  disabled={
                     (actionOpen !== "aprobar" && !actionObs.trim()) ||
                     (actionOpen === "aprobar" && !actionMonto)

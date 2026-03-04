@@ -35,39 +35,30 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
   }, [onToggleSidebar]);
 
   return (
-    <header className="app-header">
-      <div className="header-left">
+    <header className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between border-b bg-white/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:px-6">
+      <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
-          className="mobile-only"
+          className="lg:hidden text-neutral-500"
           onClick={onOpenMobileNav}
           aria-label="Abrir menú"
         >
-          <Menu size={18} />
+          <Menu className="h-5 w-5" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden-mobile"
-          onClick={onToggleSidebar}
-          aria-label="Colapsar menú"
-        >
-          <Menu size={18} />
-        </Button>
-        <Link href="/" className="app-brand">
-          PGG 2025
+        <Link href="/" className="flex items-center gap-2 rounded-lg bg-neutral-800 px-2 py-1.5 transition-colors hover:bg-neutral-900">
+          <span className="text-sm font-bold text-white">PGG 2025</span>
         </Link>
-        <Badge variant="secondary" className="system-label hidden-mobile">
+        <div className="hidden h-6 w-px bg-neutral-200 sm:block" />
+        <Badge variant="medical" className="hidden lg:inline-flex">
           Sistema Interno
         </Badge>
       </div>
-      
-      <div className="header-center hidden-mobile">
+      <div className="hidden flex-1 justify-center lg:flex">
         <Breadcrumbs />
       </div>
       
-      <div className="header-right">
+      <div className="flex items-center gap-4">
         {isSuperadmin && organizaciones && organizaciones.length > 0 && (
           <select
             value={selectedOrgId ?? usuario?.organizacionId ?? ""}
@@ -76,12 +67,10 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
               const mine = usuario?.organizacionId ?? "";
               setSelectedOrgId?.(v === mine || !v ? null : v);
             }}
-            className="text-sm border rounded px-2 py-1 max-w-[180px] hidden-mobile"
+            className="hidden max-w-[180px] rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-medical-500 lg:block"
             title="Actuar como organización"
           >
-            <option value={usuario?.organizacionId ?? ""}>
-              Mi org
-            </option>
+            <option value={usuario?.organizacionId ?? ""}>Mi org</option>
             {organizaciones
               .filter((o) => o.id !== usuario?.organizacionId)
               .map((o) => (
@@ -91,10 +80,10 @@ export default function Header({ onToggleSidebar, onOpenMobileNav }: Props) {
               ))}
           </select>
         )}
-        <div className="search-input-container hidden-mobile">
-          <Search size={16} className="search-icon" />
+        <div className="relative hidden items-center lg:flex">
+          <Search className="absolute left-2.5 h-4 w-4 text-neutral-500" />
           <Input
-            className="search-input"
+            className="h-9 w-64 bg-neutral-100 pl-9 border-transparent focus-visible:bg-white focus-visible:ring-offset-0"
             placeholder="Buscar... (Ctrl/⌘+K)"
             aria-label="Buscar"
             readOnly

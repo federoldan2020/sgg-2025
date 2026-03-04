@@ -94,7 +94,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               </div>
 
               {error && (
-                <Alert variant="destructive" className="py-2.5">
+                <Alert variant="error" className="py-2.5">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}

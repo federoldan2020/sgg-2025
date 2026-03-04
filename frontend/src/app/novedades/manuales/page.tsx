@@ -356,7 +356,7 @@ export default function NovedadesManualesPage() {
                         <Button size="sm" onClick={() => abrirFormEditar(item)}>
                           Editar
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => eliminar(item.id)}>
+                        <Button size="sm" variant="error" onClick={() => eliminar(item.id)}>
                           Eliminar
                         </Button>
                       </div>

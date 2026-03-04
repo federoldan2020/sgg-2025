@@ -46,7 +46,7 @@ const ORIGENES = [
 function OrigenBadge({ origen }: { origen: string | null }) {
   if (!origen) return <span className="text-muted-foreground">—</span>;
   
-  const config: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {
+  const config: Record<string, { variant: "default" | "secondary" | "outline" | "error"; label: string }> = {
     pago_caja: { variant: "default", label: "Caja" },
     cierre_caja: { variant: "secondary", label: "Cierre" },
     nomina: { variant: "outline", label: "Nómina" },
