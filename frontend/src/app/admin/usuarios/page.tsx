@@ -230,7 +230,7 @@ export default function AdminUsuariosPage() {
     title,
     description,
     children,
-    maxWidth = 'max-w-md',
+    maxWidth = 'max-w-2xl',
     onClickStop,
   }: {
     title: string;
@@ -435,55 +435,63 @@ export default function AdminUsuariosPage() {
 
         {modal === 'crear' && (
           <ModalOverlay>
-            <ModalDialog title="Nuevo usuario" description="Completa los datos del nuevo usuario.">
+            <ModalDialog
+              title="Nuevo usuario"
+              description="Completa los datos del nuevo usuario."
+              maxWidth="max-w-2xl"
+            >
               <form
-                className="space-y-5"
+                className="space-y-6"
                 onSubmit={(e) => {
                   e.preventDefault();
                   submitCrear();
                 }}
               >
-                <FormField
-                  id="crear-email"
-                  label="Email"
-                  type="email"
-                  placeholder="correo@ejemplo.com"
-                  value={form.email}
-                  onChange={(v) => setForm((f) => ({ ...f, email: v }))}
-                  required
-                />
-                <FormField
-                  id="crear-username"
-                  label="Usuario (opcional)"
-                  placeholder="Nombre de usuario"
-                  value={form.username}
-                  onChange={(v) => setForm((f) => ({ ...f, username: v }))}
-                />
-                <FormField
-                  id="crear-password"
-                  label="Contraseña"
-                  type="password"
-                  placeholder="Mínimo 6 caracteres"
-                  value={form.password}
-                  onChange={(v) => setForm((f) => ({ ...f, password: v }))}
-                  required
-                />
-                <FormField
-                  id="crear-nombre"
-                  label="Nombre"
-                  placeholder="Nombre"
-                  value={form.nombre}
-                  onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
-                  required
-                />
-                <FormField
-                  id="crear-apellido"
-                  label="Apellido"
-                  placeholder="Apellido"
-                  value={form.apellido}
-                  onChange={(v) => setForm((f) => ({ ...f, apellido: v }))}
-                  required
-                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    id="crear-email"
+                    label="Email"
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={form.email}
+                    onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+                    required
+                  />
+                  <FormField
+                    id="crear-username"
+                    label="Usuario (opcional)"
+                    placeholder="Nombre de usuario"
+                    value={form.username}
+                    onChange={(v) => setForm((f) => ({ ...f, username: v }))}
+                  />
+                  <FormField
+                    id="crear-password"
+                    label="Contraseña"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    value={form.password}
+                    onChange={(v) => setForm((f) => ({ ...f, password: v }))}
+                    required
+                  />
+                  <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
+                    <FormField
+                      id="crear-nombre"
+                      label="Nombre"
+                      placeholder="Nombre"
+                      value={form.nombre}
+                      onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
+                      required
+                    />
+                    <FormField
+                      id="crear-apellido"
+                      label="Apellido"
+                      placeholder="Apellido"
+                      value={form.apellido}
+                      onChange={(v) => setForm((f) => ({ ...f, apellido: v }))}
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-neutral-700">Roles</Label>
                   <div className="flex flex-wrap gap-2">
@@ -491,13 +499,16 @@ export default function AdminUsuariosPage() {
                       <Badge
                         key={r}
                         variant={form.roles.includes(r) ? 'default' : 'outline'}
-                        className="cursor-pointer transition-colors hover:opacity-90"
+                        className="cursor-pointer px-3 py-1 text-xs font-semibold tracking-wide transition-colors hover:opacity-90"
                         onClick={() => toggleRol(r)}
                       >
                         {r}
                       </Badge>
                     ))}
                   </div>
+                  <p className="text-xs text-neutral-500">
+                    Podés asignar uno o varios roles según los permisos que necesite el usuario.
+                  </p>
                 </div>
                 <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4">
                   <Button type="button" variant="outline" onClick={cerrarModal}>
@@ -512,46 +523,54 @@ export default function AdminUsuariosPage() {
 
         {modal === 'editar' && (
           <ModalOverlay>
-            <ModalDialog title="Editar usuario" description="Modifica los datos del usuario.">
+            <ModalDialog
+              title="Editar usuario"
+              description="Modifica los datos del usuario."
+              maxWidth="max-w-2xl"
+            >
               <form
-                className="space-y-5"
+                className="space-y-6"
                 onSubmit={(e) => {
                   e.preventDefault();
                   submitEditar();
                 }}
               >
-                <FormField
-                  id="editar-email"
-                  label="Email"
-                  type="email"
-                  placeholder="correo@ejemplo.com"
-                  value={form.email}
-                  onChange={(v) => setForm((f) => ({ ...f, email: v }))}
-                  required
-                />
-                <FormField
-                  id="editar-username"
-                  label="Usuario (opcional)"
-                  placeholder="Nombre de usuario"
-                  value={form.username}
-                  onChange={(v) => setForm((f) => ({ ...f, username: v }))}
-                />
-                <FormField
-                  id="editar-nombre"
-                  label="Nombre"
-                  placeholder="Nombre"
-                  value={form.nombre}
-                  onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
-                  required
-                />
-                <FormField
-                  id="editar-apellido"
-                  label="Apellido"
-                  placeholder="Apellido"
-                  value={form.apellido}
-                  onChange={(v) => setForm((f) => ({ ...f, apellido: v }))}
-                  required
-                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    id="editar-email"
+                    label="Email"
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={form.email}
+                    onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+                    required
+                  />
+                  <FormField
+                    id="editar-username"
+                    label="Usuario (opcional)"
+                    placeholder="Nombre de usuario"
+                    value={form.username}
+                    onChange={(v) => setForm((f) => ({ ...f, username: v }))}
+                  />
+                  <div className="grid gap-4 sm:grid-cols-2 sm:col-span-2">
+                    <FormField
+                      id="editar-nombre"
+                      label="Nombre"
+                      placeholder="Nombre"
+                      value={form.nombre}
+                      onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
+                      required
+                    />
+                    <FormField
+                      id="editar-apellido"
+                      label="Apellido"
+                      placeholder="Apellido"
+                      value={form.apellido}
+                      onChange={(v) => setForm((f) => ({ ...f, apellido: v }))}
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-neutral-700">Roles</Label>
                   <div className="flex flex-wrap gap-2">
@@ -559,13 +578,16 @@ export default function AdminUsuariosPage() {
                       <Badge
                         key={r}
                         variant={form.roles.includes(r) ? 'default' : 'outline'}
-                        className="cursor-pointer transition-colors hover:opacity-90"
+                        className="cursor-pointer px-3 py-1 text-xs font-semibold tracking-wide transition-colors hover:opacity-90"
                         onClick={() => toggleRol(r)}
                       >
                         {r}
                       </Badge>
                     ))}
                   </div>
+                  <p className="text-xs text-neutral-500">
+                    Ajustá los roles para actualizar los permisos del usuario.
+                  </p>
                 </div>
                 <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4">
                   <Button type="button" variant="outline" onClick={cerrarModal}>
