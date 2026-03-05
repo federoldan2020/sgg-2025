@@ -501,8 +501,8 @@ export default function NuevoPadronPage() {
       setCreando(false);
     }
   };
-  const fc = "rounded-lg border-neutral-200 bg-white";
-  const selectClass = `h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500`;
+  const fc = "flex h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-neutral-400";
+  const selectClass = `flex h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 appearance-none`;
   const padronEnabled = !!(afiliado || sinResultadosDniExacto);
 
   return (
@@ -538,13 +538,13 @@ export default function NuevoPadronPage() {
       )}
 
       {/* Paso 1: Buscar Afiliado */}
-      <Card className="mb-6 rounded-xl border-neutral-200">
+      <Card className="mb-6 rounded-lg border-neutral-200 shadow-sm transition-shadow hover:shadow-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Search className="size-5 text-neutral-600" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight text-neutral-900">
+            <Search className="size-5 text-neutral-500" />
             Paso 1: Buscar Afiliado
           </CardTitle>
-          <CardDescription>Ingrese DNI, apellido o nombre. Si no existe, podrá crear uno nuevo.</CardDescription>
+          <CardDescription className="text-sm text-neutral-500">Ingrese DNI, apellido o nombre. Si no existe, podrá crear uno nuevo.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-md">
@@ -584,11 +584,14 @@ export default function NuevoPadronPage() {
                   <button
                     key={String(a.id)}
                     type="button"
-                    className={`flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-neutral-50 ${
-                      afiliado?.id === a.id ? "border-l-4 border-l-medical-500 bg-medical-50" : ""
+                    className={`group relative flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-150 active:scale-[0.98] ${
+                      afiliado?.id === a.id ? "bg-medical-50 text-medical-700 shadow-sm" : "hover:bg-neutral-100 text-neutral-700"
                     }`}
                     onClick={() => { setAfiliado(a); setSinResultadosDniExacto(null); }}
                   >
+                    {afiliado?.id === a.id && (
+                      <div className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-medical-600" />
+                    )}
                     <div>
                       <span className="font-medium text-neutral-900">{a.display}</span>
                       <span className="ml-2 text-sm text-neutral-500">DNI {String(a.dni)}</span>
@@ -625,13 +628,13 @@ export default function NuevoPadronPage() {
 
       {/* Datos del nuevo afiliado (si no existe) */}
       {!afiliado && sinResultadosDniExacto && (
-        <Card className="mb-6 rounded-xl border-amber-200 bg-amber-50/30">
+        <Card className="mb-6 rounded-lg border-amber-200 bg-amber-50/30 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base text-amber-800">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight text-amber-900">
               <UserPlus className="size-5" />
               Nuevo Afiliado (DNI {sinResultadosDniExacto})
             </CardTitle>
-            <CardDescription className="text-amber-700">No existe un afiliado con este DNI. Complete los datos para crearlo junto con el padrón.</CardDescription>
+            <CardDescription className="text-sm text-amber-700">No existe un afiliado con este DNI. Complete los datos para crearlo junto con el padrón.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Info Personal */}
@@ -746,13 +749,13 @@ export default function NuevoPadronPage() {
       )}
 
       {/* Paso 2: Datos del Padrón */}
-      <Card className={`mb-6 rounded-xl border-neutral-200 transition-opacity ${padronEnabled ? "" : "pointer-events-none opacity-50"}`}>
+      <Card className={`mb-6 rounded-lg border-neutral-200 shadow-sm transition-all hover:shadow-md ${padronEnabled ? "" : "pointer-events-none opacity-50"}`}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="size-5 text-neutral-600" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight text-neutral-900">
+            <FileText className="size-5 text-neutral-500" />
             Paso 2: Datos del Padrón
           </CardTitle>
-          <CardDescription>Complete la información específica del padrón</CardDescription>
+          <CardDescription className="text-sm text-neutral-500">Complete la información específica del padrón</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -817,13 +820,13 @@ export default function NuevoPadronPage() {
 
       {/* Coseguro */}
       {padronEnabled && (
-        <Card className="mb-6 rounded-xl border-neutral-200">
+        <Card className="mb-6 rounded-lg border-neutral-200 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="size-5 text-neutral-600" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight text-neutral-900">
+              <Users className="size-5 text-neutral-500" />
               Configuración de Coseguro
             </CardTitle>
-            <CardDescription>Opcionalmente configure el coseguro y colaterales para este padrón</CardDescription>
+            <CardDescription className="text-sm text-neutral-500">Opcionalmente configure el coseguro y colaterales para este padrón</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {(tieneCoseguro === false || !!sinResultadosDniExacto) && (
@@ -869,7 +872,7 @@ export default function NuevoPadronPage() {
       )}
 
       {/* Acciones */}
-      <Card className="rounded-xl border-neutral-200">
+      <Card className="rounded-lg shadow-sm border-neutral-200">
         <CardContent className="space-y-4 pt-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-neutral-500">
@@ -905,7 +908,7 @@ function ColateralRow({
   onChange: (patch: Partial<ColateralUI>) => void;
   onRemove: () => void;
 }) {
-  const fc = "rounded-lg border-neutral-200 bg-white";
+  const fc = "flex h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-neutral-400";
   return (
     <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-medical-100 text-medical-600">
