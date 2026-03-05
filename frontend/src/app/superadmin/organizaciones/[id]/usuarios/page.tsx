@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import AuthGate from '@/components/auth/AuthGate';
-import { api, getErrorMessage } from '@/servicios/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import AuthGate from "@/components/auth/AuthGate";
+import { api, getErrorMessage } from "@/servicios/api";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -14,8 +14,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui-kit";
 
 type UsuarioRow = {
   id: string;
@@ -51,10 +52,10 @@ export default function SuperadminOrgUsuariosPage() {
     try {
       const [orgData, usersData] = await Promise.all([
         api<OrgInfo>(`/organizaciones/${id}`, {
-          headers: { 'X-Organizacion-ID': id },
+          headers: { "X-Organizacion-ID": id },
         }),
         api<UsuarioRow[]>(`/organizaciones/${id}/usuarios`, {
-          headers: { 'X-Organizacion-ID': id },
+          headers: { "X-Organizacion-ID": id },
         }),
       ]);
       setOrg(orgData);
@@ -71,61 +72,90 @@ export default function SuperadminOrgUsuariosPage() {
   }, [id]);
 
   return (
-    <AuthGate roles={['SUPERADMIN']}>
-      <main className="p-6 max-w-6xl mx-auto">
-        <div className="mb-4">
-          <Link href="/superadmin/organizaciones" className="text-blue-600 hover:underline">
-            ← Volver a organizaciones
-          </Link>
-        </div>
-
-        <h1 className="text-2xl font-bold mb-4">
-          Usuarios de {org?.nombre ?? 'Organización'}
-        </h1>
+    <AuthGate roles={["SUPERADMIN"]}>
+      <div className="page-container">
+        <PageHeader
+          title={`Usuarios de ${org?.nombre ?? "organización"}`}
+          subtitle="Visualización de usuarios y roles para esta organización"
+        >
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/superadmin/organizaciones">
+              ← Volver a organizaciones
+            </Link>
+          </Button>
+        </PageHeader>
 
         {msg && (
-          <div className="mb-4 p-3 rounded bg-red-100 text-red-800">{msg}</div>
+          <div
+            className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+            role="alert"
+          >
+            {msg}
+          </div>
         )}
 
-        <Card>
+        <Card className="overflow-hidden rounded-xl border-neutral-200">
           <CardHeader>
-            <CardTitle>Listado de usuarios</CardTitle>
+            <CardTitle className="text-neutral-900">
+              Listado de usuarios
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
-              <p>Cargando…</p>
+              <div className="flex items-center justify-center py-12 text-sm text-neutral-500">
+                Cargando…
+              </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Roles</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Último login</TableHead>
+                  <TableRow className="border-neutral-200 hover:bg-transparent">
+                    <TableHead className="font-semibold text-neutral-700">
+                      Nombre
+                    </TableHead>
+                    <TableHead className="font-semibold text-neutral-700">
+                      Email
+                    </TableHead>
+                    <TableHead className="font-semibold text-neutral-700">
+                      Roles
+                    </TableHead>
+                    <TableHead className="font-semibold text-neutral-700">
+                      Estado
+                    </TableHead>
+                    <TableHead className="font-semibold text-neutral-700">
+                      Último login
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {usuarios.map((u) => (
-                    <TableRow key={u.id}>
-                      <TableCell>{u.apellido}, {u.nombre}</TableCell>
-                      <TableCell>{u.email}</TableCell>
+                    <TableRow key={u.id} className="border-neutral-100">
+                      <TableCell className="font-medium text-neutral-900">
+                        {u.apellido}, {u.nombre}
+                      </TableCell>
+                      <TableCell className="text-neutral-600">
+                        {u.email}
+                      </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {u.roles?.map((r) => (
-                            <Badge key={r} variant="secondary">{r}</Badge>
+                            <Badge key={r} variant="secondary" className="font-medium">
+                              {r}
+                            </Badge>
                           ))}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={u.estado === 'ACTIVO' ? 'default' : 'outline'}>
+                        <Badge
+                          variant={u.estado === "ACTIVO" ? "default" : "outline"}
+                          className="font-medium"
+                        >
                           {u.estado}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-neutral-600">
                         {u.ultimoLogin
-                          ? new Date(u.ultimoLogin).toLocaleString('es-AR')
-                          : '-'}
+                          ? new Date(u.ultimoLogin).toLocaleString("es-AR")
+                          : "—"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -133,11 +163,13 @@ export default function SuperadminOrgUsuariosPage() {
               </Table>
             )}
             {!loading && usuarios.length === 0 && (
-              <p className="text-gray-500">No hay usuarios en esta organización.</p>
+              <div className="border-t border-neutral-100 bg-neutral-50/60 px-6 py-4 text-sm text-neutral-500">
+                No hay usuarios en esta organización.
+              </div>
             )}
           </CardContent>
         </Card>
-      </main>
+      </div>
     </AuthGate>
   );
 }
