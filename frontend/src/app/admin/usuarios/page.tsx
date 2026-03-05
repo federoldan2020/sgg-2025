@@ -230,7 +230,7 @@ export default function AdminUsuariosPage() {
     title,
     description,
     children,
-    maxWidth = 'max-w-2xl',
+    maxWidth = 'max-w-3xl',
     onClickStop,
   }: {
     title: string;
@@ -438,7 +438,7 @@ export default function AdminUsuariosPage() {
             <ModalDialog
               title="Nuevo usuario"
               description="Completa los datos del nuevo usuario."
-              maxWidth="max-w-2xl"
+              maxWidth="max-w-3xl"
             >
               <form
                 className="space-y-6"
@@ -526,7 +526,7 @@ export default function AdminUsuariosPage() {
             <ModalDialog
               title="Editar usuario"
               description="Modifica los datos del usuario."
-              maxWidth="max-w-2xl"
+              maxWidth="max-w-3xl"
             >
               <form
                 className="space-y-6"
@@ -643,7 +643,7 @@ export default function AdminUsuariosPage() {
             <ModalDialog
               title="Sesiones activas"
               description="Dispositivos y sesiones del usuario."
-              maxWidth="max-w-2xl"
+              maxWidth="max-w-3xl"
             >
               {sesionesUsuario.length === 0 ? (
                 <p className="py-6 text-center text-sm text-neutral-500">

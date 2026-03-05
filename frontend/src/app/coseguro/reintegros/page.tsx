@@ -990,7 +990,7 @@ export default function ReintegrosPage() {
 
       {/* Sheet: Detalle */}
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Detalle de solicitud</SheetTitle>
             <SheetDescription>Información completa de la solicitud de reintegro</SheetDescription>
@@ -1067,7 +1067,7 @@ export default function ReintegrosPage() {
 
       {/* Sheet: Crear nueva solicitud */}
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
           <SheetHeader className="mb-6">
             <SheetTitle>Nueva solicitud</SheetTitle>
             <SheetDescription>
