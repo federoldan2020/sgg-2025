@@ -501,8 +501,8 @@ export default function NuevoPadronPage() {
       setCreando(false);
     }
   };
-  const fc = "flex h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-neutral-400";
-  const selectClass = `flex h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 appearance-none`;
+  const fc = "h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-neutral-400";
+  const selectClass = `h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 appearance-none`;
   const padronEnabled = !!(afiliado || sinResultadosDniExacto);
 
   return (
@@ -908,7 +908,7 @@ function ColateralRow({
   onChange: (patch: Partial<ColateralUI>) => void;
   onRemove: () => void;
 }) {
-  const fc = "flex h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-neutral-400";
+  const fc = "h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-neutral-400";
   return (
     <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-medical-100 text-medical-600">
