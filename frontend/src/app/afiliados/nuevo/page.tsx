@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api, getErrorMessage } from "@/servicios/api";
 import { InputFecha } from "@/components/InputFecha";
@@ -9,7 +10,29 @@ import type {
   CrearAfiliadoResp,
 } from "@/tipos/dtos";
 import { AfiliadoTipo, Sexo } from "@/tipos/modelos";
-import { User, Phone, MapPin, Calendar, CreditCard, FileText, Save, RotateCcw, CheckCircle, XCircle, Info } from "lucide-react";
+import {
+  User,
+  Phone,
+  MapPin,
+  CreditCard,
+  FileText,
+  Save,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  Info,
+  } from "lucide-react";
+import { PageHeader } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 
 const SEXOS: Sexo[] = ["M", "F", "X"];
 const TIPOS: AfiliadoTipo[] = ["TITULAR", "FAMILIAR", "JUBILADO", "OTRO"];
@@ -19,21 +42,14 @@ export default function NuevoAfiliadoPage() {
   const afiliadoId = searchParams.get("afiliadoId");
   const isEdit = Boolean(afiliadoId);
 
-  // Requeridos
   const [dni, setDni] = useState("");
   const [apellido, setApellido] = useState("");
   const [nombre, setNombre] = useState("");
-
-  // Personales
   const [cuit, setCuit] = useState("");
   const [sexo, setSexo] = useState<Sexo | "">("");
   const [tipo, setTipo] = useState<AfiliadoTipo | "">("");
-
-  // Contacto
   const [telefono, setTelefono] = useState("");
   const [celular, setCelular] = useState("");
-
-  // Domicilio
   const [calle, setCalle] = useState("");
   const [numero, setNumero] = useState("");
   const [orientacion, setOrientacion] = useState("");
@@ -44,8 +60,6 @@ export default function NuevoAfiliadoPage() {
   const [casa, setCasa] = useState("");
   const [manzana, setManzana] = useState("");
   const [localidad, setLocalidad] = useState("");
-
-  // Otros
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [numeroSocio, setNumeroSocio] = useState("");
   const [cupo, setCupo] = useState("");
@@ -139,21 +153,17 @@ export default function NuevoAfiliadoPage() {
     setMsg(null);
     setLoading(true);
     try {
-      // helper: si string vacío => undefined
       const opt = (s: string) => (s?.trim() ? s.trim() : undefined);
 
       const payload: CrearAfiliadoDto = {
         dni: Number(dni),
         apellido: apellido.trim(),
         nombre: nombre.trim(),
-
         cuit: opt(cuit),
         sexo: sexo || undefined,
         tipo: tipo || undefined,
-
         telefono: opt(telefono),
         celular: opt(celular),
-
         calle: opt(calle),
         numero: opt(numero),
         orientacion: opt(orientacion),
@@ -164,14 +174,10 @@ export default function NuevoAfiliadoPage() {
         casa: opt(casa),
         manzana: opt(manzana),
         localidad: opt(localidad),
-
         fechaNacimiento: opt(fechaNacimiento),
         numeroSocio: opt(numeroSocio),
-
-        // Enviar decimales como string (Prisma.Decimal-friendly)
         cupo: opt(cupo),
         saldo: opt(saldo),
-
         observaciones: opt(observaciones),
       };
 
@@ -196,167 +202,166 @@ export default function NuevoAfiliadoPage() {
     }
   };
 
-  // Parse message type and content
   const parseMessage = (message: string | null) => {
     if (!message) return null;
-    
-    if (message.startsWith('SUCCESS:')) {
-      return { type: 'success', content: message.substring(8) };
-    } else if (message.startsWith('ERROR:')) {
-      return { type: 'error', content: message.substring(6) };
-    } else if (message.startsWith('INFO:')) {
-      return { type: 'info', content: message.substring(5) };
-    } else {
-      // Legacy support for old messages
-      return { 
-        type: message.includes('Error') || message.includes('❌') ? 'error' : 'success', 
-        content: message.replace(/^(✅|❌)\s*/, '')
-      };
+    if (message.startsWith("SUCCESS:")) {
+      return { type: "success" as const, content: message.substring(8) };
     }
+    if (message.startsWith("ERROR:")) {
+      return { type: "error" as const, content: message.substring(6) };
+    }
+    if (message.startsWith("INFO:")) {
+      return { type: "info" as const, content: message.substring(5) };
+    }
+    return {
+      type: (message.includes("Error") || message.includes("❌") ? "error" : "success") as "error" | "success",
+      content: message.replace(/^(✅|❌)\s*/, ""),
+    };
   };
 
   const messageInfo = parseMessage(msg);
 
-  return (
-    <div className="page-container">
-      {/* Page Header */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">
-            {isEdit ? "Editar Afiliado" : "Nuevo Afiliado"}
-          </h1>
-          <p className="page-subtitle">
-            {isEdit
-              ? "Actualice la información del afiliado"
-              : "Complete la información del nuevo afiliado en el sistema"}
-          </p>
-        </div>
-      </div>
+  const formInputClass = "rounded-lg border-neutral-200 bg-white";
+  const formGridClass = "grid gap-4 sm:grid-cols-2 lg:grid-cols-3";
 
-      {/* Enhanced Message System */}
+  return (
+    <div className="mx-auto max-w-4xl">
+      <PageHeader
+        title={isEdit ? "Editar Afiliado" : "Nuevo Afiliado"}
+        subtitle={
+          isEdit
+            ? "Actualice la información del afiliado"
+            : "Complete la información del nuevo afiliado en el sistema"
+        }
+      >
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/afiliados">Volver al listado</Link>
+        </Button>
+      </PageHeader>
+
       {messageInfo && (
-        <div className={`alert ${messageInfo.type === 'error' ? 'alert-error' : messageInfo.type === 'success' ? 'alert-success' : 'alert-info'}`}>
-          <div className="alert-content">
-            <div className="alert-icon">
-              {messageInfo.type === 'error' && <XCircle size={20} />}
-              {messageInfo.type === 'success' && <CheckCircle size={20} />}
-              {messageInfo.type === 'info' && <Info size={20} />}
-            </div>
-            <div className="alert-text">{messageInfo.content}</div>
-            <button 
-              className="alert-close"
-              onClick={() => setMsg(null)}
-              aria-label="Cerrar mensaje"
-            >
-              ×
-            </button>
-          </div>
+        <div
+          className={`mb-6 flex items-start gap-3 rounded-lg border px-4 py-3 ${
+            messageInfo.type === "error"
+              ? "border-red-200 bg-red-50 text-red-800"
+              : messageInfo.type === "success"
+                ? "border-medical-200 bg-medical-50 text-medical-800"
+                : "border-neutral-200 bg-neutral-50 text-neutral-800"
+          }`}
+          role="alert"
+        >
+          <span className="shrink-0">
+            {messageInfo.type === "error" && <XCircle className="size-5" />}
+            {messageInfo.type === "success" && <CheckCircle className="size-5" />}
+            {messageInfo.type === "info" && <Info className="size-5" />}
+          </span>
+          <span className="flex-1 text-sm font-medium">{messageInfo.content}</span>
+          <button
+            type="button"
+            onClick={() => setMsg(null)}
+            className="shrink-0 rounded p-1 hover:bg-black/10"
+            aria-label="Cerrar mensaje"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      <div className="page-content">
-        {/* Información Personal */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <User size={20} />
-                Información Personal
-              </h2>
-              <p className="form-section-subtitle">
-                Datos básicos de identificación del afiliado
-              </p>
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-3">
-            <div className="form-group">
-              <label className="form-label">DNI *</label>
-              <input
-                className="form-input"
+      {/* Información Personal */}
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <User className="size-5 text-neutral-600" />
+            Información Personal
+          </CardTitle>
+          <CardDescription>Datos básicos de identificación del afiliado</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className={formGridClass}>
+            <div className="space-y-2">
+              <Label htmlFor="dni">DNI *</Label>
+              <Input
+                id="dni"
                 inputMode="numeric"
                 value={dni}
                 onChange={(e) => setDni(e.target.value.replace(/\D+/g, ""))}
                 placeholder="Ejemplo: 12345678"
-                required
+                className={formInputClass}
                 disabled={isEdit}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">CUIT/CUIL</label>
-              <input
-                className="form-input"
+            <div className="space-y-2">
+              <Label htmlFor="cuit">CUIT/CUIL</Label>
+              <Input
+                id="cuit"
                 value={cuit}
                 onChange={(e) => setCuit(e.target.value)}
                 placeholder="20-12345678-9"
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Número de Socio</label>
-              <input
-                className="form-input"
+            <div className="space-y-2">
+              <Label htmlFor="numeroSocio">Número de Socio</Label>
+              <Input
+                id="numeroSocio"
                 value={numeroSocio}
                 onChange={(e) => setNumeroSocio(e.target.value)}
                 placeholder="Opcional"
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Apellido *</label>
-              <input
-                className="form-input"
+            <div className="space-y-2">
+              <Label htmlFor="apellido">Apellido *</Label>
+              <Input
+                id="apellido"
                 value={apellido}
                 onChange={(e) => setApellido(e.target.value)}
                 placeholder="Apellido del afiliado"
-                required
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Nombre *</label>
-              <input
-                className="form-input"
+            <div className="space-y-2">
+              <Label htmlFor="nombre">Nombre *</Label>
+              <Input
+                id="nombre"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 placeholder="Nombre del afiliado"
-                required
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Fecha de Nacimiento</label>
+            <div className="space-y-2">
+              <Label htmlFor="fechaNacimiento">Fecha de Nacimiento</Label>
               <InputFecha
                 value={fechaNacimiento}
                 onChange={(iso) => setFechaNacimiento(iso)}
                 placeholder="dd/mm/aaaa"
-                className="form-input"
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Sexo</label>
+            <div className="space-y-2">
+              <Label htmlFor="sexo">Sexo</Label>
               <select
-                className="form-select"
+                id="sexo"
                 value={sexo}
                 onChange={(e) => setSexo(e.target.value as Sexo | "")}
+                className={`h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500 ${formInputClass}`}
               >
                 <option value="">Seleccionar</option>
                 {SEXOS.map((s) => (
                   <option key={s} value={s}>
-                    {s === 'M' ? 'Masculino' : s === 'F' ? 'Femenino' : 'No binario'}
+                    {s === "M" ? "Masculino" : s === "F" ? "Femenino" : "No binario"}
                   </option>
                 ))}
               </select>
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Tipo de Afiliado</label>
+            <div className="space-y-2">
+              <Label htmlFor="tipo">Tipo de Afiliado</Label>
               <select
-                className="form-select"
+                id="tipo"
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value as AfiliadoTipo | "")}
+                className={`h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500 ${formInputClass}`}
               >
                 <option value="">Seleccionar tipo</option>
                 {TIPOS.map((t) => (
@@ -367,271 +372,170 @@ export default function NuevoAfiliadoPage() {
               </select>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Información de Contacto */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <Phone size={20} />
-                Información de Contacto
-              </h2>
-              <p className="form-section-subtitle">
-                Datos para comunicación con el afiliado
-              </p>
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-2">
-            <div className="form-group">
-              <label className="form-label">Teléfono</label>
-              <input
-                className="form-input"
+      {/* Contacto */}
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Phone className="size-5 text-neutral-600" />
+            Información de Contacto
+          </CardTitle>
+          <CardDescription>Datos para comunicación con el afiliado</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="telefono">Teléfono</Label>
+              <Input
+                id="telefono"
                 value={telefono}
                 onChange={(e) => setTelefono(e.target.value)}
                 placeholder="11-1234-5678"
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Celular</label>
-              <input
-                className="form-input"
+            <div className="space-y-2">
+              <Label htmlFor="celular">Celular</Label>
+              <Input
+                id="celular"
                 value={celular}
                 onChange={(e) => setCelular(e.target.value)}
                 placeholder="11-1234-5678"
+                className={formInputClass}
               />
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Domicilio */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <MapPin size={20} />
-                Domicilio
-              </h2>
-              <p className="form-section-subtitle">
-                Dirección de residencia del afiliado
-              </p>
-            </div>
+      {/* Domicilio */}
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MapPin className="size-5 text-neutral-600" />
+            Domicilio
+          </CardTitle>
+          <CardDescription>Dirección de residencia del afiliado</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { id: "calle", label: "Calle", value: calle, set: setCalle, ph: "Nombre de la calle" },
+              { id: "numero", label: "Número", value: numero, set: setNumero, ph: "1234" },
+              { id: "orientacion", label: "Orientación", value: orientacion, set: setOrientacion, ph: "Entre calles..." },
+              { id: "barrio", label: "Barrio", value: barrio, set: setBarrio, ph: "Nombre del barrio" },
+              { id: "piso", label: "Piso", value: piso, set: setPiso, ph: "1" },
+              { id: "depto", label: "Departamento", value: depto, set: setDepto, ph: "A" },
+              { id: "monoblock", label: "Monoblock", value: monoblock, set: setMonoblock, ph: "1" },
+              { id: "casa", label: "Casa", value: casa, set: setCasa, ph: "1" },
+              { id: "manzana", label: "Manzana", value: manzana, set: setManzana, ph: "A" },
+              { id: "localidad", label: "Localidad", value: localidad, set: setLocalidad, ph: "Ciudad/Localidad" },
+            ].map(({ id, label, value, set, ph }) => (
+              <div key={id} className="space-y-2">
+                <Label htmlFor={id}>{label}</Label>
+                <Input
+                  id={id}
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  placeholder={ph}
+                  className={formInputClass}
+                />
+              </div>
+            ))}
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="form-grid form-grid-4">
-            <div className="form-group">
-              <label className="form-label">Calle</label>
-              <input
-                className="form-input"
-                value={calle}
-                onChange={(e) => setCalle(e.target.value)}
-                placeholder="Nombre de la calle"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Número</label>
-              <input
-                className="form-input"
-                value={numero}
-                onChange={(e) => setNumero(e.target.value)}
-                placeholder="1234"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Orientación</label>
-              <input
-                className="form-input"
-                value={orientacion}
-                onChange={(e) => setOrientacion(e.target.value)}
-                placeholder="Entre calles..."
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Barrio</label>
-              <input
-                className="form-input"
-                value={barrio}
-                onChange={(e) => setBarrio(e.target.value)}
-                placeholder="Nombre del barrio"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Piso</label>
-              <input
-                className="form-input"
-                value={piso}
-                onChange={(e) => setPiso(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Departamento</label>
-              <input
-                className="form-input"
-                value={depto}
-                onChange={(e) => setDepto(e.target.value)}
-                placeholder="A"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Monoblock</label>
-              <input
-                className="form-input"
-                value={monoblock}
-                onChange={(e) => setMonoblock(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Casa</label>
-              <input
-                className="form-input"
-                value={casa}
-                onChange={(e) => setCasa(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Manzana</label>
-              <input
-                className="form-input"
-                value={manzana}
-                onChange={(e) => setManzana(e.target.value)}
-                placeholder="A"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Localidad</label>
-              <input
-                className="form-input"
-                value={localidad}
-                onChange={(e) => setLocalidad(e.target.value)}
-                placeholder="Ciudad/Localidad"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Información Financiera */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <CreditCard size={20} />
-                Información Financiera
-              </h2>
-              <p className="form-section-subtitle">
-                Datos económicos y límites del afiliado
-              </p>
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-2">
-            <div className="form-group">
-              <label className="form-label">Cupo Disponible</label>
-              <input
-                className="form-input"
+      {/* Información Financiera */}
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="size-5 text-neutral-600" />
+            Información Financiera
+          </CardTitle>
+          <CardDescription>Datos económicos y límites del afiliado</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="cupo">Cupo Disponible</Label>
+              <Input
+                id="cupo"
                 type="number"
                 step="0.01"
                 value={cupo}
                 onChange={(e) => setCupo(e.target.value)}
                 placeholder="0.00"
+                className={formInputClass}
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Saldo Inicial</label>
-              <input
-                className="form-input"
+            <div className="space-y-2">
+              <Label htmlFor="saldo">Saldo Inicial</Label>
+              <Input
+                id="saldo"
                 type="number"
                 step="0.01"
                 value={saldo}
                 onChange={(e) => setSaldo(e.target.value)}
                 placeholder="0.00"
+                className={formInputClass}
               />
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Observaciones */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <FileText size={20} />
-                Observaciones
-              </h2>
-              <p className="form-section-subtitle">
-                Información adicional sobre el afiliado
-              </p>
-            </div>
+      {/* Observaciones */}
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="size-5 text-neutral-600" />
+            Observaciones
+          </CardTitle>
+          <CardDescription>Información adicional sobre el afiliado</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="observaciones">Notas y comentarios</Label>
+            <textarea
+              id="observaciones"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              rows={4}
+              placeholder="Agregue cualquier información adicional relevante..."
+              className={`w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-medical-500 ${formInputClass}`}
+            />
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="form-grid">
-            <div className="form-group form-group-full">
-              <label className="form-label">Notas y comentarios</label>
-              <textarea
-                className="form-textarea"
-                value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
-                rows={4}
-                placeholder="Agregue cualquier información adicional relevante..."
-              />
-            </div>
+      {/* Acciones */}
+      <Card className="rounded-xl border-neutral-200">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
+          <p className="text-sm text-neutral-500">Los campos marcados con * son obligatorios</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={limpiar} disabled={loading} type="button">
+              <RotateCcw className="size-4" />
+              Limpiar
+            </Button>
+            <Button onClick={crear} disabled={!canSubmit} type="button">
+              {loading ? (
+                <>
+                  <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  {isEdit ? "Guardando..." : "Creando..."}
+                </>
+              ) : (
+                <>
+                  <Save className="size-4" />
+                  {isEdit ? "Guardar cambios" : "Crear Afiliado"}
+                </>
+              )}
+            </Button>
           </div>
-        </div>
-
-        {/* Form Actions */}
-        <div className="form-section">
-          <div className="form-actions">
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                className="btn btn-secondary"
-                onClick={limpiar}
-                disabled={loading}
-                type="button"
-              >
-                <RotateCcw size={16} />
-                Limpiar Formulario
-              </button>
-              
-              <button
-                className={`btn ${canSubmit ? 'btn-primary' : 'btn-disabled'}`}
-                onClick={crear}
-                disabled={!canSubmit}
-                type="submit"
-              >
-                {loading ? (
-                  <>
-                    <div className="spinner" style={{ width: 16, height: 16 }} />
-                    {isEdit ? "Guardando..." : "Creando..."}
-                  </>
-                ) : (
-                  <>
-                    <Save size={16} />
-                    {isEdit ? "Guardar cambios" : "Crear Afiliado"}
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="form-help">
-              Los campos marcados con * son obligatorios
-            </div>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

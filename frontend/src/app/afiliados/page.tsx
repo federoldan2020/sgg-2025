@@ -2,11 +2,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
 import { InputFecha } from "@/components/InputFecha";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -15,6 +25,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui-kit";
+import {
+  Search,
+  UserPlus,
+  Eye,
+  UserMinus,
+  Pencil,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Trash2,
+  AlertTriangle,
+  Check,
+  XCircle,
+} from "lucide-react";
 
 // ---------------- Types esperados del backend ----------------
 type AfiliadoListItem = {
@@ -298,101 +325,53 @@ export default function AfiliadosListadoPage() {
   };
 
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Listado de Afiliados</h1>
-          <p className="page-subtitle">
-            Gestión y consulta de afiliados del sistema
-          </p>
-        </div>
-        <div className="page-actions">
-          <a href="/padrones/nuevo" className="btn btn-primary">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <line x1="19" y1="8" x2="19" y2="14" />
-              <line x1="22" y1="11" x2="16" y2="11" />
-            </svg>
+    <div className="mx-auto max-w-6xl">
+      <PageHeader
+        title="Listado de Afiliados"
+        subtitle="Gestión y consulta de afiliados del sistema"
+      >
+        <Button asChild className="gap-2">
+          <Link href="/afiliados/nuevo">
+            <UserPlus className="size-4" />
             Nuevo Afiliado
-          </a>
-        </div>
-      </div>
+          </Link>
+        </Button>
+      </PageHeader>
 
-      {/* Mensaje de error */}
       {msg && (
         <div
-          className={`alert ${
+          className={`mb-6 flex items-center gap-3 rounded-lg border px-4 py-3 ${
             msg.startsWith("SUCCESS:")
-              ? "alert-success"
+              ? "border-medical-200 bg-medical-50 text-medical-800"
               : msg.startsWith("ERROR:")
-              ? "alert-error"
-              : "alert-warning"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
           }`}
+          role="alert"
         >
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                {msg.startsWith("SUCCESS:") ? (
-                  <polyline points="16 12 11 17 8 14" />
-                ) : msg.startsWith("ERROR:") ? (
-                  <>
-                    <line x1="15" y1="9" x2="9" y2="15" />
-                    <line x1="9" y1="9" x2="15" y2="15" />
-                  </>
-                ) : (
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                )}
-              </svg>
-            </div>
-            <div className="alert-text">
-              {msg.replace(/^(SUCCESS:|ERROR:)/, "")}
-            </div>
-          </div>
+          {msg.startsWith("SUCCESS:") ? (
+            <Check className="size-5 shrink-0" />
+          ) : msg.startsWith("ERROR:") ? (
+            <XCircle className="size-5 shrink-0" />
+          ) : (
+            <AlertTriangle className="size-5 shrink-0" />
+          )}
+          <span className="text-sm font-medium">
+            {msg.replace(/^(SUCCESS:|ERROR:)/, "")}
+          </span>
         </div>
       )}
 
-      <div className="page-content">
-        {/* Filtros y controles */}
-        <div className="afiliados-controls">
-          <div className="search-section">
-            <div className="search-input-container">
-              <svg
-                className="search-icon"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader className="border-b border-neutral-100 pb-4">
+          <CardTitle className="text-base">Filtros y búsqueda</CardTitle>
+          <CardDescription>Refiná el listado por estado, coseguro o colaterales</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="relative min-w-[280px] flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
               <Input
-                className="search-input"
                 placeholder="Buscar por DNI, apellido, nombre o padrón (ej: 642574-1)..."
                 aria-label="Buscar afiliados"
                 value={q}
@@ -400,607 +379,329 @@ export default function AfiliadosListadoPage() {
                   setQ(e.target.value);
                   setPage(1);
                 }}
+                className="pl-9 rounded-lg border-neutral-200"
               />
               {q && (
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
                   onClick={() => {
                     setQ("");
                     setPage(1);
                   }}
-                  className="search-clear"
                   title="Limpiar búsqueda"
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
+                  <X className="size-4" />
                 </Button>
               )}
             </div>
-          </div>
-
-          <div className="filters-section">
-            <div className="filter-group">
-              <label className="filter-label">Estado</label>
-              <select
-                className="filter-select"
-                aria-label="Filtro de estado"
-                value={estado}
-                onChange={(e) => {
-                  setEstado(e.target.value as any);
-                  setPage(1);
-                }}
-              >
-                <option value="todos">Todos los estados</option>
-                <option value="activos">Solo activos</option>
-                <option value="baja">Solo dados de baja</option>
-              </select>
-            </div>
-
-            <div className="checkbox-group">
-              <label className="checkbox-label">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-neutral-600">Estado</Label>
+                <select
+                  aria-label="Filtro de estado"
+                  value={estado}
+                  onChange={(e) => {
+                    setEstado(e.target.value as any);
+                    setPage(1);
+                  }}
+                  className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+                >
+                  <option value="todos">Todos los estados</option>
+                  <option value="activos">Solo activos</option>
+                  <option value="baja">Solo dados de baja</option>
+                </select>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="checkbox-input"
                   checked={soloCoseguro}
                   onChange={(e) => {
                     setSoloCoseguro(e.target.checked);
                     setPage(1);
                   }}
+                  className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
                 />
-                <span className="checkbox-text">Con coseguro</span>
+                Con coseguro
               </label>
-              <label className="checkbox-label">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="checkbox-input"
                   checked={soloColaterales}
                   onChange={(e) => {
                     setSoloColaterales(e.target.checked);
                     setPage(1);
                   }}
+                  className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
                 />
-                <span className="checkbox-text">Con colaterales</span>
+                Con colaterales
               </label>
-            </div>
-
-            {(hasActiveFilters as any) && (
-              <Button
-                variant="secondary"
-                onClick={handleClearFilters}
-                title="Limpiar todos los filtros"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearFilters}
+                  title="Limpiar todos los filtros"
+                  className="gap-1"
                 >
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  <line x1="10" y1="11" x2="10" y2="17" />
-                  <line x1="14" y1="11" x2="14" y2="17" />
-                </svg>
+                  <Trash2 className="size-4" />
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 pt-3">
+            {loading ? (
+              <span className="flex items-center gap-2 text-sm text-neutral-500">
+                <span className="size-4 animate-spin rounded-full border-2 border-neutral-300 border-t-medical-500" />
+                Cargando...
+              </span>
+            ) : (
+              <span className="text-sm text-neutral-600">
+                {total === 0
+                  ? "0 resultados"
+                  : `${(page - 1) * limit + 1}-${Math.min(page * limit, total)} de ${total}`}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="limit-afiliados" className="text-sm text-neutral-600">
+                Filas por página
+              </Label>
+              <select
+                id="limit-afiliados"
+                aria-label="Filas por página"
+                value={String(limit)}
+                onChange={(e) => onChangeLimit(Number(e.target.value))}
+                className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+              >
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n} por página
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6 overflow-hidden rounded-xl border-neutral-200">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <span className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-medical-500" />
+            <p className="mt-3 text-sm text-neutral-500">Cargando afiliados...</p>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mb-4 text-4xl">{hasActiveFilters ? "🔍" : "👥"}</div>
+            <h3 className="text-lg font-semibold text-neutral-900">
+              {hasActiveFilters ? "Sin resultados" : "No hay afiliados registrados"}
+            </h3>
+            <p className="mt-1 max-w-sm text-sm text-neutral-600">
+              {hasActiveFilters
+                ? "No se encontraron afiliados que coincidan con los filtros aplicados"
+                : "Comienza agregando el primer afiliado al sistema"}
+            </p>
+            {hasActiveFilters ? (
+              <Button variant="outline" className="mt-4" onClick={handleClearFilters}>
                 Limpiar filtros
+              </Button>
+            ) : (
+              <Button asChild className="mt-4 gap-2">
+                <Link href="/afiliados/nuevo">
+                  <UserPlus className="size-4" />
+                  Agregar primer afiliado
+                </Link>
               </Button>
             )}
           </div>
-
-          <div className="pagination-controls">
-            <div className="results-info">
-              {loading ? (
-                <div className="loading-indicator">
-                  <svg
-                    className="spinner"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                  Cargando...
-                </div>
-              ) : (
-                <span className="results-text">
-                  {total === 0
-                    ? "0 resultados"
-                    : `${(page - 1) * limit + 1}-${Math.min(
-                        page * limit,
-                        total
-                      )} de ${total}`}
-                </span>
-              )}
-            </div>
-            <select
-              className="pagination-select"
-              aria-label="Filas por página"
-              value={String(limit)}
-              onChange={(e) => onChangeLimit(Number(e.target.value))}
-            >
-              {[10, 20, 50, 100].map((n) => (
-                <option key={n} value={n}>
-                  {n} por página
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Tabla de resultados */}
-        <div className="afiliados-table-container">
-          {loading ? (
-            <div className="loading-state">
-              <div className="loading-icon">
-                <svg
-                  className="spinner"
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-              </div>
-              <div className="loading-text">Cargando afiliados...</div>
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">
-                {hasActiveFilters ? "🔍" : "👥"}
-              </div>
-              <div className="empty-state-title">
-                {hasActiveFilters
-                  ? "Sin resultados"
-                  : "No hay afiliados registrados"}
-              </div>
-              <div className="empty-state-text">
-                {hasActiveFilters
-                  ? "No se encontraron afiliados que coincidan con los filtros aplicados"
-                  : "Comienza agregando el primer afiliado al sistema"}
-              </div>
-              {hasActiveFilters ? (
-                <button
-                  onClick={handleClearFilters}
-                  className="btn btn-secondary"
-                >
-                  Limpiar filtros
-                </button>
-              ) : (
-                // eslint-disable-next-line @next/next/no-html-link-for-pages
-                <a href="/padrones/nuevo" className="btn btn-primary">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <line x1="19" y1="8" x2="19" y2="14" />
-                    <line x1="22" y1="11" x2="16" y2="11" />
-                  </svg>
-                  Agregar primer afiliado
-                </a>
-              )}
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Afiliado</th>
-                    <th>DNI</th>
-                    <th>Estado</th>
-                    <th>Padrones Activos</th>
-                    <th className="table-col-center">Coseguro</th>
-                    <th className="table-col-center">Colaterales</th>
-                    <th className="table-col-numeric">Deuda Actual</th>
-                    <th className="table-col-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={String(r.id)}>
-                      <td>
-                        <div className="afiliado-info">
-                          <div className="afiliado-avatar">
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                              <circle cx="12" cy="7" r="4" />
-                            </svg>
-                          </div>
-                          <div className="afiliado-name">
-                            {r.apellidoNombre}
-                          </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-neutral-200 hover:bg-transparent">
+                  <TableHead className="font-semibold text-neutral-700">Afiliado</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">DNI</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">Estado</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">Padrones</TableHead>
+                  <TableHead className="text-center font-semibold text-neutral-700">Coseguro</TableHead>
+                  <TableHead className="text-center font-semibold text-neutral-700">Colaterales</TableHead>
+                  <TableHead className="text-right font-semibold text-neutral-700">Deuda</TableHead>
+                  <TableHead className="text-right font-semibold text-neutral-700">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={String(r.id)} className="border-neutral-100">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600">
+                          <Eye className="size-4" />
                         </div>
-                      </td>
-                      <td>
-                        <span className="dni-badge">{r.dni || "—"}</span>
-                      </td>
-                      <td>
-                        <span
-                          className={`status-badge ${
-                            r.estado === "activo"
-                              ? "status-active"
-                              : "status-inactive"
-                          }`}
+                        <span className="font-medium text-neutral-900">{r.apellidoNombre}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-mono">
+                        {r.dni || "—"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={r.estado === "activo" ? "default" : "outline"} className="gap-1">
+                        {r.estado === "activo" ? <Check className="size-3" /> : <XCircle className="size-3" />}
+                        {r.estado === "activo" ? "Activo" : "Baja"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {r.padrones.length > 0 ? (
+                          r.padrones.map((p) => (
+                            <Badge key={String(p.id)} variant="outline" className="font-mono text-xs" title={p.vigente || ""}>
+                              {p.nro}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-neutral-500">Sin padrones</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.coseguro ? "default" : "secondary"}>
+                        {r.coseguro ? "Sí" : "No"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.colaterales ? "default" : "secondary"}>
+                        {r.colaterales ? "Sí" : "No"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums text-neutral-700">
+                      {r.deudaActual || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button asChild variant="outline" size="sm" className="gap-1">
+                          <Link href={`/afiliados/${r.id}`}>
+                            <Eye className="size-3.5" />
+                            Ver
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Dar de baja"
+                          onClick={() => abrirBaja(r)}
+                          disabled={r.padrones.length === 0}
+                          className="gap-1"
                         >
-                          {r.estado === "activo" ? (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20,6 9,17 4,12" />
-                            </svg>
-                          ) : (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          )}
-                          {r.estado === "activo" ? "Activo" : "Baja"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="padrones-container">
-                          {r.padrones.length > 0 ? (
-                            r.padrones.map((p) => (
-                              <span
-                                key={String(p.id)}
-                                className="padron-chip"
-                                title={p.vigente || ""}
-                              >
-                                {p.nro}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="no-data">Sin padrones</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="table-col-center">
-                        <span
-                          className={`feature-badge ${
-                            r.coseguro ? "feature-yes" : "feature-no"
-                          }`}
+                          <UserMinus className="size-3.5" />
+                          Baja
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Modificar padrón"
+                          onClick={() => abrirEditar(r)}
+                          disabled={r.padrones.length === 0}
+                          className="gap-1"
                         >
-                          {r.coseguro ? (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20,6 9,17 4,12" />
-                            </svg>
-                          ) : (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          )}
-                          {r.coseguro ? "Sí" : "No"}
-                        </span>
-                      </td>
-                      <td className="table-col-center">
-                        <span
-                          className={`feature-badge ${
-                            r.colaterales ? "feature-yes" : "feature-no"
-                          }`}
-                        >
-                          {r.colaterales ? (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20,6 9,17 4,12" />
-                            </svg>
-                          ) : (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          )}
-                          {r.colaterales ? "Sí" : "No"}
-                        </span>
-                      </td>
-                      <td className="table-col-numeric">
-                        <span className="deuda-amount">
-                          {r.deudaActual || "—"}
-                        </span>
-                      </td>
-                      <td className="table-col-center">
-                        <div
-                          className="btn-group"
-                          style={{ display: "inline-flex", gap: 8 }}
-                        >
-                          <Button asChild variant="secondary" size="sm">
-                            <a href={`/afiliados/${r.id}`}>
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                            Ver detalle
-                            </a>
-                          </Button>
-
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            title="Dar de baja afiliado o uno de sus padrones"
-                            onClick={() => abrirBaja(r)}
-                            disabled={r.padrones.length === 0}
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20,6 9,17 4,12" />
-                            </svg>
-                            Baja
-                          </Button>
-
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            title="Modificar datos de un padrón del afiliado"
-                            onClick={() => abrirEditar(r)}
-                            disabled={r.padrones.length === 0}
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                            </svg>
-                            Modificar
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Paginación */}
-        {!loading && rows.length > 0 && (
-          <div className="pagination-container">
-            <div className="pagination-info">
-              <span className="pagination-text">
-                Página {page} de {totalPages} ({total} resultados)
-              </span>
-            </div>
-            <div className="pagination-controls">
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage(1)}
-                disabled={!canPrev}
-                title="Primera página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="11,17 6,12 11,7" />
-                  <polyline points="18,17 13,12 18,7" />
-                </svg>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={!canPrev}
-                title="Página anterior"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="15,18 9,12 15,6" />
-                </svg>
-              </Button>
-              <span className="pagination-current">{page}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={!canNext}
-                title="Página siguiente"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="9,18 15,12 9,6" />
-                </svg>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage(totalPages)}
-                disabled={!canNext}
-                title="Última página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="13,17 18,12 13,7" />
-                  <polyline points="6,17 11,12 6,7" />
-                </svg>
-              </Button>
-            </div>
-          </div>
+                          <Pencil className="size-3.5" />
+                          Modificar
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
         )}
-      </div>
+      </Card>
+
+      {!loading && rows.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3">
+          <span className="text-sm text-neutral-600">
+            Página {page} de {totalPages} · {total} resultados
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9"
+              onClick={() => setPage(1)}
+              disabled={!canPrev}
+              title="Primera página"
+            >
+              <ChevronsLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!canPrev}
+              title="Anterior"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="min-w-[4rem] text-center text-sm font-medium text-neutral-700">
+              {page}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={!canNext}
+              title="Siguiente"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9"
+              onClick={() => setPage(totalPages)}
+              disabled={!canNext}
+              title="Última página"
+            >
+              <ChevronsRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ===== Modal Baja ===== */}
       {bajaOpen.open && bajaOpen.row && (
         <div
           role="dialog"
           aria-modal="true"
-          className="modal-backdrop"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => !busy && setBajaOpen({ open: false })}
         >
-          <div
-            className="modal"
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              minWidth: 420,
-              maxWidth: 560,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-            }}
+          <Card
+            className="w-full max-w-lg rounded-xl border-neutral-200 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: 0, marginBottom: 8 }}>Dar de baja</h3>
-            <p style={{ marginTop: 0, color: "#555" }}>
-              {bajaOpen.row.apellidoNombre} — DNI {bajaOpen.row.dni || "—"}
-            </p>
+            <CardHeader className="flex flex-row items-start justify-between border-b border-neutral-100 pb-4">
+              <div>
+                <CardTitle className="text-lg">Dar de baja</CardTitle>
+                <CardDescription className="mt-1">
+                  {bajaOpen.row.apellidoNombre} — DNI {bajaOpen.row.dni || "—"}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => !busy && setBajaOpen({ open: false })}
+                aria-label="Cerrar"
+              >
+                <X className="size-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
 
             {/* Warning moderno */}
             <div className="alert alert-warning" style={{ marginBottom: 12 }}>
@@ -1190,59 +891,50 @@ export default function AfiliadosListadoPage() {
                 Se registrará J17=0 y se guardará motivo/fecha en cada padrón
                 afectado.
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setBajaOpen({ open: false })}
-                  disabled={busy}
-                >
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setBajaOpen({ open: false })} disabled={busy}>
                   Cancelar
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => void confirmarBaja()}
-                  disabled={busy}
-                >
+                </Button>
+                <Button onClick={() => void confirmarBaja()} disabled={busy}>
                   {busy ? "Procesando..." : "Confirmar baja"}
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* ===== Modal Editar Padrón ===== */}
+      {/* Modal Editar Padrón */}
       {editOpen.open && editOpen.row && (
         <div
           role="dialog"
           aria-modal="true"
-          className="modal-backdrop"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => !busy && setEditOpen({ open: false })}
         >
-          <div
-            className="modal"
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              minWidth: 420,
-              maxWidth: 600,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-            }}
+          <Card
+            className="w-full max-w-lg rounded-xl border-neutral-200 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: 0, marginBottom: 8 }}>Modificar padrón</h3>
-            <p style={{ marginTop: 0, color: "#555" }}>
-              {editOpen.row.apellidoNombre} — DNI {editOpen.row.dni || "—"}
-            </p>
+            <CardHeader className="flex flex-row items-start justify-between border-b border-neutral-100 pb-4">
+              <div>
+                <CardTitle className="text-lg">Modificar padrón</CardTitle>
+                <CardDescription className="mt-1">
+                  {editOpen.row.apellidoNombre} — DNI {editOpen.row.dni || "—"}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => !busy && setEditOpen({ open: false })}
+                aria-label="Cerrar"
+              >
+                <X className="size-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
 
             {/* Warning moderno */}
             <div className="alert alert-warning" style={{ marginBottom: 12 }}>
@@ -1407,24 +1099,17 @@ export default function AfiliadosListadoPage() {
               <div style={{ fontSize: 12, color: "#777" }}>
                 Guardá los cambios para impactar en el padrón seleccionado.
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setEditOpen({ open: false })}
-                  disabled={busy}
-                >
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditOpen({ open: false })} disabled={busy}>
                   Cancelar
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => void confirmarEditar()}
-                  disabled={busy}
-                >
+                </Button>
+                <Button onClick={() => void confirmarEditar()} disabled={busy}>
                   {busy ? "Guardando..." : "Guardar cambios"}
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
