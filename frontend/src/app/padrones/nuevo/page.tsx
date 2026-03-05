@@ -553,7 +553,7 @@ export default function NuevoPadronPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
               <Input
                 id="buscador"
-                className={`pl-9 ${fc}`}
+                className={`${fc} pl-9`}
                 placeholder="Ej: 30123456 o Gomez Juan"
                 value={buscador}
                 onChange={(e) => setBuscador(e.target.value)}
