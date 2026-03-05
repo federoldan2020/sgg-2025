@@ -45,27 +45,27 @@ export default function Home() {
       {/* Acciones rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Link
-          href="/afiliados/nuevo"
+          href="/padrones/nuevo"
           className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
         >
           <div className="text-center">
             <div className="text-2xl mb-2">👥</div>
-            <h3 className="font-semibold text-gray-900">Alta de Afiliado</h3>
+            <h3 className="font-semibold text-gray-900">Alta Afiliado / Padrón</h3>
             <p className="text-sm text-gray-600 mt-1">
-              Registrar nuevo afiliado
+              Registrar nuevo afiliado con su padrón
             </p>
           </div>
         </Link>
 
         <Link
-          href="/padrones/nuevo"
+          href="/afiliados"
           className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
         >
           <div className="text-center">
             <div className="text-2xl mb-2">📋</div>
-            <h3 className="font-semibold text-gray-900">Nuevo Padrón</h3>
+            <h3 className="font-semibold text-gray-900">Afiliados</h3>
             <p className="text-sm text-gray-600 mt-1">
-              Crear padrón de afiliado
+              Consultar listado de afiliados
             </p>
           </div>
         </Link>

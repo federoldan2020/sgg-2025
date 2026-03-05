@@ -12,8 +12,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/afiliados/importar", label: "Importar afiliados" },
       { href: "/afiliados/familiares/importar", label: "Importar familiares" },
       { href: "/padrones/importar", label: "Importar padrones" },
-      // { href: "/afiliados/nuevo", label: "Alta de afiliado" },
-      //  { href: "/padrones/nuevo", label: "Alta de padrón" },
+      { href: "/padrones/nuevo", label: "Alta afiliado / padrón" },
     ],
   },
 

@@ -11,8 +11,7 @@ const grupos: Grupo[] = [
     titulo: "Afiliados",
     items: [
       { href: "/afiliados", label: "Listado" },
-      { href: "/afiliados/nuevo", label: "Alta de afiliado" },
-      { href: "/padrones/nuevo", label: "Alta de padrón" },
+      { href: "/padrones/nuevo", label: "Alta afiliado / padrón" },
     ],
   },
   {

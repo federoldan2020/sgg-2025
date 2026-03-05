@@ -331,7 +331,7 @@ export default function AfiliadosListadoPage() {
         subtitle="Gestión y consulta de afiliados del sistema"
       >
         <Button asChild className="gap-2">
-          <Link href="/afiliados/nuevo">
+          <Link href="/padrones/nuevo">
             <UserPlus className="size-4" />
             Nuevo Afiliado
           </Link>
@@ -509,7 +509,7 @@ export default function AfiliadosListadoPage() {
               </Button>
             ) : (
               <Button asChild className="mt-4 gap-2">
-                <Link href="/afiliados/nuevo">
+                <Link href="/padrones/nuevo">
                   <UserPlus className="size-4" />
                   Agregar primer afiliado
                 </Link>

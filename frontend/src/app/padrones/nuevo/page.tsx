@@ -16,7 +16,6 @@ import {
   User,
   UserPlus,
   FileText,
-  Calendar,
   Users,
   Plus,
   Trash2,
@@ -25,13 +24,25 @@ import {
   CheckCircle,
   XCircle,
   Info,
-  AlertCircle,
   Loader2,
   Phone,
   MapPin,
   CreditCard,
 } from "lucide-react";
 import { usePadronMask } from "@/hooks/usePadronMask";
+import { PageHeader } from "@/components/ui-kit";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import Link from "next/link";
 
 const SISTEMAS: Sistema[] = ["ESC", "SGR", "SG", "JUV"];
 
@@ -490,347 +501,182 @@ export default function NuevoPadronPage() {
       setCreando(false);
     }
   };
-  return (
-    <div className="page-container">
-      {/* Page Header */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Nuevo Padrón</h1>
-          <p className="page-subtitle">
-            Busque un afiliado existente o cree uno nuevo junto con su padrón
-          </p>
-        </div>
-      </div>
+  const fc = "rounded-lg border-neutral-200 bg-white";
+  const selectClass = `h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500`;
+  const padronEnabled = !!(afiliado || sinResultadosDniExacto);
 
-      {/* Enhanced Message System */}
+  return (
+    <div className="mx-auto max-w-5xl">
+      <PageHeader
+        title="Alta de Afiliado / Padrón"
+        subtitle="Busque un afiliado existente o cree uno nuevo junto con su padrón"
+      >
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/afiliados">Volver al listado</Link>
+        </Button>
+      </PageHeader>
+
       {messageInfo && (
         <div
-          className={`alert ${
+          className={`mb-6 flex items-start gap-3 rounded-lg border px-4 py-3 ${
             messageInfo.type === "error"
-              ? "alert-error"
+              ? "border-red-200 bg-red-50 text-red-800"
               : messageInfo.type === "success"
-              ? "alert-success"
-              : "alert-info"
+                ? "border-medical-200 bg-medical-50 text-medical-800"
+                : "border-neutral-200 bg-neutral-50 text-neutral-800"
           }`}
+          role="alert"
         >
-          <div className="alert-content">
-            <div className="alert-icon">
-              {messageInfo.type === "error" && <XCircle size={20} />}
-              {messageInfo.type === "success" && <CheckCircle size={20} />}
-              {messageInfo.type === "info" && <Info size={20} />}
-            </div>
-            <div className="alert-text">{messageInfo.content}</div>
-            <button
-              className="alert-close"
-              onClick={() => setMsg(null)}
-              aria-label="Cerrar mensaje"
-            >
-              ×
-            </button>
-          </div>
+          <span className="shrink-0">
+            {messageInfo.type === "error" && <XCircle className="size-5" />}
+            {messageInfo.type === "success" && <CheckCircle className="size-5" />}
+            {messageInfo.type === "info" && <Info className="size-5" />}
+          </span>
+          <span className="flex-1 text-sm font-medium">{messageInfo.content}</span>
+          <button type="button" onClick={() => setMsg(null)} className="shrink-0 rounded p-1 hover:bg-black/10" aria-label="Cerrar mensaje">×</button>
         </div>
       )}
 
-      <div className="page-content">
-        {/* Búsqueda de Afiliado */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <Search size={20} />
-                Buscar Afiliado
-              </h2>
-              <p className="form-section-subtitle">
-                Ingrese DNI, apellido o nombre para buscar un afiliado existente
-              </p>
-            </div>
-          </div>
-
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Búsqueda</label>
-              <div className="form-input-group">
-                <Search className="form-input-icon" size={16} />
-                <input
-                  className="form-input form-input-with-icon"
-                  placeholder="Ej: 30123456 o 'Gomez' o 'Gomez Juan'"
-                  value={buscador}
-                  onChange={(e) => setBuscador(e.target.value)}
-                />
-                {buscador && (
-                  <button
-                    className="form-input-clear"
-                    onClick={() => setBuscador("")}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
+      {/* Paso 1: Buscar Afiliado */}
+      <Card className="mb-6 rounded-xl border-neutral-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Search className="size-5 text-neutral-600" />
+            Paso 1: Buscar Afiliado
+          </CardTitle>
+          <CardDescription>Ingrese DNI, apellido o nombre. Si no existe, podrá crear uno nuevo.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="relative max-w-md">
+            <Label htmlFor="buscador">Búsqueda</Label>
+            <div className="relative mt-1.5">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+              <Input
+                id="buscador"
+                className={`pl-9 ${fc}`}
+                placeholder="Ej: 30123456 o Gomez Juan"
+                value={buscador}
+                onChange={(e) => setBuscador(e.target.value)}
+              />
+              {buscador && (
+                <button className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-700" onClick={() => setBuscador("")}>×</button>
+              )}
             </div>
           </div>
 
           {buscando && (
-            <div className="loading-indicator">
-              <Loader2 className="spinner" size={16} />
-              <span>Buscando...</span>
-            </div>
+            <p className="flex items-center gap-2 text-sm text-neutral-500">
+              <Loader2 className="size-4 animate-spin" /> Buscando...
+            </p>
           )}
 
           {buscaMsg && !buscando && (
-            <div className="alert alert-info">
-              <div className="alert-content">
-                <div className="alert-icon">
-                  <Info size={16} />
-                </div>
-                <div className="alert-text">{buscaMsg}</div>
-              </div>
-            </div>
+            <p className="flex items-center gap-2 text-sm text-neutral-500">
+              <Info className="size-4" /> {buscaMsg}
+            </p>
           )}
 
-          {/* Resultados de búsqueda */}
           {resultados.length > 0 && (
-            <div style={{ marginTop: "16px" }}>
-              <h4
-                style={{
-                  margin: "0 0 12px 0",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                Resultados encontrados ({resultados.length})
-              </h4>
-              <div
-                className="autocomplete-dropdown"
-                style={{
-                  position: "relative",
-                  marginTop: "0",
-                  border: "1px solid var(--border)",
-                  maxHeight: "300px",
-                }}
-              >
+            <div>
+              <p className="mb-2 text-sm font-semibold text-neutral-600">Resultados ({resultados.length})</p>
+              <div className="divide-y rounded-lg border border-neutral-200">
                 {resultados.map((a) => (
-                  <div
+                  <button
                     key={String(a.id)}
-                    className="autocomplete-item"
-                    style={{
-                      background:
-                        afiliado?.id === a.id
-                          ? "var(--primary-50)"
-                          : "transparent",
-                      borderLeft:
-                        afiliado?.id === a.id
-                          ? "3px solid var(--primary-600)"
-                          : "3px solid transparent",
-                    }}
-                    onClick={() => {
-                      setAfiliado(a);
-                      setSinResultadosDniExacto(null);
-                    }}
+                    type="button"
+                    className={`flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-neutral-50 ${
+                      afiliado?.id === a.id ? "border-l-4 border-l-medical-500 bg-medical-50" : ""
+                    }`}
+                    onClick={() => { setAfiliado(a); setSinResultadosDniExacto(null); }}
                   >
-                    <div className="tercero-info">
-                      <div className="tercero-nombre">{a.display}</div>
-                      <div className="tercero-cuit">DNI {String(a.dni)}</div>
+                    <div>
+                      <span className="font-medium text-neutral-900">{a.display}</span>
+                      <span className="ml-2 text-sm text-neutral-500">DNI {String(a.dni)}</span>
                     </div>
                     {afiliado?.id === a.id && (
-                      <div className="status-badge primary">
-                        <CheckCircle size={12} />
-                        Seleccionado
-                      </div>
+                      <Badge variant="default" className="gap-1">
+                        <CheckCircle className="size-3" /> Seleccionado
+                      </Badge>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Afiliado seleccionado */}
           {afiliado && (
-            <div className="tercero-selected-info">
-              <div className="tercero-selected-header">
-                <div className="tercero-selected-avatar">
-                  <User size={20} />
-                </div>
-                <div className="tercero-selected-details">
-                  <div className="tercero-selected-name">
-                    {afiliado.display}
-                  </div>
-                  <div className="tercero-selected-cuit">
-                    DNI {String(afiliado.dni)}
-                  </div>
-                </div>
-                <div className="tercero-selected-summary">
-                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                    {cargandoCoseguro && (
-                      <div className="loading-indicator">
-                        <Loader2 className="spinner" size={12} />
-                        <span>Verificando coseguro...</span>
-                      </div>
-                    )}
-                    {!cargandoCoseguro && tieneCoseguro === true && (
-                      <div className="status-badge primary">
-                        <CheckCircle size={12} />
-                        Tiene coseguro
-                      </div>
-                    )}
-                    {!cargandoCoseguro && tieneCoseguro === false && (
-                      <div className="status-badge">
-                        <XCircle size={12} />
-                        Sin coseguro
-                      </div>
-                    )}
-                  </div>
-                </div>
+            <div className="flex items-center gap-3 rounded-lg border border-medical-200 bg-medical-50 p-4">
+              <div className="flex size-10 items-center justify-center rounded-full bg-medical-100 text-medical-600">
+                <User className="size-5" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-neutral-900">{afiliado.display}</p>
+                <p className="text-sm text-neutral-600">DNI {String(afiliado.dni)}</p>
+              </div>
+              <div className="text-sm">
+                {cargandoCoseguro && <span className="flex items-center gap-1 text-neutral-500"><Loader2 className="size-3 animate-spin" /> Verificando coseguro...</span>}
+                {!cargandoCoseguro && tieneCoseguro === true && <Badge variant="default" className="gap-1"><CheckCircle className="size-3" /> Tiene coseguro</Badge>}
+                {!cargandoCoseguro && tieneCoseguro === false && <Badge variant="secondary" className="gap-1"><XCircle className="size-3" /> Sin coseguro</Badge>}
               </div>
             </div>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Alta combinada de afiliado nuevo */}
-        {!afiliado && sinResultadosDniExacto && (
-          <div className="form-section">
-            <div className="form-section-header">
-              <div>
-                <h2 className="form-section-title">
-                  <UserPlus size={20} />
-                  Crear Nuevo Afiliado
-                </h2>
-                <p className="form-section-subtitle">
-                  No existe un afiliado con DNI {sinResultadosDniExacto}.
-                  Complete los datos para crearlo junto con el padrón.
-                </p>
-              </div>
-            </div>
-
-            {/* Información Personal */}
-            <div style={{ marginBottom: "24px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "var(--text)",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <User size={16} />
-                Información Personal
-              </h3>
-              <div className="form-grid form-grid-3">
-                <div className="form-group">
-                  <label className="form-label">DNI *</label>
-                  <input
-                    className="form-input"
-                    inputMode="numeric"
-                    value={dniNuevo}
-                    onChange={(e) =>
-                      setDniNuevo(e.target.value.replace(/\D+/g, ""))
-                    }
-                    placeholder="12345678"
-                  />
+      {/* Datos del nuevo afiliado (si no existe) */}
+      {!afiliado && sinResultadosDniExacto && (
+        <Card className="mb-6 rounded-xl border-amber-200 bg-amber-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base text-amber-800">
+              <UserPlus className="size-5" />
+              Nuevo Afiliado (DNI {sinResultadosDniExacto})
+            </CardTitle>
+            <CardDescription className="text-amber-700">No existe un afiliado con este DNI. Complete los datos para crearlo junto con el padrón.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Info Personal */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-700"><User className="size-4" /> Información Personal</h3>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label>DNI *</Label>
+                  <Input className={fc} inputMode="numeric" value={dniNuevo} onChange={(e) => setDniNuevo(e.target.value.replace(/\D+/g, ""))} placeholder="12345678" />
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Apellido y Nombre (helper)
-                  </label>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <input
-                      className="form-input"
-                      value={apeNom}
-                      onChange={(e) => setApeNom(e.target.value)}
-                      placeholder="PÉREZ, JUAN o PÉREZ JUAN"
-                      style={{ flex: "1" }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => {
-                        const s = splitApeNom(apeNom);
-                        if (!apellNuevo && s.apellido)
-                          setApellNuevo(s.apellido);
-                        if (!nombNuevo && s.nombre) setNombNuevo(s.nombre);
-                      }}
-                      style={{ whiteSpace: "nowrap" }}
-                    >
-                      Separar
-                    </button>
+                <div className="space-y-1.5">
+                  <Label>Apellido y Nombre (helper)</Label>
+                  <div className="flex gap-2">
+                    <Input className={`flex-1 ${fc}`} value={apeNom} onChange={(e) => setApeNom(e.target.value)} placeholder="PÉREZ, JUAN" />
+                    <Button variant="outline" size="sm" type="button" onClick={() => { const s = splitApeNom(apeNom); if (!apellNuevo && s.apellido) setApellNuevo(s.apellido); if (!nombNuevo && s.nombre) setNombNuevo(s.nombre); }}>Separar</Button>
                   </div>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">CUIT/CUIL</label>
-                  <input
-                    className="form-input"
-                    value={cuit}
-                    onChange={(e) => setCuit(e.target.value)}
-                    placeholder="20-12345678-9"
-                  />
+                <div className="space-y-1.5">
+                  <Label>CUIT/CUIL</Label>
+                  <Input className={fc} value={cuit} onChange={(e) => setCuit(e.target.value)} placeholder="20-12345678-9" />
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Apellido</label>
-                  <input
-                    className="form-input"
-                    value={apellNuevo}
-                    onChange={(e) => setApellNuevo(e.target.value)}
-                    placeholder="Apellido"
-                  />
+                <div className="space-y-1.5">
+                  <Label>Apellido</Label>
+                  <Input className={fc} value={apellNuevo} onChange={(e) => setApellNuevo(e.target.value)} placeholder="Apellido" />
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Nombre</label>
-                  <input
-                    className="form-input"
-                    value={nombNuevo}
-                    onChange={(e) => setNombNuevo(e.target.value)}
-                    placeholder="Nombre"
-                  />
+                <div className="space-y-1.5">
+                  <Label>Nombre</Label>
+                  <Input className={fc} value={nombNuevo} onChange={(e) => setNombNuevo(e.target.value)} placeholder="Nombre" />
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Fecha de Nacimiento</label>
-                  <InputFecha
-                    value={fechaNacimiento}
-                    onChange={(iso) => setFechaNacimiento(iso)}
-                    placeholder="dd/mm/aaaa"
-                    className="form-input"
-                  />
+                <div className="space-y-1.5">
+                  <Label>Fecha de Nacimiento</Label>
+                  <InputFecha value={fechaNacimiento} onChange={(iso) => setFechaNacimiento(iso)} placeholder="dd/mm/aaaa" className={fc} />
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Sexo</label>
-                  <select
-                    className="form-select"
-                    value={sexo ?? ""}
-                    onChange={(e) =>
-                      setSexo(
-                        (e.target.value ||
-                          undefined) as CrearAfiliadoDto["sexo"]
-                      )
-                    }
-                  >
+                <div className="space-y-1.5">
+                  <Label>Sexo</Label>
+                  <select className={selectClass} value={sexo ?? ""} onChange={(e) => setSexo((e.target.value || undefined) as CrearAfiliadoDto["sexo"])}>
                     <option value="">Seleccionar</option>
                     <option value="M">Masculino</option>
                     <option value="F">Femenino</option>
                     <option value="X">No binario</option>
                   </select>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Tipo</label>
-                  <select
-                    className="form-select"
-                    value={tipo ?? ""}
-                    onChange={(e) =>
-                      setTipo(
-                        (e.target.value ||
-                          undefined) as CrearAfiliadoDto["tipo"]
-                      )
-                    }
-                  >
+                <div className="space-y-1.5">
+                  <Label>Tipo</Label>
+                  <select className={selectClass} value={tipo ?? ""} onChange={(e) => setTipo((e.target.value || undefined) as CrearAfiliadoDto["tipo"])}>
                     <option value="">Seleccionar</option>
                     <option value="TITULAR">TITULAR</option>
                     <option value="FAMILIAR">FAMILIAR</option>
@@ -838,664 +684,218 @@ export default function NuevoPadronPage() {
                     <option value="OTRO">OTRO</option>
                   </select>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">N° Socio</label>
-                  <input
-                    className="form-input"
-                    value={numeroSocio}
-                    onChange={(e) => setNumeroSocio(e.target.value)}
-                    placeholder="Opcional"
-                  />
+                <div className="space-y-1.5">
+                  <Label>N° Socio</Label>
+                  <Input className={fc} value={numeroSocio} onChange={(e) => setNumeroSocio(e.target.value)} placeholder="Opcional" />
                 </div>
               </div>
             </div>
 
             {/* Contacto */}
-            <div style={{ marginBottom: "24px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "var(--text)",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <Phone size={16} />
-                Contacto
-              </h3>
-              <div className="form-grid form-grid-2">
-                <div className="form-group">
-                  <label className="form-label">Teléfono</label>
-                  <input
-                    className="form-input"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                    placeholder="11-1234-5678"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Celular</label>
-                  <input
-                    className="form-input"
-                    value={celular}
-                    onChange={(e) => setCelular(e.target.value)}
-                    placeholder="11-1234-5678"
-                  />
-                </div>
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-700"><Phone className="size-4" /> Contacto</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5"><Label>Teléfono</Label><Input className={fc} value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="11-1234-5678" /></div>
+                <div className="space-y-1.5"><Label>Celular</Label><Input className={fc} value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="11-1234-5678" /></div>
               </div>
             </div>
 
             {/* Domicilio */}
-            <div style={{ marginBottom: "24px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "var(--text)",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <MapPin size={16} />
-                Domicilio
-              </h3>
-              <div className="form-grid form-grid-4">
-                <div className="form-group">
-                  <label className="form-label">Calle</label>
-                  <input
-                    className="form-input"
-                    value={calle}
-                    onChange={(e) => setCalle(e.target.value)}
-                    placeholder="Nombre de la calle"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Número</label>
-                  <input
-                    className="form-input"
-                    value={numero}
-                    onChange={(e) => setNumero(e.target.value)}
-                    placeholder="1234"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Orientación</label>
-                  <input
-                    className="form-input"
-                    value={orientacion}
-                    onChange={(e) => setOrientacion(e.target.value)}
-                    placeholder="Entre calles..."
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Barrio</label>
-                  <input
-                    className="form-input"
-                    value={barrio}
-                    onChange={(e) => setBarrio(e.target.value)}
-                    placeholder="Nombre del barrio"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Piso</label>
-                  <input
-                    className="form-input"
-                    value={piso}
-                    onChange={(e) => setPiso(e.target.value)}
-                    placeholder="1"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Departamento</label>
-                  <input
-                    className="form-input"
-                    value={depto}
-                    onChange={(e) => setDepto(e.target.value)}
-                    placeholder="A"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Monoblock</label>
-                  <input
-                    className="form-input"
-                    value={monoblock}
-                    onChange={(e) => setMonoblock(e.target.value)}
-                    placeholder="1"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Casa</label>
-                  <input
-                    className="form-input"
-                    value={casa}
-                    onChange={(e) => setCasa(e.target.value)}
-                    placeholder="1"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Manzana</label>
-                  <input
-                    className="form-input"
-                    value={manzana}
-                    onChange={(e) => setManzana(e.target.value)}
-                    placeholder="A"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Localidad</label>
-                  <input
-                    className="form-input"
-                    value={localidad}
-                    onChange={(e) => setLocalidad(e.target.value)}
-                    placeholder="Ciudad/Localidad"
-                  />
-                </div>
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-700"><MapPin className="size-4" /> Domicilio</h3>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {([
+                  ["calle", "Calle", calle, setCalle, "Nombre de la calle"],
+                  ["numero", "Número", numero, setNumero, "1234"],
+                  ["orientacion", "Orientación", orientacion, setOrientacion, "Entre calles..."],
+                  ["barrio", "Barrio", barrio, setBarrio, "Nombre del barrio"],
+                  ["piso", "Piso", piso, setPiso, "1"],
+                  ["depto", "Departamento", depto, setDepto, "A"],
+                  ["monoblock", "Monoblock", monoblock, setMonoblock, "1"],
+                  ["casa", "Casa", casa, setCasa, "1"],
+                  ["manzana", "Manzana", manzana, setManzana, "A"],
+                  ["localidad", "Localidad", localidad, setLocalidad, "Ciudad"],
+                ] as [string, string, string, (v: string) => void, string][]).map(([id, label, val, setter, ph]) => (
+                  <div key={id} className="space-y-1.5"><Label>{label}</Label><Input className={fc} value={val} onChange={(e) => setter(e.target.value)} placeholder={ph} /></div>
+                ))}
               </div>
             </div>
 
-            {/* Información Financiera */}
-            <div style={{ marginBottom: "24px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "var(--text)",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <CreditCard size={16} />
-                Información Financiera
-              </h3>
-              <div className="form-grid form-grid-2">
-                <div className="form-group">
-                  <label className="form-label">Cupo</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    step="0.01"
-                    value={cupoAf}
-                    onChange={(e) => setCupoAf(e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Saldo</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    step="0.01"
-                    value={saldoAf}
-                    onChange={(e) => setSaldoAf(e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
+            {/* Financiero */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-700"><CreditCard className="size-4" /> Información Financiera</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5"><Label>Cupo</Label><Input className={fc} type="number" step="0.01" value={cupoAf} onChange={(e) => setCupoAf(e.target.value)} placeholder="0.00" /></div>
+                <div className="space-y-1.5"><Label>Saldo</Label><Input className={fc} type="number" step="0.01" value={saldoAf} onChange={(e) => setSaldoAf(e.target.value)} placeholder="0.00" /></div>
               </div>
             </div>
 
             {/* Observaciones */}
             <div>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "var(--text)",
-                  marginBottom: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <FileText size={16} />
-                Observaciones
-              </h3>
-              <div className="form-grid">
-                <div className="form-group form-group-full">
-                  <label className="form-label">Notas adicionales</label>
-                  <textarea
-                    className="form-textarea"
-                    value={observaciones}
-                    onChange={(e) => setObservaciones(e.target.value)}
-                    rows={3}
-                    placeholder="Información adicional sobre el afiliado..."
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Datos del Padrón */}
-        <div
-          className="form-section"
-          style={{
-            opacity: afiliado || sinResultadosDniExacto ? 1 : 0.6,
-            pointerEvents: afiliado || sinResultadosDniExacto ? "auto" : "none",
-          }}
-        >
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">
-                <FileText size={20} />
-                Datos del Padrón
-              </h2>
-              <p className="form-section-subtitle">
-                Complete la información específica del padrón
-              </p>
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-3">
-            <div className="form-group">
-              <label className="form-label">Código de Padrón *</label>
-              <input
-                className="form-input"
-                value={padronMask.value}
-                onChange={padronMask.onChange}
-                placeholder="000000-0"
-                maxLength={8}
-                required
-              />
-              <small className="form-help">
-                El guión se agrega automáticamente después del 6º dígito
-              </small>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Situación</label>
-              <input
-                className="form-input"
-                value={situacion}
-                onChange={(e) => setSituacion(e.target.value)}
-                placeholder="TITULAR / SUPLEMENTE / PP / 04"
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-700"><FileText className="size-4" /> Observaciones</h3>
+              <textarea
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                rows={3}
+                placeholder="Información adicional sobre el afiliado..."
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-medical-500"
               />
             </div>
+          </CardContent>
+        </Card>
+      )}
 
-            <div className="form-group">
-              <label className="form-label">Sistema</label>
-              <select
-                className="form-select"
-                value={sistema}
-                onChange={(e) => setSistema(e.target.value as Sistema | "")}
-              >
+      {/* Paso 2: Datos del Padrón */}
+      <Card className={`mb-6 rounded-xl border-neutral-200 transition-opacity ${padronEnabled ? "" : "pointer-events-none opacity-50"}`}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="size-5 text-neutral-600" />
+            Paso 2: Datos del Padrón
+          </CardTitle>
+          <CardDescription>Complete la información específica del padrón</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label>Código de Padrón *</Label>
+              <Input className={fc} value={padronMask.value} onChange={padronMask.onChange} placeholder="000000-0" maxLength={8} />
+              <p className="text-xs text-neutral-500">El guión se agrega automáticamente después del 6° dígito</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Situación</Label>
+              <Input className={fc} value={situacion} onChange={(e) => setSituacion(e.target.value)} placeholder="TITULAR / SUPLENTE / PP / 04" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Sistema</Label>
+              <select className={selectClass} value={sistema} onChange={(e) => setSistema(e.target.value as Sistema | "")}>
                 <option value="">Seleccionar</option>
-                {SISTEMAS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                {SISTEMAS.map((s) => (<option key={s} value={s}>{s}</option>))}
               </select>
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Centro</label>
-              <input
-                className="form-input"
-                inputMode="numeric"
-                value={centro}
-                onChange={(e) => setCentro(e.target.value.replace(/\D+/g, ""))}
-                placeholder="Código de centro"
-              />
+            <div className="space-y-1.5">
+              <Label>Centro</Label>
+              <Input className={fc} inputMode="numeric" value={centro} onChange={(e) => setCentro(e.target.value.replace(/\D+/g, ""))} placeholder="Código" />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Sector</label>
-              <input
-                className="form-input"
-                inputMode="numeric"
-                value={sector}
-                onChange={(e) => setSector(e.target.value.replace(/\D+/g, ""))}
-                placeholder="Código de sector"
-              />
+            <div className="space-y-1.5">
+              <Label>Sector</Label>
+              <Input className={fc} inputMode="numeric" value={sector} onChange={(e) => setSector(e.target.value.replace(/\D+/g, ""))} placeholder="Código" />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Clase</label>
-              <input
-                className="form-input"
-                value={clase}
-                onChange={(e) => setClase(e.target.value)}
-                placeholder="Clase del padrón"
-              />
+            <div className="space-y-1.5">
+              <Label>Clase</Label>
+              <Input className={fc} value={clase} onChange={(e) => setClase(e.target.value)} placeholder="Clase del padrón" />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Fecha Alta</label>
-              <InputFecha
-                value={fechaAlta}
-                onChange={(iso) => setFechaAlta(iso)}
-                placeholder="dd/mm/aaaa"
-                className="form-input"
-              />
+            <div className="space-y-1.5">
+              <Label>Fecha Alta</Label>
+              <InputFecha value={fechaAlta} onChange={(iso) => setFechaAlta(iso)} placeholder="dd/mm/aaaa" className={fc} />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Fecha Baja</label>
-              <InputFecha
-                value={fechaBaja}
-                onChange={(iso) => setFechaBaja(iso)}
-                placeholder="dd/mm/aaaa"
-                className="form-input"
-              />
+            <div className="space-y-1.5">
+              <Label>Fecha Baja</Label>
+              <InputFecha value={fechaBaja} onChange={(iso) => setFechaBaja(iso)} placeholder="dd/mm/aaaa" className={fc} />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <div className="form-checkbox">
-                <input
-                  type="checkbox"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                />
-                <span>Padrón activo</span>
-              </div>
+            <div className="flex items-end space-y-1.5 pb-1">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="size-4 rounded border-neutral-300" />
+                Padrón activo
+              </label>
             </div>
-
-            <div className="form-group">
-              <label className="form-label">J17</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={j17}
-                onChange={(e) => setJ17(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">J22</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={j22}
-                onChange={(e) => setJ22(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">J38</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={j38}
-                onChange={(e) => setJ38(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">K16</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={k16}
-                onChange={(e) => setK16(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Sueldo Básico</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={sueldoBasico}
-                onChange={(e) => setSueldoBasico(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Cupo</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={cupo}
-                onChange={(e) => setCupo(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Saldo</label>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={saldo}
-                onChange={(e) => setSaldo(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Caja de Ahorro</label>
-              <input
-                className="form-input"
-                value={cajaAhorro}
-                onChange={(e) => setCajaAhorro(e.target.value)}
-                placeholder="Para jubilados"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Beneficiario</label>
-              <input
-                className="form-input"
-                value={beneficiarioJubilado}
-                onChange={(e) => setBeneficiarioJubilado(e.target.value)}
-                placeholder="Para jubilados"
-              />
-            </div>
-
-            <div className="form-group form-group-full">
-              <label className="form-label">Motivo de Baja</label>
-              <textarea
-                className="form-textarea"
-                value={motivoBaja}
-                onChange={(e) => setMotivoBaja(e.target.value)}
-                rows={3}
-                placeholder="Descripción del motivo de baja (si aplica)"
-              />
+            <div className="space-y-1.5"><Label>J17</Label><Input className={fc} type="number" step="0.01" value={j17} onChange={(e) => setJ17(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>J22</Label><Input className={fc} type="number" step="0.01" value={j22} onChange={(e) => setJ22(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>J38</Label><Input className={fc} type="number" step="0.01" value={j38} onChange={(e) => setJ38(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>K16</Label><Input className={fc} type="number" step="0.01" value={k16} onChange={(e) => setK16(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>Sueldo Básico</Label><Input className={fc} type="number" step="0.01" value={sueldoBasico} onChange={(e) => setSueldoBasico(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>Cupo</Label><Input className={fc} type="number" step="0.01" value={cupo} onChange={(e) => setCupo(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>Saldo</Label><Input className={fc} type="number" step="0.01" value={saldo} onChange={(e) => setSaldo(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-1.5"><Label>Caja de Ahorro</Label><Input className={fc} value={cajaAhorro} onChange={(e) => setCajaAhorro(e.target.value)} placeholder="Para jubilados" /></div>
+            <div className="space-y-1.5"><Label>Beneficiario</Label><Input className={fc} value={beneficiarioJubilado} onChange={(e) => setBeneficiarioJubilado(e.target.value)} placeholder="Para jubilados" /></div>
+            <div className="col-span-full space-y-1.5">
+              <Label>Motivo de Baja</Label>
+              <textarea value={motivoBaja} onChange={(e) => setMotivoBaja(e.target.value)} rows={3} placeholder="Si aplica..." className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-medical-500" />
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Configuración de Coseguro */}
-        {(afiliado || sinResultadosDniExacto) && (
-          <div className="form-section">
-            <div className="form-section-header">
-              <div>
-                <h2 className="form-section-title">
-                  <Users size={20} />
-                  Configuración de Coseguro
-                </h2>
-                <p className="form-section-subtitle">
-                  Opcionalmente configure el coseguro y colaterales para este
-                  padrón
-                </p>
-              </div>
-            </div>
-
+      {/* Coseguro */}
+      {padronEnabled && (
+        <Card className="mb-6 rounded-xl border-neutral-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="size-5 text-neutral-600" />
+              Configuración de Coseguro
+            </CardTitle>
+            <CardDescription>Opcionalmente configure el coseguro y colaterales para este padrón</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             {(tieneCoseguro === false || !!sinResultadosDniExacto) && (
-              <div>
-                <div className="form-checkbox" style={{ marginBottom: "16px" }}>
-                  <input
-                    type="checkbox"
-                    checked={crearCoseguro}
-                    onChange={(e) => setCrearCoseguro(e.target.checked)}
-                  />
-                  <span>Crear coseguro en este padrón</span>
-                </div>
+              <>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={crearCoseguro} onChange={(e) => setCrearCoseguro(e.target.checked)} className="size-4 rounded border-neutral-300" />
+                  Crear coseguro en este padrón
+                </label>
 
                 {crearCoseguro && (
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "16px",
-                      }}
-                    >
-                      <h4
-                        style={{
-                          margin: 0,
-                          fontSize: "16px",
-                          fontWeight: "600",
-                          color: "var(--text)",
-                        }}
-                      >
-                        Colaterales Iniciales
-                      </h4>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={addColateral}
-                      >
-                        <Plus size={16} />
-                        Agregar Colateral
-                      </button>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-neutral-700">Colaterales Iniciales</h4>
+                      <Button variant="outline" size="sm" type="button" onClick={addColateral} className="gap-1">
+                        <Plus className="size-4" /> Agregar
+                      </Button>
                     </div>
 
                     {colaterales.length === 0 ? (
-                      <div className="empty-state-small">
-                        <div className="empty-state-icon-small">
-                          <Users />
-                        </div>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "var(--text-muted)",
-                            fontSize: "14px",
-                          }}
-                        >
-                          No hay colaterales cargados. Use el botón
-                          &quot;Agregar Colateral&quot; para empezar.
-                        </p>
-                      </div>
+                      <p className="py-4 text-center text-sm text-neutral-400">No hay colaterales. Use &quot;Agregar&quot; para empezar.</p>
                     ) : (
-                      <div
-                        className="colaterales-list"
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "12px",
-                        }}
-                      >
+                      <div className="space-y-3">
                         {colaterales.map((c, idx) => (
-                          <ColateralRow
-                            key={idx}
-                            colateral={c}
-                            onChange={(patch) => updateColateral(idx, patch)}
-                            onRemove={() => removeColateral(idx)}
-                          />
+                          <ColateralRow key={idx} colateral={c} onChange={(patch) => updateColateral(idx, patch)} onRemove={() => removeColateral(idx)} />
                         ))}
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </>
             )}
 
             {tieneCoseguro === true && !sinResultadosDniExacto && (
-              <div className="alert alert-info">
-                <div className="alert-content">
-                  <div className="alert-icon">
-                    <Info size={20} />
-                  </div>
-                  <div className="alert-text">
-                    <strong>Coseguro existente:</strong> El afiliado ya tiene un
-                    coseguro configurado. Para agregar colaterales o modificar
-                    la configuración, hágalo desde la ficha del afiliado en la
-                    pestaña <strong>Coseguro</strong>.
-                  </div>
-                </div>
+              <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <Info className="size-5 shrink-0 text-neutral-500" />
+                <p className="text-sm text-neutral-600">
+                  <strong>Coseguro existente:</strong> El afiliado ya tiene coseguro configurado. Para modificar colaterales, hágalo desde la ficha del afiliado.
+                </p>
               </div>
             )}
-          </div>
-        )}
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Form Actions */}
-        <div className="form-section">
-          <div className="form-actions">
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                className="btn btn-secondary"
-                onClick={limpiarTodo}
-                disabled={creando}
-                type="button"
-              >
-                <RotateCcw size={16} />
-                Limpiar Todo
-              </button>
-
-              <button
-                className={`btn ${canCrear ? "btn-primary" : "btn-disabled"}`}
-                onClick={crearPadron}
-                disabled={!canCrear}
-                type="submit"
-              >
+      {/* Acciones */}
+      <Card className="rounded-xl border-neutral-200">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-neutral-500">
+              {!padronEnabled && "Primero busque un afiliado existente o ingrese un DNI para crear uno nuevo"}
+              {padronEnabled && !padronMask.value.trim() && "El código de padrón es obligatorio"}
+              {canCrear && <>Listo para crear el padrón{crearCoseguro ? " con coseguro" : ""}</>}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={limpiarTodo} disabled={creando} type="button">
+                <RotateCcw className="size-4" /> Limpiar
+              </Button>
+              <Button onClick={crearPadron} disabled={!canCrear} type="button">
                 {creando ? (
-                  <>
-                    <Loader2 className="spinner" size={16} />
-                    Creando...
-                  </>
+                  <><Loader2 className="size-4 animate-spin" /> Creando...</>
                 ) : (
-                  <>
-                    <Save size={16} />
-                    Crear Padrón
-                  </>
+                  <><Save className="size-4" /> Crear Padrón</>
                 )}
-              </button>
-            </div>
-
-            <div className="form-help">
-              {!afiliado && !sinResultadosDniExacto && (
-                <span>
-                  Primero busque un afiliado existente o ingrese un DNI para
-                  crear uno nuevo
-                </span>
-              )}
-              {(afiliado || sinResultadosDniExacto) && !padron && (
-                <span>El código de padrón es obligatorio</span>
-              )}
-              {canCrear && (
-                <span>
-                  Listo para crear el padrón
-                  {crearCoseguro ? " con coseguro" : ""}
-                </span>
-              )}
+              </Button>
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-// Componente para cada fila de colateral
 function ColateralRow({
   colateral,
   onChange,
@@ -1505,69 +905,29 @@ function ColateralRow({
   onChange: (patch: Partial<ColateralUI>) => void;
   onRemove: () => void;
 }) {
+  const fc = "rounded-lg border-neutral-200 bg-white";
   return (
-    <div
-      className="contacto-item"
-      style={{
-        padding: "16px",
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "8px",
-      }}
-    >
-      <div
-        className="contacto-icon"
-        style={{
-          background: "var(--primary-100)",
-          color: "var(--primary-600)",
-        }}
-      >
-        <User size={18} />
+    <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-medical-100 text-medical-600">
+        <User className="size-4" />
       </div>
-      <div className="contacto-form" style={{ flex: 1 }}>
-        <div className="form-grid form-grid-3">
-          <div className="form-group">
-            <label className="form-label">ID Parentesco</label>
-            <input
-              className="form-input"
-              inputMode="numeric"
-              value={colateral.parentescoId}
-              onChange={(e) =>
-                onChange({ parentescoId: e.target.value.replace(/\D+/g, "") })
-              }
-              placeholder="1"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Nombre</label>
-            <input
-              className="form-input"
-              value={colateral.nombre}
-              onChange={(e) => onChange({ nombre: e.target.value })}
-              placeholder="Nombre del colateral"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Fecha de Nacimiento</label>
-            <InputFecha
-              value={colateral.fechaNacimiento || ""}
-              onChange={(iso) => onChange({ fechaNacimiento: iso })}
-              placeholder="dd/mm/aaaa"
-              className="form-input"
-            />
-          </div>
+      <div className="grid flex-1 gap-3 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label>ID Parentesco</Label>
+          <Input className={fc} inputMode="numeric" value={colateral.parentescoId} onChange={(e) => onChange({ parentescoId: e.target.value.replace(/\D+/g, "") })} placeholder="1" />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Nombre</Label>
+          <Input className={fc} value={colateral.nombre} onChange={(e) => onChange({ nombre: e.target.value })} placeholder="Nombre del colateral" />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Fecha de Nacimiento</Label>
+          <InputFecha value={colateral.fechaNacimiento || ""} onChange={(iso) => onChange({ fechaNacimiento: iso })} placeholder="dd/mm/aaaa" className={fc} />
         </div>
       </div>
-      <div className="contacto-remove">
-        <button
-          type="button"
-          className="btn-icon btn-icon-danger"
-          onClick={onRemove}
-          title="Quitar colateral"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
+      <Button variant="ghost" size="sm" className="shrink-0 text-red-500 hover:bg-red-50 hover:text-red-700" onClick={onRemove} type="button" title="Quitar colateral">
+        <Trash2 className="size-4" />
+      </Button>
     </div>
   );
 }

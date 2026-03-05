@@ -2,13 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, getErrorMessage } from "@/servicios/api";
 import { InputFecha } from "@/components/InputFecha";
-import type {
-  CrearAfiliadoDto,
-  CrearAfiliadoResp,
-} from "@/tipos/dtos";
+import type { CrearAfiliadoDto } from "@/tipos/dtos";
 import { AfiliadoTipo, Sexo } from "@/tipos/modelos";
 import {
   User,
@@ -21,7 +18,7 @@ import {
   CheckCircle,
   XCircle,
   Info,
-  } from "lucide-react";
+} from "lucide-react";
 import { PageHeader } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,9 +35,16 @@ const SEXOS: Sexo[] = ["M", "F", "X"];
 const TIPOS: AfiliadoTipo[] = ["TITULAR", "FAMILIAR", "JUBILADO", "OTRO"];
 
 export default function NuevoAfiliadoPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const afiliadoId = searchParams.get("afiliadoId");
   const isEdit = Boolean(afiliadoId);
+
+  useEffect(() => {
+    if (!isEdit) {
+      router.replace("/padrones/nuevo");
+    }
+  }, [isEdit, router]);
 
   const [dni, setDni] = useState("");
   const [apellido, setApellido] = useState("");
@@ -122,41 +126,14 @@ export default function NuevoAfiliadoPage() {
     };
   }, [isEdit, afiliadoId]);
 
-  const limpiar = () => {
-    setDni("");
-    setApellido("");
-    setNombre("");
-    setCuit("");
-    setSexo("");
-    setTipo("");
-    setTelefono("");
-    setCelular("");
-    setCalle("");
-    setNumero("");
-    setOrientacion("");
-    setBarrio("");
-    setPiso("");
-    setDepto("");
-    setMonoblock("");
-    setCasa("");
-    setManzana("");
-    setLocalidad("");
-    setFechaNacimiento("");
-    setNumeroSocio("");
-    setCupo("");
-    setSaldo("");
-    setObservaciones("");
-    setMsg(null);
-  };
-
-  const crear = async () => {
+  const guardar = async () => {
+    if (!isEdit || !afiliadoId) return;
     setMsg(null);
     setLoading(true);
     try {
       const opt = (s: string) => (s?.trim() ? s.trim() : undefined);
 
-      const payload: CrearAfiliadoDto = {
-        dni: Number(dni),
+      const payload: Partial<CrearAfiliadoDto> = {
         apellido: apellido.trim(),
         nombre: nombre.trim(),
         cuit: opt(cuit),
@@ -181,20 +158,11 @@ export default function NuevoAfiliadoPage() {
         observaciones: opt(observaciones),
       };
 
-      if (isEdit && afiliadoId) {
-        await api(`/afiliados/${afiliadoId}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-        setMsg("SUCCESS:Afiliado actualizado correctamente.");
-      } else {
-        const r = await api<CrearAfiliadoResp>("/afiliados", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        setMsg(`SUCCESS:Afiliado creado exitosamente (ID ${String(r.id)})`);
-        limpiar();
-      }
+      await api(`/afiliados/${afiliadoId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      setMsg("SUCCESS:Afiliado actualizado correctamente.");
     } catch (e: unknown) {
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
@@ -221,18 +189,16 @@ export default function NuevoAfiliadoPage() {
 
   const messageInfo = parseMessage(msg);
 
+  if (!isEdit) return null;
+
   const formInputClass = "rounded-lg border-neutral-200 bg-white";
   const formGridClass = "grid gap-4 sm:grid-cols-2 lg:grid-cols-3";
 
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title={isEdit ? "Editar Afiliado" : "Nuevo Afiliado"}
-        subtitle={
-          isEdit
-            ? "Actualice la información del afiliado"
-            : "Complete la información del nuevo afiliado en el sistema"
-        }
+        title="Editar Afiliado"
+        subtitle="Actualice la información del afiliado"
       >
         <Button variant="outline" size="sm" asChild>
           <Link href="/afiliados">Volver al listado</Link>
@@ -279,16 +245,16 @@ export default function NuevoAfiliadoPage() {
         <CardContent className="space-y-4">
           <div className={formGridClass}>
             <div className="space-y-2">
-              <Label htmlFor="dni">DNI *</Label>
+              <Label htmlFor="dni">DNI</Label>
               <Input
                 id="dni"
                 inputMode="numeric"
                 value={dni}
-                onChange={(e) => setDni(e.target.value.replace(/\D+/g, ""))}
-                placeholder="Ejemplo: 12345678"
+                placeholder="DNI del afiliado"
                 className={formInputClass}
-                disabled={isEdit}
+                disabled
               />
+              <p className="text-xs text-neutral-500">El DNI no se puede modificar</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="cuit">CUIT/CUIL</Label>
@@ -472,7 +438,7 @@ export default function NuevoAfiliadoPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="saldo">Saldo Inicial</Label>
+              <Label htmlFor="saldo">Saldo</Label>
               <Input
                 id="saldo"
                 type="number"
@@ -516,20 +482,19 @@ export default function NuevoAfiliadoPage() {
         <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
           <p className="text-sm text-neutral-500">Los campos marcados con * son obligatorios</p>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={limpiar} disabled={loading} type="button">
-              <RotateCcw className="size-4" />
-              Limpiar
+            <Button variant="outline" asChild>
+              <Link href="/afiliados">Cancelar</Link>
             </Button>
-            <Button onClick={crear} disabled={!canSubmit} type="button">
+            <Button onClick={guardar} disabled={!canSubmit} type="button">
               {loading ? (
                 <>
                   <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  {isEdit ? "Guardando..." : "Creando..."}
+                  Guardando...
                 </>
               ) : (
                 <>
                   <Save className="size-4" />
-                  {isEdit ? "Guardar cambios" : "Crear Afiliado"}
+                  Guardar cambios
                 </>
               )}
             </Button>
