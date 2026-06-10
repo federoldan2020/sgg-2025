@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { AlertCircle, ArrowLeft, CheckCircle2, X } from "lucide-react";
 import { api, getErrorMessage, ORG } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -310,59 +312,42 @@ export default function NuevoComprobantePage() {
   };
 
   /* ===== Render ===== */
+  const isError = msg ? msg.toLowerCase().includes("error") : false;
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Nuevo Comprobante</h1>
-          <p className="page-subtitle">
-            Registra facturas, prestaciones y notas de crédito/débito
-          </p>
-        </div>
+    <div className="mx-auto max-w-7xl">
+      {/* Toolbar */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold text-neutral-900">Nuevo comprobante</h1>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/terceros/comprobantes" className="gap-1.5">
+            <ArrowLeft className="size-4" />
+            Volver al listado
+          </Link>
+        </Button>
       </div>
 
-      {/* Mensaje de estado global */}
       {msg && (
         <div
-          className={`alert ${
-            msg.includes("Error") ? "alert-error" : "alert-success"
+          className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+            isError
+              ? "border-rose-200 bg-rose-50 text-rose-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
           }`}
+          role="alert"
         >
-          <div className="alert-content">
-            <div className="alert-icon">
-              {msg.includes("Error") ? (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="15" y1="9" x2="9" y2="15" />
-                  <line x1="9" y1="9" x2="15" y2="15" />
-                </svg>
-              ) : (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20,6 9,17 4,12" />
-                </svg>
-              )}
-            </div>
-            <div className="alert-text">{msg}</div>
-          </div>
+          {isError ? (
+            <AlertCircle className="size-5 shrink-0" />
+          ) : (
+            <CheckCircle2 className="size-5 shrink-0" />
+          )}
+          <span className="font-medium">{msg}</span>
+          <button
+            onClick={() => setMsg(null)}
+            className="ml-auto rounded p-1 hover:bg-black/5"
+            aria-label="Cerrar"
+          >
+            <X className="size-4" />
+          </button>
         </div>
       )}
 
@@ -370,10 +355,7 @@ export default function NuevoComprobantePage() {
         {/* CABECERA DEL COMPROBANTE */}
         <div className="form-section">
           <div className="form-section-header">
-            <h2 className="form-section-title">Información General</h2>
-            <p className="form-section-subtitle">
-              Datos básicos del comprobante
-            </p>
+            <h2 className="form-section-title">Información general</h2>
           </div>
 
           <div className="form-grid form-grid-4">
@@ -623,8 +605,7 @@ export default function NuevoComprobantePage() {
         <div className="form-section">
           <div className="form-section-header">
             <div>
-              <h2 className="form-section-title">Líneas de Detalle</h2>
-              <p className="form-section-subtitle">Items del comprobante</p>
+              <h2 className="form-section-title">Líneas</h2>
             </div>
             <Button onClick={addLinea} type="button">
               <svg
@@ -756,8 +737,7 @@ export default function NuevoComprobantePage() {
         <div className="form-section">
           <div className="form-section-header">
             <div>
-              <h2 className="form-section-title">Impuestos y Percepciones</h2>
-              <p className="form-section-subtitle">Conceptos adicionales</p>
+              <h2 className="form-section-title">Impuestos y percepciones</h2>
             </div>
             <Button variant="secondary" onClick={addImp} type="button">
               <svg

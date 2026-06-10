@@ -1,12 +1,28 @@
-/* eslint-disable @next/next/no-html-link-for-pages */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  FileText,
+  FilePlus,
+  Loader2,
+  Search,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react";
 import { api, ORG, getErrorMessage } from "@/servicios/api";
-import { formatearFechaArgentina } from "@/utiles/formatos";
+import { mon, fmtFecha } from "@/utiles/formatos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
 type Tipo = "FACTURA" | "PRESTACION" | "NOTA_CREDITO" | "NOTA_DEBITO";
@@ -33,15 +49,27 @@ type PageResp = {
   pages: number;
 };
 
-const fmtMoney = (n: number | null | undefined) =>
-  Number(n ?? 0).toLocaleString("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    minimumFractionDigits: 2,
-  });
+const ROL_BADGE: Record<RolTercero, string> = {
+  PROVEEDOR: "bg-blue-100 text-blue-800 border-blue-200",
+  PRESTADOR: "bg-violet-100 text-violet-800 border-violet-200",
+  AFILIADO: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  OTRO: "bg-neutral-100 text-neutral-700 border-neutral-200",
+};
 
-const fmtDate = (s?: string | null) =>
-  s ? formatearFechaArgentina(s) : "—";
+const ESTADO_BADGE: Record<Estado, string> = {
+  borrador: "bg-amber-100 text-amber-800 border-amber-200",
+  emitido: "bg-medical-100 text-medical-800 border-medical-200",
+  contabilizado: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  pagado: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  anulado: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
+const TIPO_LABEL: Record<Tipo, string> = {
+  FACTURA: "Factura",
+  PRESTACION: "Prestación",
+  NOTA_CREDITO: "N. Crédito",
+  NOTA_DEBITO: "N. Débito",
+};
 
 export default function ComprobantesListadoPage() {
   const [q, setQ] = useState("");
@@ -107,556 +135,311 @@ export default function ComprobantesListadoPage() {
   };
 
   const hasActiveFilters = Boolean(q.trim() || rol || estado);
-
-  const getEstadoBadgeClass = (st: Estado) => {
-    switch (st) {
-      case "borrador":
-        return "estado-borrador";
-      case "emitido":
-        return "estado-emitido";
-      case "contabilizado":
-        return "estado-contabilizado";
-      case "pagado":
-        return "estado-pagado";
-      case "anulado":
-        return "estado-anulado";
-      default:
-        return "estado-default";
-    }
-  };
-
-  const getTipoIcon = (tipo: Tipo) => {
-    switch (tipo) {
-      case "FACTURA":
-        return "📄";
-      case "PRESTACION":
-        return "🏥";
-      case "NOTA_CREDITO":
-        return "📋";
-      case "NOTA_DEBITO":
-        return "📝";
-      default:
-        return "📄";
-    }
-  };
-
-  const getRolColor = (r: RolTercero) => {
-    switch (r) {
-      case "PROVEEDOR":
-        return "rol-proveedor";
-      case "PRESTADOR":
-        return "rol-prestador";
-      case "AFILIADO":
-        return "rol-afiliado";
-      case "OTRO":
-        return "rol-otro";
-      default:
-        return "rol-default";
-    }
-  };
+  const rows = data?.items ?? [];
 
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Comprobantes</h1>
-          <p className="page-subtitle">Gestión y consulta de comprobantes del sistema</p>
-        </div>
-        <div className="page-actions">
-          <Button asChild>
-            <a href="/terceros/comprobantes/nuevo">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+    <div className="mx-auto max-w-7xl">
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[260px] flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+          <Input
+            placeholder="Buscar por tercero, CUIT o número..."
+            aria-label="Buscar comprobantes"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 rounded-lg border-neutral-200 pl-9 pr-8"
+          />
+          {q && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 size-7 -translate-y-1/2"
+              onClick={() => {
+                setQ("");
+                setPage(1);
+              }}
+              title="Limpiar búsqueda"
             >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14,2 14,8 20,8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <line x1="10" y1="9" x2="8" y2="9" />
-            </svg>
-            Nuevo Comprobante
-            </a>
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
+        <select
+          aria-label="Rol del tercero"
+          value={rol}
+          onChange={(e) => {
+            setRol(e.target.value as RolTercero | "");
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+        >
+          <option value="">Todos los roles</option>
+          <option value="PROVEEDOR">Proveedor</option>
+          <option value="PRESTADOR">Prestador</option>
+          <option value="AFILIADO">Afiliado</option>
+          <option value="OTRO">Otro</option>
+        </select>
+        <select
+          aria-label="Estado del comprobante"
+          value={estado}
+          onChange={(e) => {
+            setEstado(e.target.value as Estado | "");
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+        >
+          <option value="">Todos los estados</option>
+          <option value="borrador">Borrador</option>
+          <option value="emitido">Emitido</option>
+          <option value="contabilizado">Contabilizado</option>
+          <option value="pagado">Pagado</option>
+          <option value="anulado">Anulado</option>
+        </select>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearFilters}
+            title="Limpiar filtros"
+            className="h-9 gap-1 text-neutral-600"
+          >
+            <Trash2 className="size-4" />
+            Limpiar
+          </Button>
+        )}
+        <div className="ml-auto">
+          <Button asChild className="h-9 gap-2">
+            <Link href="/terceros/comprobantes/nuevo">
+              <FilePlus className="size-4" />
+              Nuevo comprobante
+            </Link>
           </Button>
         </div>
       </div>
 
-      {/* Mensaje de error */}
+      {/* Alert error */}
       {msg && (
-        <div className="alert alert-error">
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            </div>
-            <div className="alert-text">{msg}</div>
-          </div>
+        <div
+          className="mb-4 flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+          role="alert"
+        >
+          <AlertCircle className="size-5 shrink-0" />
+          <span className="font-medium">{msg}</span>
+          <button
+            onClick={() => setMsg(null)}
+            className="ml-auto rounded p-1 hover:bg-rose-100"
+            aria-label="Cerrar"
+          >
+            <X className="size-4" />
+          </button>
         </div>
       )}
 
-      <div className="page-content">
-        {/* Filtros y controles */}
-        <div className="comprobantes-controls">
-          <div className="search-section">
-            <div className="search-input-container">
-              <svg
-                className="search-icon"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-              <Input
-                className="search-input"
-                placeholder="Buscar por tercero, CUIT o número..."
-                value={q}
-                onChange={(e) => {
-                  setQ(e.target.value);
-                  setPage(1);
-                }}
-              />
-              {q && (
-                <button
-                  onClick={() => {
-                    setQ("");
-                    setPage(1);
-                  }}
-                  className="search-clear"
-                  title="Limpiar búsqueda"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              )}
-            </div>
+      <Card className="relative mb-4 overflow-hidden rounded-xl border-neutral-200">
+        {/* Barra de progreso al refetchear con datos */}
+        {loading && rows.length > 0 && (
+          <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-medical-500" />
+        )}
+
+        {loading && rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-6 py-16 text-center text-neutral-500">
+            <Loader2 className="mb-3 size-6 animate-spin" />
+            Cargando comprobantes…
           </div>
-
-          <div className="filters-section">
-            <div className="filter-group">
-              <label className="filter-label">Rol del Tercero</label>
-              <select
-                className="filter-select"
-                value={rol}
-                onChange={(e) => {
-                  setRol(e.target.value as RolTercero | "");
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos los roles</option>
-                <option value="PROVEEDOR">Proveedor</option>
-                <option value="PRESTADOR">Prestador</option>
-                <option value="AFILIADO">Afiliado</option>
-                <option value="OTRO">Otro</option>
-              </select>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+            <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-neutral-100 text-neutral-400">
+              <FileText className="size-6" />
             </div>
-
-            <div className="filter-group">
-              <label className="filter-label">Estado</label>
-              <select
-                className="filter-select"
-                value={estado}
-                onChange={(e) => {
-                  setEstado(e.target.value as Estado | "");
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos los estados</option>
-                <option value="borrador">Borrador</option>
-                <option value="emitido">Emitido</option>
-                <option value="contabilizado">Contabilizado</option>
-                <option value="pagado">Pagado</option>
-                <option value="anulado">Anulado</option>
-              </select>
-            </div>
-
-            {hasActiveFilters && (
-              <Button
-                variant="secondary"
-                onClick={handleClearFilters}
-                title="Limpiar todos los filtros"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  <line x1="10" y1="11" x2="10" y2="17" />
-                  <line x1="14" y1="11" x2="14" y2="17" />
-                </svg>
+            <h3 className="text-lg font-semibold text-neutral-900">
+              {hasActiveFilters ? "Sin resultados" : "No hay comprobantes"}
+            </h3>
+            <p className="mt-1 max-w-md text-sm text-neutral-600">
+              {hasActiveFilters
+                ? "Ajustá los filtros para ver resultados."
+                : "Creá el primer comprobante para empezar."}
+            </p>
+            {hasActiveFilters ? (
+              <Button variant="outline" className="mt-4" onClick={handleClearFilters}>
                 Limpiar filtros
               </Button>
-            )}
-          </div>
-
-          <div className="results-info">
-            {loading ? (
-              <div className="loading-indicator">
-                <svg
-                  className="spinner"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-                Cargando...
-              </div>
             ) : (
-              <span className="results-text">
-                {data?.total === 0
-                  ? "0 comprobantes"
-                  : `${data?.total ?? 0} comprobantes encontrados`}
-              </span>
+              <Button asChild className="mt-4 gap-2">
+                <Link href="/terceros/comprobantes/nuevo">
+                  <FilePlus className="size-4" />
+                  Nuevo comprobante
+                </Link>
+              </Button>
             )}
           </div>
-        </div>
-
-        {/* Tabla de resultados */}
-        <div className="comprobantes-table-container">
-          {loading ? (
-            <div className="loading-state">
-              <div className="loading-icon">
-                <svg
-                  className="spinner"
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-              </div>
-              <div className="loading-text">Cargando comprobantes...</div>
-            </div>
-          ) : !data || data.items.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">{hasActiveFilters ? "🔍" : "📄"}</div>
-              <div className="empty-state-title">
-                {hasActiveFilters ? "Sin resultados" : "No hay comprobantes"}
-              </div>
-              <div className="empty-state-text">
-                {hasActiveFilters
-                  ? "No se encontraron comprobantes que coincidan con los filtros aplicados"
-                  : "Comienza creando el primer comprobante del sistema"}
-              </div>
-              {hasActiveFilters ? (
-                <Button variant="secondary" onClick={handleClearFilters}>
-                  Limpiar filtros
-                </Button>
-              ) : (
-                <Button asChild>
-                  <a href="/terceros/comprobantes/nuevo">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14,2 14,8 20,8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                    <line x1="10" y1="9" x2="8" y2="9" />
-                  </svg>
-                  Crear primer comprobante
-                  </a>
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="table-container">
-              <Table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Comprobante</th>
-                    <th>Fecha</th>
-                    <th>Tercero</th>
-                    <th>Rol</th>
-                    <th>Número</th>
-                    <th className="table-col-numeric">Total</th>
-                    <th className="table-col-center">Estado</th>
-                    <th className="table-col-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((r) => {
-                    const nro = [r.puntoVenta ?? "", r.numero ?? ""].filter(Boolean).join("-");
-                    return (
-                      <tr key={r.id}>
-                        <td>
-                          <div className="comprobante-info">
-                            <div className="comprobante-icon">{getTipoIcon(r.tipo)}</div>
-                            <div className="comprobante-details">
-                              <div className="comprobante-tipo">
-                                {r.tipo}
-                                {r.clase && <span className="comprobante-clase">{r.clase}</span>}
-                              </div>
-                              <div className="comprobante-id">ID: {r.id}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wider text-neutral-500">
+                <tr>
+                  <th className="px-4 py-3">Comprobante</th>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Tercero</th>
+                  <th className="px-4 py-3">Rol</th>
+                  <th className="px-4 py-3">Número</th>
+                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3 text-center">Estado</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {rows.map((r) => {
+                  const nro = [r.puntoVenta ?? "", r.numero ?? ""].filter(Boolean).join("-");
+                  return (
+                    <tr key={r.id} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-4 text-neutral-400" />
+                          <div>
+                            <div className="font-medium text-neutral-900">
+                              {TIPO_LABEL[r.tipo] ?? r.tipo}
+                              {r.clase && (
+                                <span className="ml-1 rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-700">
+                                  {r.clase}
+                                </span>
+                              )}
                             </div>
+                            <div className="text-[11px] text-neutral-500">ID {r.id}</div>
                           </div>
-                        </td>
-                        <td>
-                          <span className="fecha-badge">{fmtDate(r.fecha)}</span>
-                        </td>
-                        <td>
-                          <div className="tercero-info">
-                            <div className="tercero-nombre">{r.tercero?.nombre ?? "Sin tercero"}</div>
-                            {r.tercero?.cuit && (
-                              <div className="tercero-cuit">CUIT: {r.tercero.cuit}</div>
-                            )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700">{fmtFecha(r.fecha)}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-neutral-900">
+                          {r.tercero?.nombre ?? "Sin tercero"}
+                        </div>
+                        {r.tercero?.cuit && (
+                          <div className="text-[11px] text-neutral-500">
+                            CUIT {r.tercero.cuit}
                           </div>
-                        </td>
-                        <td>
-                          <span className={`rol-badge ${getRolColor(r.rol)}`}>{r.rol}</span>
-                        </td>
-                        <td>
-                          <span className="numero-badge">{nro || "—"}</span>
-                        </td>
-                        <td className="table-col-numeric">
-                          <span className="monto-badge">{fmtMoney(r.total)}</span>
-                        </td>
-                        <td className="table-col-center">
-                          <span className={`estado-badge ${getEstadoBadgeClass(r.estado)}`}>
-                            {r.estado}
-                          </span>
-                        </td>
-                        <td className="table-col-center">
-                          <div className="actions-group">
-                            {r.cuentaId && (
-                              <Button asChild variant="secondary" size="sm" title="Ver cuenta asociada">
-                                <a href={`/finanzas/cuentas/${r.cuentaId}`}>
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                  <circle cx="12" cy="12" r="3" />
-                                </svg>
-                                Cuenta
-                                </a>
-                              </Button>
-                            )}
-                            {r.estado !== "anulado" && (
-                              <Button
-                                variant="error"
-                                size="sm"
-                                onClick={() => anular(r.id)}
-                                disabled={anulando === r.id}
-                                title="Anular comprobante"
-                              >
-                                {anulando === r.id ? (
-                                  <>
-                                    <svg
-                                      className="spinner"
-                                      width="14"
-                                      height="14"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                    </svg>
-                                    Anulando...
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg
-                                      width="14"
-                                      height="14"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <circle cx="12" cy="12" r="10" />
-                                      <line x1="15" y1="9" x2="9" y2="15" />
-                                      <line x1="9" y1="9" x2="15" y2="15" />
-                                    </svg>
-                                    Anular
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
-            </div>
-          )}
-        </div>
-
-        {/* Paginación */}
-        {!loading && data && data.items.length > 0 && (
-          <div className="pagination-container">
-            <div className="pagination-info">
-              <span className="pagination-text">
-                Página {data.page} de {data.pages} ({data.total} resultados)
-              </span>
-            </div>
-            <div className="pagination-controls">
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage(1)}
-                disabled={data.page <= 1}
-                title="Primera página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="11,17 6,12 11,7" />
-                  <polyline points="18,17 13,12 18,7" />
-                </svg>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={data.page <= 1}
-                title="Página anterior"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="15,18 9,12 15,6" />
-                </svg>
-              </Button>
-              <span className="pagination-current">{data.page}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={data.page >= data.pages}
-                title="Página siguiente"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="9,18 15,12 9,6" />
-                </svg>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage(data.pages)}
-                disabled={data.page >= data.pages}
-                title="Última página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="13,17 18,12 13,7" />
-                  <polyline points="6,17 11,12 6,7" />
-                </svg>
-              </Button>
-            </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          variant="outline"
+                          className={`${ROL_BADGE[r.rol]} text-[11px]`}
+                        >
+                          {r.rol}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-neutral-700">
+                        {nro || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        {mon(r.total)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge
+                          variant="outline"
+                          className={`${ESTADO_BADGE[r.estado]} text-[11px] capitalize`}
+                        >
+                          {r.estado}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {r.cuentaId && (
+                            <Button
+                              asChild
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 gap-1"
+                              title="Ver cuenta asociada"
+                            >
+                              <Link href={`/finanzas/cuentas/${r.cuentaId}`}>
+                                <Eye className="size-4" />
+                              </Link>
+                            </Button>
+                          )}
+                          {r.estado !== "anulado" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => anular(r.id)}
+                              disabled={anulando === r.id}
+                              className="h-8 gap-1 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                              title="Anular"
+                            >
+                              {anulando === r.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <XCircle className="size-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </Card>
+
+      {/* Paginación */}
+      {!loading && data && data.items.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="text-xs text-neutral-500">
+            Página {data.page} de {data.pages} · {data.total} resultados
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => setPage(1)}
+              disabled={data.page <= 1}
+              title="Primera"
+            >
+              <ChevronsLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={data.page <= 1}
+              title="Anterior"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="px-2 text-sm font-medium tabular-nums text-neutral-700">
+              {data.page}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={data.page >= data.pages}
+              title="Siguiente"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => setPage(data.pages)}
+              disabled={data.page >= data.pages}
+              title="Última"
+            >
+              <ChevronsRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
