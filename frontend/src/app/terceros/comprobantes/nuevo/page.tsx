@@ -1,10 +1,22 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, CheckCircle2, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { api, getErrorMessage, ORG } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 /* ===== Tipos ===== */
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
@@ -68,7 +80,8 @@ function useDebounced<T>(value: T, delay = 300) {
 /* ===== Page ===== */
 export default function NuevoComprobantePage() {
   // Cabecera
-  const [organizacionId, setOrg] = useState(ORG);
+  // organizacionId fijo desde el contexto; no se edita en la UI.
+  const [organizacionId] = useState(ORG);
   const [rol, setRol] = useState<RolTercero>("PROVEEDOR");
   const [terceroSel, setTerceroSel] = useState<TerceroSearchItem | null>(null);
 
@@ -351,657 +364,534 @@ export default function NuevoComprobantePage() {
         </div>
       )}
 
-      <div className="page-content">
-        {/* CABECERA DEL COMPROBANTE */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <h2 className="form-section-title">Información general</h2>
-          </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Columna principal */}
+        <div className="space-y-4 lg:col-span-2">
+          {/* CABECERA */}
+          <Card className="rounded-xl border-neutral-200 p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+              Información general
+            </h2>
 
-          <div className="form-grid form-grid-4">
-            <div className="form-group">
-              <label className="form-label">Organización</label>
-              <Input
-                className="form-input"
-                value={organizacionId}
-                onChange={(e) => setOrg(e.target.value)}
-                placeholder="ID de organización"
-              />
-            </div>
-
-            {/* Autocomplete tercero */}
-            <div className="form-group form-group-span-2" ref={acWrapRef}>
-              <label className="form-label">
-                Tercero
-                {terceroSel && (
-                  <span className="form-label-info">
-                    · {terceroSel.roles.join(", ")}
-                  </span>
-                )}
-              </label>
-              <div className="autocomplete-container">
-                <Input
-                  ref={inputRef}
-                  className="form-input"
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setOpen(Boolean(e.target.value.trim()));
-                    if (!e.target.value) setTerceroSel(null);
-                  }}
-                  onFocus={() => setOpen(Boolean(q.trim()))}
-                  onKeyDown={onAutoKeyDown}
-                  placeholder="Buscar por CUIT o nombre..."
-                  aria-autocomplete="list"
-                  aria-expanded={open}
-                />
-                {terceroSel && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={limpiarTercero}
-                    className="autocomplete-clear"
-                    title="Limpiar selección"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Autocomplete tercero */}
+              <div className="sm:col-span-2" ref={acWrapRef}>
+                <label className={labelCls}>
+                  Tercero <span className="text-rose-500">*</span>
+                  {terceroSel && (
+                    <span className="ml-1 font-normal text-neutral-400">
+                      · {terceroSel.roles.join(", ")}
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                  <Input
+                    ref={inputRef}
+                    className={`${inputCls} pl-9 pr-9`}
+                    value={q}
+                    onChange={(e) => {
+                      setQ(e.target.value);
+                      setOpen(Boolean(e.target.value.trim()));
+                      if (!e.target.value) setTerceroSel(null);
+                    }}
+                    onFocus={() => setOpen(Boolean(q.trim()))}
+                    onKeyDown={onAutoKeyDown}
+                    placeholder="Buscar por CUIT o nombre…"
+                    aria-autocomplete="list"
+                    aria-expanded={open}
+                  />
+                  {terceroSel && (
+                    <button
+                      type="button"
+                      onClick={limpiarTercero}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-700"
+                      title="Limpiar selección"
                     >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </Button>
-                )}
+                      <X className="size-4" />
+                    </button>
+                  )}
 
-                {open && (items.length > 0 || q.trim()) && (
-                  <div className="autocomplete-dropdown">
-                    {items.map((t) => (
-                      <div
-                        key={t.id}
-                        className="autocomplete-item"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => pick(t)}
-                      >
-                        <div className="autocomplete-item-main">
-                          <div className="autocomplete-item-name">
-                            {t.nombre}
+                  {open && (items.length > 0 || q.trim()) && (
+                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-neutral-200 bg-white shadow-lg">
+                      {items.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className="flex w-full items-start justify-between gap-2 border-b border-neutral-100 px-3 py-2 text-left last:border-0 hover:bg-neutral-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => pick(t)}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-neutral-900">
+                              {t.nombre}
+                              {t.fantasia && (
+                                <span className="ml-1 font-normal text-neutral-400">
+                                  ({t.fantasia})
+                                </span>
+                              )}
+                            </div>
+                            {t.cuit && (
+                              <div className="text-xs text-neutral-500">
+                                CUIT {t.cuit}
+                              </div>
+                            )}
                           </div>
-                          {t.fantasia && (
-                            <div className="autocomplete-item-fantasia">
-                              ({t.fantasia})
-                            </div>
-                          )}
-                          {t.cuit && (
-                            <div className="autocomplete-item-cuit">
-                              CUIT: {t.cuit}
-                            </div>
-                          )}
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            {t.roles.map((r) => (
+                              <Badge
+                                key={r}
+                                variant="outline"
+                                className="text-[10px]"
+                              >
+                                {r}
+                              </Badge>
+                            ))}
+                          </div>
+                        </button>
+                      ))}
+                      {!items.length && q.trim() && (
+                        <div className="px-3 py-4 text-center text-sm text-neutral-500">
+                          Sin resultados para &quot;{q}&quot;
                         </div>
-                        <div className="autocomplete-item-roles">
-                          {t.roles.map((r) => (
-                            <span key={r} className="role-badge">
-                              {r}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    {!items.length && q.trim() && (
-                      <div className="autocomplete-empty">
-                        Sin resultados para &quot;{q}&quot;
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Rol</label>
+                <select
+                  className={selectCls}
+                  value={rol}
+                  onChange={(e) => {
+                    const next = e.target.value as RolTercero;
+                    setRol(next);
+                    if (terceroSel && !terceroSel.roles.includes(next)) {
+                      setMsg(
+                        `El tercero seleccionado no tiene rol ${next}. Roles disponibles: ${terceroSel.roles.join(
+                          ", "
+                        )}.`
+                      );
+                    } else {
+                      setMsg(null);
+                    }
+                  }}
+                >
+                  <option value="PROVEEDOR">Proveedor</option>
+                  <option value="PRESTADOR">Prestador</option>
+                  <option value="AFILIADO">Afiliado</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={labelCls}>Tipo de comprobante</label>
+                <select
+                  className={selectCls}
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value as TipoComprobante)}
+                >
+                  <option value="FACTURA">Factura</option>
+                  <option value="PRESTACION">Prestación</option>
+                  <option value="NOTA_CREDITO">Nota de Crédito</option>
+                  <option value="NOTA_DEBITO">Nota de Débito</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={labelCls}>Clase AFIP</label>
+                <select
+                  className={selectCls}
+                  value={clase}
+                  onChange={(e) => setClase(e.target.value as ClaseAFIP)}
+                >
+                  <option value="">(Ninguna)</option>
+                  <option value="A">Clase A</option>
+                  <option value="B">Clase B</option>
+                  <option value="C">Clase C</option>
+                  <option value="M">Clase M</option>
+                  <option value="X">Clase X</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={labelCls}>Punto de venta</label>
+                <Input
+                  className={inputCls}
+                  type="number"
+                  value={puntoVenta}
+                  onChange={(e) =>
+                    setPV(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  placeholder="Ej: 1"
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Número</label>
+                <Input
+                  className={inputCls}
+                  type="number"
+                  value={numero}
+                  onChange={(e) =>
+                    setNumero(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
+                  placeholder="Ej: 1234"
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Fecha</label>
+                <Input
+                  className={inputCls}
+                  type="date"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Vencimiento</label>
+                <Input
+                  className={inputCls}
+                  type="date"
+                  value={vencimiento}
+                  onChange={(e) => setVenc(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Moneda</label>
+                <Input
+                  className={inputCls}
+                  value={moneda}
+                  onChange={(e) => setMoneda(e.target.value)}
+                  placeholder="ARS"
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>CUIT emisor</label>
+                <Input
+                  className={inputCls}
+                  value={cuitEmisor}
+                  onChange={(e) => setCuitEmisor(e.target.value)}
+                  placeholder="20-12345678-9"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Observaciones</label>
+                <Input
+                  className={inputCls}
+                  value={observaciones}
+                  onChange={(e) => setObs(e.target.value)}
+                  placeholder="Notas adicionales…"
+                />
               </div>
             </div>
+          </Card>
 
-            <div className="form-group">
-              <label className="form-label">Rol</label>
-              <select
-                className="form-select"
-                value={rol}
-                onChange={(e) => {
-                  const next = e.target.value as RolTercero;
-                  setRol(next);
-                  if (terceroSel && !terceroSel.roles.includes(next)) {
-                    setMsg(
-                      `El tercero seleccionado no tiene rol ${next}. Roles disponibles: ${terceroSel.roles.join(
-                        ", "
-                      )}.`
-                    );
-                  } else {
-                    setMsg(null);
-                  }
-                }}
-              >
-                <option value="PROVEEDOR">Proveedor</option>
-                <option value="PRESTADOR">Prestador</option>
-                <option value="AFILIADO">Afiliado</option>
-                <option value="OTRO">Otro</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-4">
-            <div className="form-group">
-              <label className="form-label">Tipo de Comprobante</label>
-              <select
-                className="form-select"
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as TipoComprobante)}
-              >
-                <option value="FACTURA">Factura</option>
-                <option value="PRESTACION">Prestación</option>
-                <option value="NOTA_CREDITO">Nota de Crédito</option>
-                <option value="NOTA_DEBITO">Nota de Débito</option>
-              </select>
+          {/* LÍNEAS */}
+          <Card className="rounded-xl border-neutral-200 p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
+                Líneas
+              </h2>
+              <Button size="sm" onClick={addLinea} type="button" className="gap-1.5">
+                <Plus className="size-4" />
+                Agregar línea
+              </Button>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Clase AFIP</label>
-              <select
-                className="form-select"
-                value={clase}
-                onChange={(e) => setClase(e.target.value as ClaseAFIP)}
-              >
-                <option value="">(Ninguna)</option>
-                <option value="A">Clase A</option>
-                <option value="B">Clase B</option>
-                <option value="C">Clase C</option>
-                <option value="M">Clase M</option>
-                <option value="X">Clase X</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Punto de Venta</label>
-              <Input
-                className="form-input"
-                type="number"
-                value={puntoVenta}
-                onChange={(e) =>
-                  setPV(e.target.value === "" ? "" : Number(e.target.value))
-                }
-                placeholder="Ej: 0001"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Número</label>
-              <Input
-                className="form-input"
-                type="number"
-                value={numero}
-                onChange={(e) =>
-                  setNumero(e.target.value === "" ? "" : Number(e.target.value))
-                }
-                placeholder="Ej: 00001234"
-              />
-            </div>
-          </div>
-
-          <div className="form-grid form-grid-5">
-            <div className="form-group">
-              <label className="form-label">Fecha</label>
-              <Input
-                className="form-input"
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Vencimiento</label>
-              <Input
-                className="form-input"
-                type="date"
-                value={vencimiento}
-                onChange={(e) => setVenc(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Moneda</label>
-              <Input
-                className="form-input"
-                value={moneda}
-                onChange={(e) => setMoneda(e.target.value)}
-                placeholder="ARS"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">CUIT Emisor</label>
-              <Input
-                className="form-input"
-                value={cuitEmisor}
-                onChange={(e) => setCuitEmisor(e.target.value)}
-                placeholder="20-12345678-9"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Observaciones</label>
-              <Input
-                className="form-input"
-                value={observaciones}
-                onChange={(e) => setObs(e.target.value)}
-                placeholder="Notas adicionales..."
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* LÍNEAS */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">Líneas</h2>
-            </div>
-            <Button onClick={addLinea} type="button">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Agregar Línea
-            </Button>
-          </div>
-
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Descripción</th>
-                  <th className="table-col-numeric">Cantidad</th>
-                  <th className="table-col-numeric">Precio Unitario</th>
-                  <th className="table-col-center">Alícuota IVA</th>
-                  <th className="table-col-numeric">Subtotal</th>
-                  <th className="table-col-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineas.map((l, i) => (
-                  <tr key={i}>
-                    <td>
-                      <Input
-                        className="table-input"
-                        value={l.descripcion}
-                        onChange={(e) =>
-                          updLinea(i, { descripcion: e.target.value })
-                        }
-                        placeholder="Descripción del item..."
-                      />
-                    </td>
-                    <td>
-                      <Input
-                        className="table-input table-input-numeric"
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={l.cantidad}
-                        onChange={(e) =>
-                          updLinea(i, { cantidad: Number(e.target.value) })
-                        }
-                      />
-                    </td>
-                    <td>
-                      <Input
-                        className="table-input table-input-numeric"
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={l.precioUnitario}
-                        onChange={(e) =>
-                          updLinea(i, {
-                            precioUnitario: Number(e.target.value),
-                          })
-                        }
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className="table-select"
-                        value={String(l.alicuotaIVA ?? "")}
-                        onChange={(e) =>
-                          updLinea(i, {
-                            alicuotaIVA:
-                              e.target.value === ""
-                                ? null
-                                : Number(e.target.value),
-                          })
-                        }
-                      >
-                        <option value="">(No gravado)</option>
-                        <option value="0">0% (Exento)</option>
-                        <option value="10.5">10.5%</option>
-                        <option value="21">21%</option>
-                        <option value="27">27%</option>
-                      </select>
-                    </td>
-                    <td className="table-col-numeric table-col-calculated">
-                      $
-                      {fmt(
-                        Number(l.cantidad || 0) * Number(l.precioUnitario || 0)
-                      )}
-                    </td>
-                    <td className="table-col-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="btn-icon btn-icon-danger"
-                        onClick={() => delLinea(i)}
-                        title="Eliminar línea"
-                        type="button"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="3,6 5,6 21,6" />
-                          <path d="m19,6v14a2,2 0,0 1,-2,2H7a2,2 0,0 1,-2,-2V6m3,0V4a2,2 0,0 1,2,-2h4a2,2 0,0 1,2,2v2" />
-                        </svg>
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* IMPUESTOS ADICIONALES */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">Impuestos y percepciones</h2>
-            </div>
-            <Button variant="secondary" onClick={addImp} type="button">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Agregar Concepto
-            </Button>
-          </div>
-
-          {impuestos.length > 0 && (
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase tracking-wider text-neutral-500">
                   <tr>
-                    <th>Tipo</th>
-                    <th>Detalle</th>
-                    <th className="table-col-numeric">Alícuota (%)</th>
-                    <th className="table-col-numeric">Importe</th>
-                    <th className="table-col-center">Acciones</th>
+                    <th className="px-2 py-2">Descripción</th>
+                    <th className="w-24 px-2 py-2 text-right">Cant.</th>
+                    <th className="w-32 px-2 py-2 text-right">P. unitario</th>
+                    <th className="w-32 px-2 py-2">IVA</th>
+                    <th className="w-32 px-2 py-2 text-right">Subtotal</th>
+                    <th className="w-12 px-2 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {impuestos.map((it, i) => (
-                    <tr key={i}>
-                      <td>
-                        <select
-                          className="table-select"
-                          value={it.tipo}
-                          onChange={(e) =>
-                            updImp(i, { tipo: e.target.value as ImpAdicTipo })
-                          }
-                        >
-                          <option value="PERCEPCION_IIBB">
-                            Percepción IIBB
-                          </option>
-                          <option value="RETENCION_IIBB">Retención IIBB</option>
-                          <option value="PERCEPCION_IVA">Percepción IVA</option>
-                          <option value="RETENCION_IVA">Retención IVA</option>
-                          <option value="IMP_MUNICIPAL">
-                            Impuesto Municipal
-                          </option>
-                          <option value="IMP_INTERNO">Impuesto Interno</option>
-                          <option value="GASTO_ADMINISTRATIVO">
-                            Gasto Administrativo
-                          </option>
-                          <option value="OTRO">Otro</option>
-                        </select>
-                      </td>
-                      <td>
+                  {lineas.map((l, i) => (
+                    <tr key={i} className="border-t border-neutral-100">
+                      <td className="px-2 py-2">
                         <Input
-                          className="table-input"
-                          value={it.detalle || ""}
+                          className={inputCls}
+                          value={l.descripcion}
                           onChange={(e) =>
-                            updImp(i, { detalle: e.target.value })
+                            updLinea(i, { descripcion: e.target.value })
                           }
-                          placeholder="Descripción..."
+                          placeholder="Descripción del item…"
                         />
                       </td>
-                      <td>
+                      <td className="px-2 py-2">
                         <Input
-                          className="table-input table-input-numeric"
+                          className={`${inputCls} text-right`}
                           type="number"
                           step="0.01"
-                          value={it.alicuota ?? ""}
+                          min={0}
+                          value={l.cantidad}
                           onChange={(e) =>
-                            updImp(i, {
-                              alicuota:
+                            updLinea(i, { cantidad: Number(e.target.value) })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <Input
+                          className={`${inputCls} text-right`}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={l.precioUnitario}
+                          onChange={(e) =>
+                            updLinea(i, {
+                              precioUnitario: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <select
+                          className={selectCls}
+                          value={String(l.alicuotaIVA ?? "")}
+                          onChange={(e) =>
+                            updLinea(i, {
+                              alicuotaIVA:
                                 e.target.value === ""
                                   ? null
                                   : Number(e.target.value),
                             })
                           }
-                        />
-                      </td>
-                      <td>
-                        <Input
-                          className="table-input table-input-numeric"
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={it.importe}
-                          onChange={(e) =>
-                            updImp(i, { importe: Number(e.target.value) })
-                          }
-                        />
-                      </td>
-                      <td className="table-col-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="btn-icon btn-icon-danger"
-                          onClick={() => delImp(i)}
-                          title="Eliminar concepto"
-                          type="button"
                         >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3,6 5,6 21,6" />
-                            <path d="m19,6v14a2,2 0,0 1,-2,2H7a2,2 0,0 1,-2,-2V6m3,0V4a2,2 0,0 1,2,-2h4a2,2 0,0 1,2,2v2" />
-                          </svg>
-                        </Button>
+                          <option value="">No gravado</option>
+                          <option value="0">0% Exento</option>
+                          <option value="10.5">10.5%</option>
+                          <option value="21">21%</option>
+                          <option value="27">27%</option>
+                        </select>
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono tabular-nums text-neutral-700">
+                        ${fmt(Number(l.cantidad || 0) * Number(l.precioUnitario || 0))}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => delLinea(i)}
+                          className="rounded p-1.5 text-neutral-400 hover:bg-rose-50 hover:text-rose-600"
+                          title="Eliminar línea"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </Card>
 
-          {impuestos.length === 0 && (
-            <div className="empty-state">
-              <div className="empty-state-icon">📊</div>
-              <div className="empty-state-title">Sin conceptos adicionales</div>
-              <div className="empty-state-text">
-                Agrega percepciones, retenciones o gastos administrativos según
-                corresponda
-              </div>
+          {/* IMPUESTOS */}
+          <Card className="rounded-xl border-neutral-200 p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
+                Impuestos y percepciones
+              </h2>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={addImp}
+                type="button"
+                className="gap-1.5"
+              >
+                <Plus className="size-4" />
+                Agregar concepto
+              </Button>
             </div>
-          )}
+
+            {impuestos.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase tracking-wider text-neutral-500">
+                    <tr>
+                      <th className="px-2 py-2">Tipo</th>
+                      <th className="px-2 py-2">Detalle</th>
+                      <th className="w-28 px-2 py-2 text-right">Alíc. %</th>
+                      <th className="w-32 px-2 py-2 text-right">Importe</th>
+                      <th className="w-12 px-2 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {impuestos.map((it, i) => (
+                      <tr key={i} className="border-t border-neutral-100">
+                        <td className="px-2 py-2">
+                          <select
+                            className={selectCls}
+                            value={it.tipo}
+                            onChange={(e) =>
+                              updImp(i, { tipo: e.target.value as ImpAdicTipo })
+                            }
+                          >
+                            <option value="PERCEPCION_IIBB">Percepción IIBB</option>
+                            <option value="RETENCION_IIBB">Retención IIBB</option>
+                            <option value="PERCEPCION_IVA">Percepción IVA</option>
+                            <option value="RETENCION_IVA">Retención IVA</option>
+                            <option value="IMP_MUNICIPAL">Imp. Municipal</option>
+                            <option value="IMP_INTERNO">Imp. Interno</option>
+                            <option value="GASTO_ADMINISTRATIVO">Gasto Adm.</option>
+                            <option value="OTRO">Otro</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input
+                            className={inputCls}
+                            value={it.detalle || ""}
+                            onChange={(e) =>
+                              updImp(i, { detalle: e.target.value })
+                            }
+                            placeholder="Descripción…"
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input
+                            className={`${inputCls} text-right`}
+                            type="number"
+                            step="0.01"
+                            value={it.alicuota ?? ""}
+                            onChange={(e) =>
+                              updImp(i, {
+                                alicuota:
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input
+                            className={`${inputCls} text-right`}
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={it.importe}
+                            onChange={(e) =>
+                              updImp(i, { importe: Number(e.target.value) })
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => delImp(i)}
+                            className="rounded p-1.5 text-neutral-400 hover:bg-rose-50 hover:text-rose-600"
+                            title="Eliminar concepto"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-sm text-neutral-500">
+                Sin conceptos adicionales. Agregá percepciones, retenciones o
+                gastos administrativos si corresponde.
+              </p>
+            )}
+          </Card>
         </div>
 
-        {/* RESUMEN Y TOTALES */}
-        <div className="totals-section">
-          <div className="totals-grid">
-            <div className="totals-group">
-              <h3 className="totals-group-title">Importes Netos</h3>
-              <div className="totals-items">
-                <div className="total-item">
-                  <span className="total-label">Neto gravado 21%</span>
-                  <span className="total-value">
-                    ${fmt(totales.netoGrav21)}
-                  </span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">Neto gravado 10.5%</span>
-                  <span className="total-value">
-                    ${fmt(totales.netoGrav105)}
-                  </span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">Neto gravado 27%</span>
-                  <span className="total-value">
-                    ${fmt(totales.netoGrav27)}
-                  </span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">No gravado</span>
-                  <span className="total-value">
-                    ${fmt(totales.netoNoGrav)}
-                  </span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">Exento</span>
-                  <span className="total-value">
-                    ${fmt(totales.netoExento)}
-                  </span>
-                </div>
-              </div>
+        {/* Columna lateral: totales sticky */}
+        <div className="lg:col-span-1">
+          <Card className="sticky top-4 rounded-xl border-neutral-200 p-5">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+              Resumen
+            </h2>
+
+            <div className="space-y-1.5 text-sm">
+              <Row label="Neto gravado 21%" value={totales.netoGrav21} />
+              <Row label="Neto gravado 10.5%" value={totales.netoGrav105} />
+              <Row label="Neto gravado 27%" value={totales.netoGrav27} />
+              <Row label="No gravado" value={totales.netoNoGrav} />
+              <Row label="Exento" value={totales.netoExento} />
+              <div className="my-2 border-t border-neutral-100" />
+              <Row label="IVA 21%" value={totales.iva21} />
+              <Row label="IVA 10.5%" value={totales.iva105} />
+              <Row label="IVA 27%" value={totales.iva27} />
+              <Row label="Otros conceptos" value={totales.otros} />
             </div>
 
-            <div className="totals-group">
-              <h3 className="totals-group-title">Impuestos</h3>
-              <div className="totals-items">
-                <div className="total-item">
-                  <span className="total-label">IVA 21%</span>
-                  <span className="total-value">${fmt(totales.iva21)}</span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">IVA 10.5%</span>
-                  <span className="total-value">${fmt(totales.iva105)}</span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">IVA 27%</span>
-                  <span className="total-value">${fmt(totales.iva27)}</span>
-                </div>
-                <div className="total-item">
-                  <span className="total-label">Otros conceptos</span>
-                  <span className="total-value">${fmt(totales.otros)}</span>
-                </div>
-              </div>
+            <div className="mt-4 flex items-baseline justify-between border-t border-neutral-200 pt-4">
+              <span className="text-sm font-semibold text-neutral-600">
+                Total general
+              </span>
+              <span className="text-2xl font-bold tabular-nums text-neutral-900">
+                ${fmt(totales.total)}
+              </span>
             </div>
 
-            <div className="totals-summary">
-              <div className="total-final">
-                <span className="total-final-label">Total General</span>
-                <span className="total-final-value">${fmt(totales.total)}</span>
-              </div>
+            <Button
+              onClick={submit}
+              disabled={posting || !canSubmit}
+              type="button"
+              className="mt-4 w-full gap-2"
+            >
+              {posting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Procesando…
+                </>
+              ) : (
+                <>
+                  <Check className="size-4" />
+                  Crear comprobante
+                </>
+              )}
+            </Button>
 
-              <div className="submit-section">
-                <Button
-                  onClick={submit}
-                  disabled={posting || !canSubmit}
-                  type="button"
-                >
-                  {posting ? (
-                    <>
-                      <svg
-                        className="spinner"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                      </svg>
-                      Procesando...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20,6 9,17 4,12" />
-                      </svg>
-                      Crear Comprobante
-                    </>
-                  )}
-                </Button>
-
-                {!canSubmit && (
-                  <div className="submit-help">
-                    {!terceroSel
-                      ? "Selecciona un tercero"
-                      : lineas.length === 0
-                      ? "Agrega al menos una línea"
-                      : !lineas.every((l) => l.descripcion.trim())
-                      ? "Completa todas las descripciones"
-                      : "Completa los campos requeridos"}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+            {!canSubmit && (
+              <p className="mt-2 text-center text-xs text-amber-600">
+                {!terceroSel
+                  ? "Seleccioná un tercero"
+                  : lineas.length === 0
+                    ? "Agregá al menos una línea"
+                    : !lineas.every((l) => l.descripcion.trim())
+                      ? "Completá todas las descripciones"
+                      : "Completá los campos requeridos"}
+              </p>
+            )}
+          </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Estilos compartidos de los campos del formulario. */
+const labelCls = "mb-1 block text-xs font-medium text-neutral-600";
+const inputCls = "h-9 rounded-lg border-neutral-200";
+const selectCls =
+  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500";
+
+/** Fila etiqueta/valor del panel de totales. */
+function Row({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-neutral-500">{label}</span>
+      <span className="font-mono tabular-nums text-neutral-700">
+        ${fmt(value)}
+      </span>
     </div>
   );
 }
