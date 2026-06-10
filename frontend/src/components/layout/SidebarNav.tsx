@@ -2,7 +2,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import {
-  Banknote,
   Book,
   Building2,
   Calendar,
@@ -69,10 +68,8 @@ const ICONS: IconMap = {
 
   // Tesorería
   Comprobantes: FileText,
-  "Cargar comprobante": FileUp,
   "Órdenes de pago": Landmark,
-  "Nueva orden de pago": Banknote,
-  "Cuentas de terceros": Users2,
+  "Cuentas corrientes": Wallet,
 
   // Contabilidad
   "Plan de cuentas": Book,

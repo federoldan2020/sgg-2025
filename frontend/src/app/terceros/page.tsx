@@ -236,7 +236,7 @@ export default function TercerosListadoPage() {
             Exportar
           </Button>
           <Button size="sm" asChild className="gap-1.5">
-            <Link href="/terceros/new">
+            <Link href="/terceros/nuevo">
               <Plus className="size-4" />
               Nuevo tercero
             </Link>

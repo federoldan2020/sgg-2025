@@ -53,16 +53,26 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  /* ===== Tesorería (operativa financiera) ===== */
+  /* ===== Terceros (maestro: proveedores / prestadores / comercios) ===== */
+  {
+    titulo: "Terceros",
+    roles: ["TERCEROS", "TESORERIA", "FINANZAS", "ADMIN"],
+    items: [
+      { href: "/terceros", label: "Terceros" },
+      { href: "/terceros/nuevo", label: "Nuevo tercero" },
+      { href: "/terceros/import", label: "Importar terceros" },
+      { href: "/importadores/comercios", label: "Importar comercios" },
+    ],
+  },
+
+  /* ===== Tesorería (operativa financiera de terceros) ===== */
   {
     titulo: "Tesorería",
     roles: ["TESORERIA", "FINANZAS", "ADMIN"],
     items: [
       { href: "/terceros/comprobantes", label: "Comprobantes" },
-      { href: "/terceros/comprobantes/nuevo", label: "Cargar comprobante" },
       { href: "/terceros/ordenes-pago", label: "Órdenes de pago" },
-      { href: "/terceros/ordenes-pago/nueva", label: "Nueva orden de pago" },
-      { href: "/finanzas/cuentas", label: "Cuentas de terceros" },
+      { href: "/finanzas/cuentas", label: "Cuentas corrientes" },
     ],
   },
 
@@ -75,18 +85,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/contabilidad/asientos", label: "Asientos contables" },
       { href: "/contabilidad/mapeos", label: "Mapeos" },
       { href: "/contabilidad/plan/import", label: "Importar plan (CSV)" },
-    ],
-  },
-
-  /* ===== Terceros (maestro de proveedores/comercios) ===== */
-  {
-    titulo: "Terceros",
-    roles: ["TERCEROS", "ADMIN"],
-    items: [
-      { href: "/terceros", label: "Terceros" },
-      { href: "/terceros/new", label: "Nuevo tercero" },
-      { href: "/terceros/import", label: "Importar terceros" },
-      { href: "/importadores/comercios", label: "Importar comercios" },
     ],
   },
 
