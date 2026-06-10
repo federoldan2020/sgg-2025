@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/auth";
 import { OrgSelectorProvider } from "@/contexts/orgSelector";
 import { Toaster } from "@/components/ui/sonner"; // Added Toaster import
+import UppercaseInputs from "@/components/UppercaseInputs";
 
 export const metadata: Metadata = {
   title: "PGG 2025",
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
+        <UppercaseInputs />
         <AuthProvider>
           <OrgSelectorProvider>
             <AppLayout>{children}</AppLayout>

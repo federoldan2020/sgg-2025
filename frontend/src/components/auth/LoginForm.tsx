@@ -250,6 +250,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                       name="identificador"
                       type="text"
                       autoComplete="username"
+                      data-no-uppercase
                       required
                       value={identificador}
                       onChange={(e) => setIdentificador(e.target.value)}
@@ -274,6 +275,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
+                      data-no-uppercase
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
