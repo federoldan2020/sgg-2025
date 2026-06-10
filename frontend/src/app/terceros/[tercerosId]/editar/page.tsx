@@ -53,7 +53,7 @@ export default function EditarTerceroPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h1 className="truncate text-xl font-semibold text-neutral-900">
           {nombre ? `Editar · ${nombre}` : "Editar tercero"}

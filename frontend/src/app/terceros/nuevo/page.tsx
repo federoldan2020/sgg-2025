@@ -19,7 +19,7 @@ export default function NuevoTerceroPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-neutral-900">Nuevo tercero</h1>
         <Button variant="outline" size="sm" asChild>

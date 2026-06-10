@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 /* ===== Tipos compartidos ===== */
 export type RolEditable = "PROVEEDOR" | "PRESTADOR" | "COMERCIO";
@@ -77,6 +78,22 @@ const ROLES: { value: RolEditable; label: string; icon: string }[] = [
   { value: "COMERCIO", label: "Comercio", icon: "🏬" },
 ];
 const EDITABLE_ROLES: RolEditable[] = ["PROVEEDOR", "PRESTADOR", "COMERCIO"];
+
+const ROL_BADGE: Record<string, string> = {
+  PROVEEDOR: "bg-blue-100 text-blue-800 border-blue-200",
+  PRESTADOR: "bg-violet-100 text-violet-800 border-violet-200",
+  COMERCIO: "bg-amber-100 text-amber-800 border-amber-200",
+  AFILIADO: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  OTRO: "bg-neutral-100 text-neutral-700 border-neutral-200",
+};
+
+const COND_IVA_LABEL: Record<string, string> = {
+  INSCRIPTO: "Responsable Inscripto",
+  MONOTRIBUTO: "Monotributo",
+  EXENTO: "Exento",
+  CONSUMIDOR_FINAL: "Consumidor Final",
+  NO_RESPONSABLE: "No Responsable",
+};
 
 const labelCls = "mb-1 block text-xs font-medium text-neutral-600";
 const inputCls = "h-9 rounded-lg border-neutral-200";
@@ -246,6 +263,8 @@ export default function TerceroForm({
         </div>
       )}
 
+      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="space-y-4 lg:col-span-2">
       {/* Datos del tercero */}
       <Card className="rounded-xl border-neutral-200 p-5">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-neutral-500">
@@ -482,29 +501,99 @@ export default function TerceroForm({
         />
       </Card>
 
-      {/* Acciones */}
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" asChild>
-          <Link href={cancelHref}>Cancelar</Link>
-        </Button>
-        <Button onClick={submit} disabled={!canSubmit} className="gap-2">
-          {posting ? (
-            <>
-              <Loader2 className="size-4 animate-spin" />
-              Guardando…
-            </>
-          ) : mode === "crear" ? (
-            <>
-              <Building2 className="size-4" />
-              Crear tercero
-            </>
-          ) : (
-            <>
-              <Save className="size-4" />
-              Guardar cambios
-            </>
-          )}
-        </Button>
+      </div>
+
+        {/* Panel lateral: resumen + acciones (sticky) */}
+        <div className="lg:col-span-1">
+          <Card className="sticky top-4 rounded-xl border-neutral-200 p-5">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+              Resumen
+            </h2>
+
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-medical-50 text-medical-600">
+                <Building2 className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-neutral-900">
+                  {nombre.trim() ||
+                    (mode === "crear" ? "Nuevo tercero" : "Tercero")}
+                </div>
+                {cuit.trim() && (
+                  <div className="font-mono text-xs text-neutral-500">
+                    CUIT {cuit.trim()}
+                  </div>
+                )}
+                {condIva && (
+                  <div className="text-xs text-neutral-500">
+                    {COND_IVA_LABEL[condIva]}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-1">
+              {roles.length === 0 ? (
+                <span className="text-xs text-neutral-400">
+                  Sin roles seleccionados
+                </span>
+              ) : (
+                roles.map((r) => (
+                  <Badge
+                    key={r}
+                    variant="outline"
+                    className={`text-[10px] ${ROL_BADGE[r] ?? ""}`}
+                  >
+                    {r}
+                  </Badge>
+                ))
+              )}
+            </div>
+
+            <div className="my-4 border-t border-neutral-100" />
+
+            <Button
+              onClick={submit}
+              disabled={!canSubmit}
+              className="w-full gap-2"
+            >
+              {posting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Guardando…
+                </>
+              ) : mode === "crear" ? (
+                <>
+                  <Building2 className="size-4" />
+                  Crear tercero
+                </>
+              ) : (
+                <>
+                  <Save className="size-4" />
+                  Guardar cambios
+                </>
+              )}
+            </Button>
+
+            {!canSubmit && !posting && (
+              <p className="mt-2 text-center text-xs text-amber-600">
+                {!nombre.trim()
+                  ? "Completá la razón social"
+                  : roles.length === 0
+                    ? "Elegí al menos un rol"
+                    : ""}
+              </p>
+            )}
+
+            <Button
+              variant="ghost"
+              asChild
+              className="mt-1 w-full text-neutral-500"
+            >
+              <Link href={cancelHref}>Cancelar</Link>
+            </Button>
+          </Card>
+        </div>
       </div>
     </div>
   );
