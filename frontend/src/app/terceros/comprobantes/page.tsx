@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
+type RolTercero = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
 type Tipo = "FACTURA" | "PRESTACION" | "NOTA_CREDITO" | "NOTA_DEBITO";
 type Estado = "borrador" | "emitido" | "contabilizado" | "pagado" | "anulado";
 
@@ -52,6 +52,7 @@ type PageResp = {
 const ROL_BADGE: Record<RolTercero, string> = {
   PROVEEDOR: "bg-blue-100 text-blue-800 border-blue-200",
   PRESTADOR: "bg-violet-100 text-violet-800 border-violet-200",
+  COMERCIO: "bg-amber-100 text-amber-800 border-amber-200",
   AFILIADO: "bg-emerald-100 text-emerald-800 border-emerald-200",
   OTRO: "bg-neutral-100 text-neutral-700 border-neutral-200",
 };
@@ -180,8 +181,7 @@ export default function ComprobantesListadoPage() {
           <option value="">Todos los roles</option>
           <option value="PROVEEDOR">Proveedor</option>
           <option value="PRESTADOR">Prestador</option>
-          <option value="AFILIADO">Afiliado</option>
-          <option value="OTRO">Otro</option>
+          <option value="COMERCIO">Comercio</option>
         </select>
         <select
           aria-label="Estado del comprobante"

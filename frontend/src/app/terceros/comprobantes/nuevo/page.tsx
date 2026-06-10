@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 /* ===== Tipos ===== */
-type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
+type RolTercero = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
 type TipoComprobante =
   | "FACTURA"
   | "PRESTACION"
@@ -481,8 +481,7 @@ export default function NuevoComprobantePage() {
                 >
                   <option value="PROVEEDOR">Proveedor</option>
                   <option value="PRESTADOR">Prestador</option>
-                  <option value="AFILIADO">Afiliado</option>
-                  <option value="OTRO">Otro</option>
+                  <option value="COMERCIO">Comercio</option>
                 </select>
               </div>
 

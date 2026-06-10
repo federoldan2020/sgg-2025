@@ -29,7 +29,7 @@ import {
 import Swal from "sweetalert2";
 
 /* ===== Tipos ===== */
-type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO" | "REINTEGROS";
+type RolTercero = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO" | "REINTEGROS";
 type MetodoPago = "transferencia" | "cheque" | "efectivo" | "otro";
 
 type AfiliadoSuggest = {
@@ -1304,6 +1304,7 @@ export default function NuevaOrdenPagoPage() {
               >
                 <option value="PROVEEDOR">Proveedor</option>
                 <option value="PRESTADOR">Prestador</option>
+                <option value="COMERCIO">Comercio</option>
                 <option value="AFILIADO">Afiliado</option>
                 <option value="REINTEGROS">Reintegros</option>
                 <option value="OTRO">Otro</option>

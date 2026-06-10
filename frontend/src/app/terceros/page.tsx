@@ -7,7 +7,7 @@ import { api, getErrorMessage } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type Rol = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
+type Rol = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
 
 type Row = {
   id: string;
@@ -56,6 +56,8 @@ const getRolColor = (rol: Rol) => {
       return "rol-proveedor";
     case "PRESTADOR":
       return "rol-prestador";
+    case "COMERCIO":
+      return "rol-comercio";
     case "AFILIADO":
       return "rol-afiliado";
     case "OTRO":
@@ -71,6 +73,8 @@ const getRolIcon = (rol: Rol) => {
       return "🏢";
     case "PRESTADOR":
       return "🏥";
+    case "COMERCIO":
+      return "🏬";
     case "AFILIADO":
       return "👤";
     case "OTRO":
@@ -227,7 +231,7 @@ export default function TercerosListadoPage() {
           </div>
           <h1 className="page-title">Terceros</h1>
           <p className="page-subtitle">
-            Gestión de proveedores, prestadores y afiliados
+            Gestión de proveedores, prestadores y comercios
           </p>
         </div>
         <div className="page-actions">
@@ -402,8 +406,7 @@ export default function TercerosListadoPage() {
                 <option value="">Todos los roles</option>
                 <option value="PROVEEDOR">Proveedor</option>
                 <option value="PRESTADOR">Prestador</option>
-                <option value="AFILIADO">Afiliado</option>
-                <option value="OTRO">Otro</option>
+                <option value="COMERCIO">Comercio</option>
               </select>
             </div>
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api, ORG, getErrorMessage } from "@/servicios/api";
 import { formatearFechaArgentina } from "@/utiles/formatos";
 
-type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
+type RolTercero = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
 type Estado = "borrador" | "confirmado" | "anulado";
 
 type Item = {
@@ -55,6 +55,8 @@ const getRolColor = (rol?: RolTercero) => {
       return "rol-proveedor";
     case "PRESTADOR":
       return "rol-prestador";
+    case "COMERCIO":
+      return "rol-comercio";
     case "AFILIADO":
       return "rol-afiliado";
     case "OTRO":
@@ -364,8 +366,7 @@ export default function OrdenesPagoListadoPage() {
                 <option value="">Todos los roles</option>
                 <option value="PROVEEDOR">Proveedor</option>
                 <option value="PRESTADOR">Prestador</option>
-                <option value="AFILIADO">Afiliado</option>
-                <option value="OTRO">Otro</option>
+                <option value="COMERCIO">Comercio</option>
               </select>
             </div>
 

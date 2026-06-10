@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getErrorMessage } from "@/servicios/api";
 
-type Rol = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
+type Rol = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
 type TipoContacto = "EMAIL" | "TELEFONO" | "WHATSAPP" | "WEB" | "OTRO";
 type TipoCuentaBancaria = "CBU" | "ALIAS" | "CVU" | "CCI" | "OTRO";
 
@@ -255,6 +255,8 @@ export default function TerceroViewPage() {
                           ? "rol-proveedor"
                           : r.rol === "PRESTADOR"
                           ? "rol-prestador"
+                          : r.rol === "COMERCIO"
+                          ? "rol-comercio"
                           : r.rol === "AFILIADO"
                           ? "rol-afiliado"
                           : "rol-otro"

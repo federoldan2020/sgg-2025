@@ -2258,6 +2258,12 @@
   border-color: var(--warning-200);
 }
 
+.rol-comercio {
+  background: var(--warning-100);
+  color: var(--warning-700);
+  border-color: var(--warning-200);
+}
+
 .rol-otro {
   background: var(--surface-hover);
   color: var(--text-muted);
@@ -2520,6 +2526,12 @@
   background: var(--purple-100);
   color: var(--purple-700);
   border-color: var(--purple-200);
+}
+
+.cuenta-rol.rol-comercio {
+  background: var(--warning-100);
+  color: var(--warning-700);
+  border-color: var(--warning-200);
 }
 
 .cuenta-rol.rol-otro {
@@ -3393,6 +3405,12 @@
   background: var(--purple-100);
   color: var(--purple-700);
   border-color: var(--purple-200);
+}
+
+.rol-badge.rol-comercio {
+  background: var(--warning-100);
+  color: var(--warning-700);
+  border-color: var(--warning-200);
 }
 
 .rol-badge.rol-otro {
