@@ -95,6 +95,16 @@ const fmtMoney = (n?: number | null) =>
     minimumFractionDigits: 2,
   });
 
+// PROVEEDOR / PRESTADOR / COMERCIO / OTRO: positivo = les debemos (rojo); negativo = a favor nuestro (verde).
+// AFILIADO: positivo = nos debe (verde); negativo = pagado de mas (rojo).
+const saldoColor = (rol: Rol, saldo: number | null | undefined) => {
+  const s = saldo ?? 0;
+  if (s === 0) return "text-neutral-600";
+  const positivoEsBueno = rol === "AFILIADO";
+  const esBueno = positivoEsBueno ? s > 0 : s < 0;
+  return esBueno ? "text-emerald-700" : "text-rose-700";
+};
+
 export default function TerceroViewPage() {
   const router = useRouter();
   const { tercerosId } = useParams<{ tercerosId: string }>();
@@ -342,9 +352,7 @@ export default function TerceroViewPage() {
                       </span>
                       <span
                         className={`font-mono text-sm font-semibold tabular-nums ${
-                          (c.saldoActual ?? 0) >= 0
-                            ? "text-emerald-700"
-                            : "text-rose-700"
+                          saldoColor(c.rol, c.saldoActual)
                         }`}
                       >
                         {fmtMoney(c.saldoActual)}

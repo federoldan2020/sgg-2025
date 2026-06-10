@@ -67,6 +67,17 @@ const fmtARS = (n: number | null | undefined) =>
     minimumFractionDigits: 2,
   });
 
+// Color del saldo segun rol.
+// PROVEEDOR / PRESTADOR / COMERCIO / OTRO: positivo = les debemos (rojo); negativo = saldo a favor nuestro (verde).
+// AFILIADO: positivo = nos debe (verde); negativo = pagado de mas / a favor (rojo).
+const saldoColor = (rol: Rol, saldo: number | null | undefined) => {
+  const s = saldo ?? 0;
+  if (s === 0) return "text-neutral-600";
+  const positivoEsBueno = rol === "AFILIADO";
+  const esBueno = positivoEsBueno ? s > 0 : s < 0;
+  return esBueno ? "text-emerald-700" : "text-rose-700";
+};
+
 const ROL_BADGE: Record<Rol, string> = {
   PROVEEDOR: "bg-blue-100 text-blue-800 border-blue-200",
   PRESTADOR: "bg-violet-100 text-violet-800 border-violet-200",
@@ -498,9 +509,7 @@ export default function TercerosListadoPage() {
                                       </span>
                                       <span
                                         className={`font-mono text-sm font-semibold tabular-nums ${
-                                          (cuenta.saldoActual ?? 0) >= 0
-                                            ? "text-emerald-700"
-                                            : "text-rose-700"
+                                          saldoColor(cuenta.rol, cuenta.saldoActual)
                                         }`}
                                       >
                                         {fmtARS(cuenta.saldoActual)}
