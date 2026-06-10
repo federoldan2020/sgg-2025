@@ -5,8 +5,7 @@ import { EstadoOrdenPago } from '@prisma/client';
 import { MAX_SEARCH_TERM_LENGTH, MAX_PAGE_LIMIT } from '../../../common/sanitize';
 
 export class ListarOrdenesPagoQueryDto {
-  @IsString()
-  organizacionId!: string;
+  // `organizacionId` viene del middleware (`req.organizacionId`), no del query.
 
   @IsOptional()
   @IsEnum(RolTercero)

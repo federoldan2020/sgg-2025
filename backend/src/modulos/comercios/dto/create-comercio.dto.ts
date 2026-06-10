@@ -1,7 +1,9 @@
 import { IsBoolean, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateComercioDto {
-  @IsString() organizacionId!: string;
+  // `organizacionId` lo inyecta el controller desde el middleware
+  // (@OrgId()), no se valida desde el body.
+  @IsOptional() @IsString() organizacionId?: string;
   @IsString() codigo!: string;
   @IsString() razonSocial!: string;
 

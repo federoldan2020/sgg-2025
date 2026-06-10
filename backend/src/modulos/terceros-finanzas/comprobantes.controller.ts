@@ -25,8 +25,8 @@ export class ComprobantesController {
 
   @Get()
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  listar(@Query() q: ListarComprobantesQueryDto) {
-    const org = q.organizacionId;
+  listar(@Req() req: ReqOrg, @Query() q: ListarComprobantesQueryDto) {
+    const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
     return this.svc.listar(org, {
       rol: q.rol,

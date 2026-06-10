@@ -1,10 +1,13 @@
 // src/modulos/terceros-finanzas/ordenes-pago.controller.ts
-import { Body, Controller, Get, Param, Post, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UsePipes, ValidationPipe } from '@nestjs/common';
+import type { Request } from 'express';
 import { OrdenesPagoService } from './ordenes-pago.service';
 import type { CrearOrdenPagoDTO } from './ordenes-pago.dto';
 import { ListarOrdenesPagoQueryDto } from './dto/listar-ordenes-query.dto';
 import { clampPageLimit } from '../../common/sanitize';
 import { sanitizeSearchTerm } from '../../common/sanitize';
+
+type ReqOrg = Request & { organizacionId?: string };
 
 @Controller('terceros/ordenes-pago')
 export class OrdenesPagoController {
@@ -18,8 +21,8 @@ export class OrdenesPagoController {
 
   @Get()
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async listar(@Query() q: ListarOrdenesPagoQueryDto) {
-    const org = q.organizacionId;
+  async listar(@Req() req: ReqOrg, @Query() q: ListarOrdenesPagoQueryDto) {
+    const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
     return this.svc.listar(org, {
       rol: q.rol,
