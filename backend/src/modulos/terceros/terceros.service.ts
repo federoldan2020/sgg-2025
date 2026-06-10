@@ -25,10 +25,26 @@ const cleanCuit = (s?: string | null) => {
 const mapCondIva = (s?: string | null): CondIva | null => {
   const v = norm(s).toLowerCase();
   if (!v) return null;
+  // Abreviaturas del legacy FoxPro (columna INSCRI): IN, MT, EX, CF, NI, NR
+  switch (v) {
+    case 'in':
+      return 'INSCRIPTO'; // Responsable Inscripto
+    case 'mt':
+      return 'MONOTRIBUTO'; // Monotributista
+    case 'ex':
+      return 'EXENTO'; // Exento
+    case 'cf':
+      return 'CONSUMIDOR_FINAL'; // Consumidor Final
+    case 'ni':
+      return 'CONSUMIDOR_FINAL'; // No Inscripto → consumidor final
+    case 'nr':
+      return 'NO_RESPONSABLE'; // No Responsable
+  }
+  // Palabras completas (otros orígenes)
   if (/inscrip/.test(v)) return 'INSCRIPTO';
   if (/mono/.test(v)) return 'MONOTRIBUTO';
   if (/exent/.test(v)) return 'EXENTO';
-  if (/consumidor/.test(v) || /final/.test(v) || v === 'cf') return 'CONSUMIDOR_FINAL';
+  if (/consumidor/.test(v) || /final/.test(v)) return 'CONSUMIDOR_FINAL';
   if (/no\s*responsable/.test(v)) return 'NO_RESPONSABLE';
   return null;
 };
@@ -36,6 +52,9 @@ const mapCondIva = (s?: string | null): CondIva | null => {
 const mapTipoPersona = (s?: string | null): TipoPersona | null => {
   const v = norm(s).toLowerCase();
   if (!v) return null;
+  // El legacy de proveedores trae TIPO numérico (1/2 = categoría interna),
+  // que no es un tipo de persona: lo ignoramos.
+  if (/^\d+([.,]\d+)?$/.test(v)) return null;
   if (/fisic/.test(v)) return 'FISICA';
   if (/jurid/.test(v)) return 'JURIDICA';
   return 'OTRO';
@@ -820,18 +839,31 @@ export class TercerosService {
     };
   }
 
-  private detectDelimiter(buf: Buffer) {
-    const first =
-      buf
-        .toString('utf8')
-        .split(/\r?\n/)
-        .find((l) => l?.trim().length) ?? '';
+  // Decodifica el buffer detectando la codificación: UTF-8 si es válido
+  // (los exports modernos), latin-1/CP-1252 como fallback (legacy FoxPro/DBF,
+  // donde vienen Ñ y acentos en un solo byte).
+  private decodeBuffer(buf: Buffer): string {
+    // BOM UTF-8 explícito
+    if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+      return buf.toString('utf8');
+    }
+    try {
+      // fatal: lanza si hay secuencias UTF-8 inválidas → archivo latin-1
+      return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+    } catch {
+      return buf.toString('latin1');
+    }
+  }
+
+  private detectDelimiter(text: string) {
+    const first = text.split(/\r?\n/).find((l) => l?.trim().length) ?? '';
     return first.includes('\t') ? '\t' : first.includes(';') ? ';' : ',';
   }
 
   private parseCsv(buf: Buffer): CsvRow[] {
-    const delimiter = this.detectDelimiter(buf);
-    return parse(buf, {
+    const text = this.decodeBuffer(buf);
+    const delimiter = this.detectDelimiter(text);
+    return parse(text, {
       bom: true,
       columns: true,
       skip_empty_lines: true,
