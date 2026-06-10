@@ -1,11 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Download,
+  Eye,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Wallet,
+  X,
+} from "lucide-react";
 import { api, getErrorMessage } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 type Rol = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
 
@@ -50,21 +67,12 @@ const fmtARS = (n: number | null | undefined) =>
     minimumFractionDigits: 2,
   });
 
-const getRolColor = (rol: Rol) => {
-  switch (rol) {
-    case "PROVEEDOR":
-      return "rol-proveedor";
-    case "PRESTADOR":
-      return "rol-prestador";
-    case "COMERCIO":
-      return "rol-comercio";
-    case "AFILIADO":
-      return "rol-afiliado";
-    case "OTRO":
-      return "rol-otro";
-    default:
-      return "rol-default";
-  }
+const ROL_BADGE: Record<Rol, string> = {
+  PROVEEDOR: "bg-blue-100 text-blue-800 border-blue-200",
+  PRESTADOR: "bg-violet-100 text-violet-800 border-violet-200",
+  COMERCIO: "bg-amber-100 text-amber-800 border-amber-200",
+  AFILIADO: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  OTRO: "bg-neutral-100 text-neutral-700 border-neutral-200",
 };
 
 const getRolIcon = (rol: Rol) => {
@@ -207,786 +215,371 @@ export default function TercerosListadoPage() {
   const hasFilters = q.trim() || rol || activo;
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <div className="breadcrumb-nav">
-            <Link href="/" className="breadcrumb-link">
-              Inicio
-            </Link>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-            <span className="breadcrumb-current">Terceros</span>
-          </div>
-          <h1 className="page-title">Terceros</h1>
-          <p className="page-subtitle">
-            Gestión de proveedores, prestadores y comercios
+    <div className="mx-auto max-w-7xl">
+      {/* Toolbar */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-neutral-900">Terceros</h1>
+          <p className="text-sm text-neutral-500">
+            Proveedores, prestadores y comercios
           </p>
         </div>
-        <div className="page-actions">
+        <div className="flex items-center gap-2">
           <Button
-            variant="secondary"
+            variant="outline"
+            size="sm"
             onClick={exportCSV}
             disabled={!data?.items.length}
-            title="Exportar a CSV"
+            className="gap-1.5"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-15" />
-              <polyline points="7,10 12,15 17,10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
+            <Download className="size-4" />
             Exportar
           </Button>
-          <Button asChild>
+          <Button size="sm" asChild className="gap-1.5">
             <Link href="/terceros/new">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Nuevo Tercero
+              <Plus className="size-4" />
+              Nuevo tercero
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Mensaje de error */}
       {msg && (
-        <div className="alert alert-error">
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            </div>
-            <div className="alert-text">{msg}</div>
-          </div>
+        <div
+          className="mb-4 flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+          role="alert"
+        >
+          <AlertCircle className="size-5 shrink-0" />
+          <span className="font-medium">{msg}</span>
+          <button
+            onClick={() => setMsg(null)}
+            className="ml-auto rounded p-1 hover:bg-black/5"
+            aria-label="Cerrar"
+          >
+            <X className="size-4" />
+          </button>
         </div>
       )}
 
-      <div className="page-content">
-        {/* Filtros */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <div>
-              <h2 className="form-section-title">Filtros de Búsqueda</h2>
-              <p className="form-section-subtitle">
-                Encuentra terceros por nombre, CUIT, rol o estado
-              </p>
-            </div>
+      {/* Filtros + stats */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[260px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+          <Input
+            className="h-9 rounded-lg border-neutral-200 pl-9 pr-9"
+            placeholder="Nombre, fantasía, CUIT o código…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
+          {q && (
+            <button
+              onClick={() => {
+                setQ("");
+                setPage(1);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-700"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+
+        <select
+          aria-label="Rol"
+          value={rol}
+          onChange={(e) => {
+            setRol(e.target.value as Rol | "");
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+        >
+          <option value="">Todos los roles</option>
+          <option value="PROVEEDOR">Proveedor</option>
+          <option value="PRESTADOR">Prestador</option>
+          <option value="COMERCIO">Comercio</option>
+        </select>
+
+        <select
+          aria-label="Estado"
+          value={activo}
+          onChange={(e) => {
+            setActivo(e.target.value as "" | "true" | "false");
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+        >
+          <option value="">Todos los estados</option>
+          <option value="true">Activos</option>
+          <option value="false">Inactivos</option>
+        </select>
+
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Limpiar
+          </Button>
+        )}
+
+        {data && (
+          <span className="ml-auto text-sm text-neutral-500">
+            <span className="font-semibold text-neutral-800">{data.total}</span>{" "}
+            terceros
+          </span>
+        )}
+      </div>
+
+      {/* Tabla */}
+      <Card className="overflow-hidden rounded-xl border-neutral-200">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-neutral-500">
+            <Loader2 className="size-4 animate-spin" />
+            Cargando terceros…
+          </div>
+        ) : !data || data.items.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm font-medium text-neutral-700">Sin terceros</p>
+            <p className="mt-1 text-sm text-neutral-500">
+              {hasFilters
+                ? "No se encontraron terceros con los filtros aplicados."
+                : "Cargá el primer tercero para empezar."}
+            </p>
             {hasFilters && (
               <Button
-                variant="ghost"
+                variant="outline"
+                size="sm"
                 onClick={clearFilters}
-                title="Limpiar filtros"
+                className="mt-3"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 6h18l-2 13H5L3 6z" />
-                  <path d="m19 6-3-3H8L5 6" />
-                </svg>
-                Limpiar
+                Limpiar filtros
               </Button>
             )}
           </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-xs uppercase tracking-wider text-neutral-500">
+                <tr>
+                  <th className="px-4 py-2.5">Tercero</th>
+                  <th className="px-4 py-2.5">CUIT</th>
+                  <th className="px-4 py-2.5">Roles</th>
+                  <th className="px-4 py-2.5">Estado</th>
+                  <th className="px-4 py-2.5 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {data.items.map((tercero) => {
+                  const isOpen = openCuentasFor === tercero.id;
+                  const cuentasRow = cuentas[tercero.id] || [];
+                  const cargando = loadingCuentas[tercero.id];
 
-          <div className="form-grid form-grid-4">
-            <div className="form-group">
-              <label className="form-label">Buscar</label>
-              <div className="form-input-group">
-                <svg
-                  className="form-input-icon"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-                <Input
-                  className="form-input form-input-with-icon"
-                  placeholder="Nombre, fantasía, CUIT o código..."
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setPage(1);
-                  }}
-                />
-                {q && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="form-input-clear"
-                    onClick={() => {
-                      setQ("");
-                      setPage(1);
-                    }}
-                    title="Limpiar búsqueda"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Rol</label>
-              <select
-                className="form-select"
-                value={rol}
-                onChange={(e) => {
-                  setRol(e.target.value as Rol | "");
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos los roles</option>
-                <option value="PROVEEDOR">Proveedor</option>
-                <option value="PRESTADOR">Prestador</option>
-                <option value="COMERCIO">Comercio</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <select
-                className="form-select"
-                value={activo}
-                onChange={(e) => {
-                  setActivo(e.target.value as "" | "true" | "false");
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos los estados</option>
-                <option value="true">Activos</option>
-                <option value="false">Inactivos</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">&nbsp;</label>
-              <button
-                className={`btn btn-lg ${
-                  loading ? "btn-disabled" : "btn-primary"
-                }`}
-                onClick={() => {
-                  setPage(1);
-                  void load();
-                }}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <svg
-                      className="spinner"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Buscando...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Aplicar Filtros
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {hasFilters && (
-            <div className="active-filters">
-              <span className="active-filters-label">Filtros activos:</span>
-              <div className="active-filters-list">
-                {q && (
-                  <span className="filter-tag">
-                    <span className="filter-tag-label">Búsqueda:</span>
-                    <span className="filter-tag-value">{q}</span>
-                    <button
-                      className="filter-tag-remove"
-                      onClick={() => {
-                        setQ("");
-                        setPage(1);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {rol && (
-                  <span className="filter-tag">
-                    <span className="filter-tag-label">Rol:</span>
-                    <span className="filter-tag-value">{rol}</span>
-                    <button
-                      className="filter-tag-remove"
-                      onClick={() => {
-                        setRol("");
-                        setPage(1);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {activo && (
-                  <span className="filter-tag">
-                    <span className="filter-tag-label">Estado:</span>
-                    <span className="filter-tag-value">
-                      {activo === "true" ? "Activos" : "Inactivos"}
-                    </span>
-                    <button
-                      className="filter-tag-remove"
-                      onClick={() => {
-                        setActivo("");
-                        setPage(1);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Resumen */}
-        {data && (
-          <div className="summary-section">
-            <div className="summary-item">
-              <div className="summary-icon">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </div>
-              <div className="summary-content">
-                <div className="summary-label">Total de Terceros</div>
-                <div className="summary-value">{data.total}</div>
-              </div>
-            </div>
-            <div className="summary-item">
-              <div className="summary-icon">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              </div>
-              <div className="summary-content">
-                <div className="summary-label">Activos</div>
-                <div className="summary-value">
-                  {data.items.filter((item) => item.activo).length}
-                </div>
-              </div>
-            </div>
-            <div className="summary-item">
-              <div className="summary-icon">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="M21 15l-5-5L5 21" />
-                </svg>
-              </div>
-              <div className="summary-content">
-                <div className="summary-label">Mostrando</div>
-                <div className="summary-value">{data.items.length}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabla */}
-        <div className="terceros-section">
-          {loading ? (
-            <div className="loading-state">
-              <div className="loading-icon">
-                <svg
-                  className="spinner"
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-              </div>
-              <div className="loading-text">Cargando terceros...</div>
-            </div>
-          ) : !data || data.items.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">👥</div>
-              <div className="empty-state-title">Sin terceros</div>
-              <div className="empty-state-text">
-                {hasFilters
-                  ? "No se encontraron terceros con los filtros aplicados"
-                  : "No hay terceros registrados. Crea tu primer tercero para empezar"}
-              </div>
-              {hasFilters && (
-                <Button variant="secondary" onClick={clearFilters}>
-                  Limpiar filtros
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="data-table terceros-table">
-                <thead>
-                  <tr>
-                    <th>Tercero</th>
-                    <th>CUIT</th>
-                    <th>Roles</th>
-                    <th>Estado</th>
-                    <th className="table-col-actions">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((tercero) => {
-                    const isOpen = openCuentasFor === tercero.id;
-                    const cuentasRow = cuentas[tercero.id] || [];
-                    const cargando = loadingCuentas[tercero.id];
-
-                    return (
-                      <tr key={tercero.id} className="tercero-row">
-                        <td>
-                          <div className="tercero-info">
-                            <div className="tercero-nombre">
-                              {tercero.nombre}
-                            </div>
+                  return (
+                    <Fragment key={tercero.id}>
+                      <tr className="hover:bg-neutral-50/60">
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium text-neutral-900">
+                            {tercero.nombre}
                             {tercero.fantasia && (
-                              <div className="tercero-fantasia">
+                              <span className="ml-1 font-normal text-neutral-400">
                                 ({tercero.fantasia})
-                              </div>
-                            )}
-                            {tercero.codigo && (
-                              <div className="tercero-codigo">
-                                Código: {tercero.codigo}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <span className="cuit-value">
-                            {tercero.cuit || "—"}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="roles-list">
-                            {(tercero.roles ?? []).map((r, i) => (
-                              <span
-                                key={i}
-                                className={`rol-badge ${getRolColor(r.rol)}`}
-                              >
-                                <span className="rol-icon">
-                                  {getRolIcon(r.rol)}
-                                </span>
-                                {r.rol}
                               </span>
-                            ))}
+                            )}
                           </div>
-                        </td>
-                        <td>
-                          <span
-                            className={`estado-badge ${
-                              tercero.activo
-                                ? "estado-activo"
-                                : "estado-inactivo"
-                            }`}
-                          >
-                            {tercero.activo ? "Activo" : "Inactivo"}
-                          </span>
-                        </td>
-                        <td className="table-col-actions">
-                          <div className="action-buttons">
-                            <Button asChild variant="ghost" size="sm" title="Ver tercero">
-                              <Link href={`/terceros/${tercero.id}`}>
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                              Ver
-                              </Link>
-                            </Button>
-                            <Button asChild variant="ghost" size="sm" title="Editar tercero">
-                              <Link href={`/terceros/${tercero.id}`}>
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                              Editar
-                              </Link>
-                            </Button>
-                            <Button
-                              size="sm"
-                              title="Ver cuentas"
-                              onClick={() => verCuenta(tercero.id)}
-                            >
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <rect x="1" y="3" width="15" height="13" />
-                                <path d="m16 8 2 2-2 2" />
-                                <path d="M21 12H9" />
-                              </svg>
-                              Cuentas
-                            </Button>
-                          </div>
-
-                          {/* Panel cuentas expandible */}
-                          {isOpen && (
-                            <div className="cuentas-panel">
-                              {cargando ? (
-                                <div className="loading-state">
-                                  <div className="loading-icon">
-                                    <svg
-                                      className="spinner"
-                                      width="24"
-                                      height="24"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                    </svg>
-                                  </div>
-                                  <div className="loading-text">
-                                    Cargando cuentas...
-                                  </div>
-                                </div>
-                              ) : cuentasRow.length === 0 ? (
-                                <div className="empty-state-small">
-                                  <div className="empty-state-icon-small">
-                                    💳
-                                  </div>
-                                  <div className="empty-state-text">
-                                    Este tercero no tiene cuentas registradas.
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="cuentas-grid">
-                                  {cuentasRow.map((cuenta) => (
-                                    <button
-                                      key={cuenta.id}
-                                      className="cuenta-card"
-                                      title={`Ver extracto cuenta ${cuenta.rol}`}
-                                      onClick={() =>
-                                        router.push(
-                                          `/finanzas/cuentas/${cuenta.id}`
-                                        )
-                                      }
-                                    >
-                                      <div className="cuenta-card-header">
-                                        <span
-                                          className={`cuenta-rol ${getRolColor(
-                                            cuenta.rol
-                                          )}`}
-                                        >
-                                          <span className="rol-icon">
-                                            {getRolIcon(cuenta.rol)}
-                                          </span>
-                                          {cuenta.rol}
-                                        </span>
-                                        <span
-                                          className={`cuenta-estado ${
-                                            cuenta.activo
-                                              ? "activa"
-                                              : "inactiva"
-                                          }`}
-                                        >
-                                          {cuenta.activo
-                                            ? "Activa"
-                                            : "Inactiva"}
-                                        </span>
-                                      </div>
-                                      <div className="cuenta-card-body">
-                                        <div className="cuenta-saldo-line">
-                                          <span className="cuenta-saldo-label">
-                                            Saldo actual
-                                          </span>
-                                          <span
-                                            className={`cuenta-saldo-value ${
-                                              (cuenta.saldoActual ?? 0) >= 0
-                                                ? "positive"
-                                                : "negative"
-                                            }`}
-                                          >
-                                            {fmtARS(cuenta.saldoActual)}
-                                          </span>
-                                        </div>
-                                        <div className="cuenta-saldo-line">
-                                          <span className="cuenta-saldo-label">
-                                            Saldo inicial
-                                          </span>
-                                          <span className="cuenta-saldo-value">
-                                            {fmtARS(cuenta.saldoInicial)}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
+                          {tercero.codigo && (
+                            <div className="text-xs text-neutral-500">
+                              Código {tercero.codigo}
                             </div>
                           )}
                         </td>
+                        <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-neutral-700">
+                          {tercero.cuit || "—"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {(tercero.roles ?? []).map((r, i) => (
+                              <Badge
+                                key={i}
+                                variant="outline"
+                                className={`gap-1 text-[10px] ${ROL_BADGE[r.rol]}`}
+                              >
+                                <span>{getRolIcon(r.rol)}</span>
+                                {r.rol}
+                              </Badge>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Badge
+                            variant="outline"
+                            className={
+                              tercero.activo
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border-neutral-200 bg-neutral-100 text-neutral-500"
+                            }
+                          >
+                            {tercero.activo ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              asChild
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 gap-1.5 px-2 text-neutral-600"
+                            >
+                              <Link href={`/terceros/${tercero.id}`}>
+                                <Eye className="size-4" />
+                                Ver
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 gap-1.5 px-2 text-neutral-600"
+                              onClick={() => verCuenta(tercero.id)}
+                              title="Cuentas corrientes"
+                            >
+                              <Wallet className="size-4" />
+                              Cuentas
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
 
-        {/* Paginación */}
-        {data && data.pages > 1 && (
-          <div className="pagination-section">
-            <div className="pagination-info">
-              <span className="pagination-text">
-                Página {data.page} de {data.pages}
-              </span>
-              <span className="pagination-total">
-                Total: {data.total} terceros
-              </span>
-            </div>
-            <div className="pagination-controls">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`btn btn-ghost ${data.page <= 1 ? "btn-disabled" : ""}`}
-                disabled={loading || data.page <= 1}
-                onClick={() => setPage(1)}
-                title="Primera página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="19 20 9 12 19 4 19 20" />
-                  <line x1="5" y1="19" x2="5" y2="5" />
-                </svg>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`btn btn-ghost ${data.page <= 1 ? "btn-disabled" : ""}`}
-                disabled={loading || data.page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                title="Página anterior"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="15,18 9,12 15,6" />
-                </svg>
-                Anterior
-              </Button>
-              <span className="pagination-current">
-                {data.page} / {data.pages}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`btn btn-ghost ${data.page >= data.pages ? "btn-disabled" : ""}`}
-                disabled={loading || data.page >= data.pages}
-                onClick={() => setPage((p) => p + 1)}
-                title="Página siguiente"
-              >
-                Siguiente
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="9,18 15,12 9,6" />
-                </svg>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`btn btn-ghost ${data.page >= data.pages ? "btn-disabled" : ""}`}
-                disabled={loading || data.page >= data.pages}
-                onClick={() => setPage(data.pages)}
-                title="Última página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="19" y1="5" x2="19" y2="19" />
-                  <polygon points="5 4 15 12 5 20 5 4" />
-                </svg>
-              </Button>
-            </div>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={5} className="bg-neutral-50/70 px-4 py-3">
+                            {cargando ? (
+                              <div className="flex items-center gap-2 text-sm text-neutral-500">
+                                <Loader2 className="size-4 animate-spin" />
+                                Cargando cuentas…
+                              </div>
+                            ) : cuentasRow.length === 0 ? (
+                              <p className="text-sm text-neutral-500">
+                                Este tercero no tiene cuentas registradas.
+                              </p>
+                            ) : (
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {cuentasRow.map((cuenta) => (
+                                  <button
+                                    key={cuenta.id}
+                                    onClick={() =>
+                                      router.push(
+                                        `/finanzas/cuentas/${cuenta.id}`
+                                      )
+                                    }
+                                    className="rounded-lg border border-neutral-200 bg-white p-3 text-left transition hover:border-medical-300 hover:shadow-sm"
+                                    title={`Ver extracto de la cuenta ${cuenta.rol}`}
+                                  >
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <Badge
+                                        variant="outline"
+                                        className={`gap-1 text-[10px] ${ROL_BADGE[cuenta.rol]}`}
+                                      >
+                                        <span>{getRolIcon(cuenta.rol)}</span>
+                                        {cuenta.rol}
+                                      </Badge>
+                                      <span
+                                        className={`text-[10px] font-medium ${
+                                          cuenta.activo
+                                            ? "text-emerald-600"
+                                            : "text-neutral-400"
+                                        }`}
+                                      >
+                                        {cuenta.activo ? "Activa" : "Inactiva"}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-baseline justify-between">
+                                      <span className="text-xs text-neutral-500">
+                                        Saldo actual
+                                      </span>
+                                      <span
+                                        className={`font-mono text-sm font-semibold tabular-nums ${
+                                          (cuenta.saldoActual ?? 0) >= 0
+                                            ? "text-emerald-700"
+                                            : "text-rose-700"
+                                        }`}
+                                      >
+                                        {fmtARS(cuenta.saldoActual)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-baseline justify-between">
+                                      <span className="text-xs text-neutral-500">
+                                        Saldo inicial
+                                      </span>
+                                      <span className="font-mono text-xs tabular-nums text-neutral-600">
+                                        {fmtARS(cuenta.saldoInicial)}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </Card>
+
+      {/* Paginación */}
+      {data && data.pages > 1 && (
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <span className="text-sm text-neutral-500">
+            Página {data.page} de {data.pages} · {data.total} terceros
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              disabled={loading || data.page <= 1}
+              onClick={() => setPage(1)}
+              title="Primera página"
+            >
+              <ChevronsLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              disabled={loading || data.page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              title="Anterior"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              disabled={loading || data.page >= data.pages}
+              onClick={() => setPage((p) => p + 1)}
+              title="Siguiente"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              disabled={loading || data.page >= data.pages}
+              onClick={() => setPage(data.pages)}
+              title="Última página"
+            >
+              <ChevronsRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

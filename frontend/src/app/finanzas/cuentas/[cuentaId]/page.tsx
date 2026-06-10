@@ -4,14 +4,32 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, getErrorMessage, ORG } from "@/servicios/api";
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  Download,
+  Loader2,
+  Wallet,
+} from "lucide-react";
+import { api, getErrorMessage } from "@/servicios/api";
 import { formatearFechaArgentina } from "@/utiles/formatos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 /* ===== Tipos (compatibles con tu back) ===== */
-type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
+type RolTercero = "PROVEEDOR" | "PRESTADOR" | "COMERCIO" | "AFILIADO" | "OTRO";
+
+const ROL_BADGE: Record<string, string> = {
+  PROVEEDOR: "bg-blue-100 text-blue-800 border-blue-200",
+  PRESTADOR: "bg-violet-100 text-violet-800 border-violet-200",
+  COMERCIO: "bg-amber-100 text-amber-800 border-amber-200",
+  AFILIADO: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  OTRO: "bg-neutral-100 text-neutral-700 border-neutral-200",
+};
 type TipoMov = "debito" | "credito";
 type OrigenMov =
   | "factura"
@@ -98,21 +116,6 @@ const getOrigenIcon = (origen: string) => {
       return "⚙️";
     default:
       return "📄";
-  }
-};
-
-const getRolColor = (rol?: RolTercero) => {
-  switch (rol) {
-    case "PROVEEDOR":
-      return "rol-proveedor";
-    case "PRESTADOR":
-      return "rol-prestador";
-    case "AFILIADO":
-      return "rol-afiliado";
-    case "OTRO":
-      return "rol-otro";
-    default:
-      return "rol-default";
   }
 };
 
@@ -204,441 +207,293 @@ export default function CuentaExtractoPage() {
     URL.revokeObjectURL(url);
   };
 
+  const saldoNeg = saldoActualCuenta < 0;
+
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <div className="breadcrumb-nav">
-            <Button
-              variant="ghost"
-              onClick={() => router.back()}
-              className="back-button"
-              title="Volver"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="15,18 9,12 15,6" />
-              </svg>
-              Volver
-            </Button>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-            <Link href="/finanzas/cuentas" className="breadcrumb-link">
-              Cuentas
-            </Link>
-          </div>
-          <h1 className="page-title">Extracto de Cuenta</h1>
-          <p className="page-subtitle">
-            Movimientos y saldos de la cuenta corriente
-          </p>
+    <div className="mx-auto max-w-6xl">
+      {/* Toolbar */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="mb-1 h-7 gap-1.5 px-2 text-neutral-500"
+          >
+            <ArrowLeft className="size-4" />
+            Volver
+          </Button>
+          <h1 className="text-xl font-semibold text-neutral-900">
+            Cuenta corriente
+          </h1>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportCSV}
+          disabled={!movimientos.length}
+          className="gap-1.5"
+        >
+          <Download className="size-4" />
+          Exportar
+        </Button>
       </div>
 
-      {/* Mensaje de error */}
       {msg && (
-        <div className="alert alert-error">
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            </div>
-            <div className="alert-text">{msg}</div>
-          </div>
+        <div
+          className="mb-4 flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+          role="alert"
+        >
+          <AlertCircle className="size-5 shrink-0" />
+          <span className="font-medium">{msg}</span>
         </div>
       )}
 
-      <div className="page-content">
-        {/* Información de la cuenta */}
-        {data && (
-          <div className="cuenta-info">
-            <div className="cuenta-header">
-              <div className="cuenta-avatar">
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-              <div className="cuenta-details">
-                <div className="cuenta-tercero">
-                  <span className="tercero-nombre">
-                    {data.tercero?.nombre || "Sin tercero"}
-                  </span>
-                  {data.tercero?.cuit && (
-                    <span className="tercero-cuit">
-                      CUIT: {data.tercero.cuit}
-                    </span>
-                  )}
-                </div>
-                <div className="cuenta-meta">
-                  <span className="cuenta-id">#{cuentaId}</span>
-                  {data.cuenta?.rol && (
-                    <span
-                      className={`cuenta-rol ${getRolColor(data.cuenta.rol)}`}
-                    >
-                      {data.cuenta.rol}
-                    </span>
-                  )}
-                  <span
-                    className={`cuenta-estado ${
-                      data.cuenta?.activo ? "activa" : "inactiva"
-                    }`}
-                  >
-                    {data.cuenta?.activo ? "Activa" : "Inactiva"}
-                  </span>
-                </div>
-              </div>
-              <div className="cuenta-saldo">
-                <div className="saldo-actual">
-                  <span className="saldo-label">Saldo Actual</span>
-                  <span className="saldo-value">
-                    ${money(saldoActualCuenta)}
-                  </span>
-                </div>
-              </div>
+      {/* Cabecera de la cuenta */}
+      {data && (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border-neutral-200 p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-full bg-medical-50 text-medical-600">
+              <Wallet className="size-5" />
             </div>
-          </div>
-        )}
-
-        {/* Filtros de período */}
-        <div className="form-section">
-          <div className="form-section-header">
             <div>
-              <h2 className="form-section-title">Período de Consulta</h2>
-              <p className="form-section-subtitle">
-                Selecciona el rango de fechas
-              </p>
-            </div>
-            <Button
-              variant="secondary"
-              onClick={exportCSV}
-              disabled={!movimientos.length}
-              title="Descargar extracto en CSV"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <Link
+                href={
+                  data.tercero?.id ? `/terceros/${data.tercero.id}` : "#"
+                }
+                className="text-base font-semibold text-neutral-900 hover:text-medical-700"
               >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-15" />
-                <polyline points="7,10 12,15 17,10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Exportar CSV
-            </Button>
-          </div>
-
-          <div className="form-grid form-grid-4">
-            <div className="form-group">
-              <label className="form-label">Fecha Desde</label>
-              <Input
-                className="form-input"
-                type="date"
-                value={desde}
-                onChange={(e) => setDesde(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Fecha Hasta</label>
-              <Input
-                className="form-input"
-                type="date"
-                value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">&nbsp;</label>
-              <Button
-                onClick={() => setApplyTick((t) => t + 1)}
-                disabled={loading || !cuentaId}
-              >
-                {loading ? (
-                  <>
-                    <svg
-                      className="spinner"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Cargando...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Aplicar Filtros
-                  </>
+                {data.tercero?.nombre || "Sin tercero"}
+              </Link>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                <span className="font-mono">#{cuentaId}</span>
+                {data.tercero?.cuit && (
+                  <span className="font-mono">CUIT {data.tercero.cuit}</span>
                 )}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Resumen del período */}
-        {data && (
-          <div className="resumen-periodo">
-            <div className="resumen-header">
-              <h3 className="resumen-title">Resumen del Período</h3>
-              <div className="periodo-fechas">
-                {formatearFechaArgentina(desde)} - {formatearFechaArgentina(hasta)}
-              </div>
-            </div>
-            <div className="resumen-grid">
-              <div className="resumen-item">
-                <div className="resumen-icon saldo-inicial">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                {data.cuenta?.rol && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${ROL_BADGE[data.cuenta.rol] ?? ""}`}
                   >
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12,6 12,12 16,14" />
-                  </svg>
-                </div>
-                <div className="resumen-content">
-                  <div className="resumen-label">Saldo Inicial</div>
-                  <div className="resumen-value">
-                    ${money(saldoInicialPeriodo)}
-                  </div>
-                </div>
-              </div>
-              <div className="resumen-item">
-                <div className="resumen-icon debitos">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </div>
-                <div className="resumen-content">
-                  <div className="resumen-label">Débitos</div>
-                  <div className="resumen-value debito">${money(totalDeb)}</div>
-                </div>
-              </div>
-              <div className="resumen-item">
-                <div className="resumen-icon creditos">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </div>
-                <div className="resumen-content">
-                  <div className="resumen-label">Créditos</div>
-                  <div className="resumen-value credito">
-                    ${money(totalCred)}
-                  </div>
-                </div>
-              </div>
-              <div className="resumen-item">
-                <div className="resumen-icon saldo-final">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="22,12 18,12 15,21 9,3 6,12 2,12" />
-                  </svg>
-                </div>
-                <div className="resumen-content">
-                  <div className="resumen-label">Saldo Final</div>
-                  <div className="resumen-value final">
-                    ${money(saldoFinalPeriodo)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabla de movimientos */}
-        <div className="movimientos-section">
-          {loading ? (
-            <div className="loading-state">
-              <div className="loading-icon">
-                <svg
-                  className="spinner"
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                    {data.cuenta.rol}
+                  </Badge>
+                )}
+                <span
+                  className={
+                    data.cuenta?.activo
+                      ? "text-emerald-600"
+                      : "text-neutral-400"
+                  }
                 >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-              </div>
-              <div className="loading-text">Cargando movimientos...</div>
-            </div>
-          ) : movimientos.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📊</div>
-              <div className="empty-state-title">Sin movimientos</div>
-              <div className="empty-state-text">
-                No hay movimientos registrados en el período seleccionado
+                  {data.cuenta?.activo ? "Activa" : "Inactiva"}
+                </span>
               </div>
             </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs uppercase tracking-wider text-neutral-400">
+              Saldo actual
+            </div>
+            <div
+              className={`text-2xl font-bold tabular-nums ${
+                saldoNeg ? "text-rose-700" : "text-emerald-700"
+              }`}
+            >
+              ${money(saldoActualCuenta)}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Filtros de período */}
+      <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">
+            Desde
+          </label>
+          <Input
+            type="date"
+            value={desde}
+            onChange={(e) => setDesde(e.target.value)}
+            className="h-9 rounded-lg border-neutral-200"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">
+            Hasta
+          </label>
+          <Input
+            type="date"
+            value={hasta}
+            onChange={(e) => setHasta(e.target.value)}
+            className="h-9 rounded-lg border-neutral-200"
+          />
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setApplyTick((t) => t + 1)}
+          disabled={loading || !cuentaId}
+          className="h-9 gap-1.5"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Cargando…
+            </>
           ) : (
-            <div className="table-container">
-              <Table className="data-table movimientos-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Movimiento</th>
-                    <th>Referencia</th>
-                    <th>Detalle</th>
-                    <th className="table-col-numeric">Monto</th>
-                    <th className="table-col-numeric">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {movimientos.map((m) => {
-                    const monto = toNum(m.monto);
-                    const saldo =
-                      m.saldoPosterior == null ? null : toNum(m.saldoPosterior);
-                    return (
-                      <tr key={m.id} className={`movimiento-row ${m.tipo}`}>
-                        <td>
-                          <span className="fecha-badge">
-                            {formatearFechaArgentina(m.fecha)}
+            "Aplicar"
+          )}
+        </Button>
+      </div>
+
+      {/* Resumen del período */}
+      {data && (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <SummaryCard
+            label="Saldo inicial"
+            value={`$${money(saldoInicialPeriodo)}`}
+          />
+          <SummaryCard
+            label="Débitos"
+            value={`$${money(totalDeb)}`}
+            tone="rose"
+          />
+          <SummaryCard
+            label="Créditos"
+            value={`$${money(totalCred)}`}
+            tone="emerald"
+          />
+          <SummaryCard
+            label="Saldo final"
+            value={`$${money(saldoFinalPeriodo)}`}
+            tone={saldoFinalPeriodo < 0 ? "rose" : "emerald"}
+            strong
+          />
+        </div>
+      )}
+
+      {/* Movimientos */}
+      <Card className="overflow-hidden rounded-xl border-neutral-200">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-neutral-500">
+            <Loader2 className="size-4 animate-spin" />
+            Cargando movimientos…
+          </div>
+        ) : movimientos.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm font-medium text-neutral-700">
+              Sin movimientos
+            </p>
+            <p className="mt-1 text-sm text-neutral-500">
+              No hay movimientos en el período{" "}
+              {formatearFechaArgentina(desde)} –{" "}
+              {formatearFechaArgentina(hasta)}.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-xs uppercase tracking-wider text-neutral-500">
+                <tr>
+                  <th className="px-4 py-2.5">Fecha</th>
+                  <th className="px-4 py-2.5">Movimiento</th>
+                  <th className="px-4 py-2.5">Referencia</th>
+                  <th className="px-4 py-2.5">Detalle</th>
+                  <th className="px-4 py-2.5 text-right">Monto</th>
+                  <th className="px-4 py-2.5 text-right">Saldo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {movimientos.map((m) => {
+                  const monto = toNum(m.monto);
+                  const saldo =
+                    m.saldoPosterior == null ? null : toNum(m.saldoPosterior);
+                  const esDebito = m.tipo === "debito";
+                  return (
+                    <tr key={m.id} className="hover:bg-neutral-50/60">
+                      <td className="whitespace-nowrap px-4 py-2.5 text-neutral-600">
+                        {formatearFechaArgentina(m.fecha)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">
+                            {getOrigenIcon(m.origen)}
                           </span>
-                        </td>
-                        <td>
-                          <div className="movimiento-info">
-                            <div className="movimiento-icon">
-                              {getOrigenIcon(m.origen)}
+                          <div>
+                            <div className="font-medium text-neutral-800">
+                              {origenLabel[m.origen] ?? m.origen}
                             </div>
-                            <div className="movimiento-details">
-                              <div className="movimiento-origen">
-                                {origenLabel[m.origen] ?? m.origen}
-                              </div>
-                              <div className={`movimiento-tipo ${m.tipo}`}>
-                                {m.tipo === "debito" ? "Débito" : "Crédito"}
-                              </div>
+                            <div
+                              className={`flex items-center gap-1 text-xs ${
+                                esDebito ? "text-rose-600" : "text-emerald-600"
+                              }`}
+                            >
+                              {esDebito ? (
+                                <ArrowUpRight className="size-3" />
+                              ) : (
+                                <ArrowDownLeft className="size-3" />
+                              )}
+                              {esDebito ? "Débito" : "Crédito"}
                             </div>
                           </div>
-                        </td>
-                        <td>
-                          <span className="referencia-badge">
-                            {m.referenciaId || "—"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="detalle-text">
-                            {m.detalle || "—"}
-                          </span>
-                        </td>
-                        <td
-                          className={`table-col-numeric monto-cell ${m.tipo}`}
-                        >
-                          <span className="monto-value">
-                            {m.tipo === "debito" ? "-" : "+"}$
-                            {money(Math.abs(monto))}
-                          </span>
-                        </td>
-                        <td className="table-col-numeric">
-                          <span className="saldo-value">
-                            {saldo == null ? "—" : `$${money(saldo)}`}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
-            </div>
-          )}
-        </div>
-      </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-neutral-500">
+                        {m.referenciaId || "—"}
+                      </td>
+                      <td className="max-w-[260px] truncate px-4 py-2.5 text-neutral-600">
+                        {m.detalle || "—"}
+                      </td>
+                      <td
+                        className={`px-4 py-2.5 text-right font-mono font-semibold tabular-nums ${
+                          esDebito ? "text-rose-700" : "text-emerald-700"
+                        }`}
+                      >
+                        {esDebito ? "−" : "+"}${money(Math.abs(monto))}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono tabular-nums text-neutral-700">
+                        {saldo == null ? "—" : `$${money(saldo)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
+  );
+}
+
+/** Tarjeta de resumen del período. */
+function SummaryCard({
+  label,
+  value,
+  tone,
+  strong,
+}: {
+  label: string;
+  value: string;
+  tone?: "rose" | "emerald";
+  strong?: boolean;
+}) {
+  const color =
+    tone === "rose"
+      ? "text-rose-700"
+      : tone === "emerald"
+        ? "text-emerald-700"
+        : "text-neutral-900";
+  return (
+    <Card className="rounded-xl border-neutral-200 p-4">
+      <div className="text-xs uppercase tracking-wider text-neutral-400">
+        {label}
+      </div>
+      <div
+        className={`mt-1 font-mono tabular-nums ${strong ? "text-xl font-bold" : "text-lg font-semibold"} ${color}`}
+      >
+        {value}
+      </div>
+    </Card>
   );
 }
