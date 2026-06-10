@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import { Usuario, SesionUsuario, RolUsuario, EstadoUsuario } from '@prisma/client';
 
 export interface LoginDto {
+  // Acepta email o username. Se mantiene el nombre `email` por compat con clientes existentes.
   email: string;
   password: string;
   organizacionId: string;
@@ -52,16 +53,22 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<LoginResponse> {
-    const email = dto.email.trim().toLowerCase();
+    const identificador = dto.email.trim().toLowerCase();
+    const matchIdentificador = {
+      OR: [
+        { email: { equals: identificador, mode: 'insensitive' as const } },
+        { username: { equals: identificador, mode: 'insensitive' as const } },
+      ],
+    };
     let organizacionId = dto.organizacionId?.trim() || '';
 
-    // Sin organización explícita: resolver por email (una sola cuenta) o única org activa
+    // Sin organización explícita: resolver por identificador (una sola cuenta) o única org activa
     if (!organizacionId) {
-      const porEmail = await this.prisma.usuario.findMany({
-        where: { email: { equals: email, mode: 'insensitive' } },
+      const porIdentificador = await this.prisma.usuario.findMany({
+        where: matchIdentificador,
         select: { organizacionId: true },
       });
-      const orgsDistintas = [...new Set(porEmail.map((u) => u.organizacionId))];
+      const orgsDistintas = [...new Set(porIdentificador.map((u) => u.organizacionId))];
       if (orgsDistintas.length === 1) {
         organizacionId = orgsDistintas[0];
       } else if (orgsDistintas.length === 0) {
@@ -81,29 +88,26 @@ export class AuthService {
       );
     }
 
-    // 1. Buscar usuario (email sin distinguir mayúsculas)
+    // 1. Buscar usuario por email o username (ambos sin distinguir mayúsculas)
     const usuario = await this.prisma.usuario.findFirst({
-      where: {
-        organizacionId,
-        email: { equals: email, mode: 'insensitive' },
-      },
+      where: { organizacionId, ...matchIdentificador },
     });
 
     if (!usuario) {
       const existeEnOtraOrg = await this.prisma.usuario.findFirst({
-        where: { email: { equals: email, mode: 'insensitive' } },
+        where: matchIdentificador,
         select: { id: true },
       });
       if (existeEnOtraOrg) {
         this.logger.warn(
-          `Login fallido: email=${email} existe pero no en organizacionId=${organizacionId}`,
+          `Login fallido: identificador=${identificador} existe pero no en organizacionId=${organizacionId}`,
         );
         throw new UnauthorizedException(
           'El usuario pertenece a otra organización. Verificá la organización seleccionada.',
         );
       }
       this.logger.warn(
-        `Login fallido: usuario no encontrado para email=${email} organizacionId=${organizacionId}`,
+        `Login fallido: usuario no encontrado para identificador=${identificador} organizacionId=${organizacionId}`,
       );
       throw new UnauthorizedException('Credenciales inválidas');
     }
@@ -123,7 +127,7 @@ export class AuthService {
     // 4. Verificar contraseña
     const passwordValida = await bcrypt.compare(dto.password, usuario.passwordHash);
     if (!passwordValida) {
-      this.logger.warn(`Login fallido: contraseña incorrecta para email=${dto.email} organizacionId=${dto.organizacionId}`);
+      this.logger.warn(`Login fallido: contraseña incorrecta para identificador=${identificador} organizacionId=${dto.organizacionId}`);
       await this.incrementarIntentosFallidos(usuario.id);
       throw new UnauthorizedException('Credenciales inválidas');
     }

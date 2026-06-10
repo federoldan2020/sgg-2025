@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/auth';
 import { authOrganizaciones, type OrgLite } from '@/servicios/api';
 import {
   Loader2,
-  Mail,
+  User as UserIcon,
   Lock,
   Eye,
   EyeOff,
@@ -29,7 +29,7 @@ const FEATURES = [
 const LOGIN_ORG_KEY = 'loginOrganizacionId';
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
-  const [email, setEmail] = useState('');
+  const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
   const [organizacionId, setOrganizacionId] = useState('');
   const [organizaciones, setOrganizaciones] = useState<OrgLite[]>([]);
@@ -76,7 +76,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       if (organizacionId) {
         localStorage.setItem(LOGIN_ORG_KEY, organizacionId);
       }
-      await login(email, password, organizacionId || undefined);
+      await login(identificador, password, organizacionId || undefined);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
@@ -237,23 +237,23 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-neutral-700">
-                    Email
+                  <Label htmlFor="identificador" className="text-neutral-700">
+                    Usuario o email
                   </Label>
                   <div className="relative">
-                    <Mail
+                    <UserIcon
                       className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
                       aria-hidden
                     />
                     <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
+                      id="identificador"
+                      name="identificador"
+                      type="text"
+                      autoComplete="username"
                       required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="nombre@organizacion.com"
+                      value={identificador}
+                      onChange={(e) => setIdentificador(e.target.value)}
+                      placeholder="froldan o nombre@organizacion.com"
                       className="h-11 pl-10 transition-shadow focus-visible:shadow-md focus-visible:shadow-medical-500/10"
                       disabled={isLoading}
                     />
