@@ -207,7 +207,7 @@ export default function TerceroViewPage() {
         {data && (
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" asChild className="gap-1.5">
-              <Link href={`/terceros/${data.id}`}>
+              <Link href={`/terceros/${data.id}/editar`}>
                 <Pencil className="size-4" />
                 Editar
               </Link>
