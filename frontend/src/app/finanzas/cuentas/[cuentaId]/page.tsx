@@ -30,6 +30,15 @@ const ROL_BADGE: Record<string, string> = {
   AFILIADO: "bg-emerald-100 text-emerald-800 border-emerald-200",
   OTRO: "bg-neutral-100 text-neutral-700 border-neutral-200",
 };
+
+// PROVEEDOR/PRESTADOR/COMERCIO/OTRO: positivo = les debemos (rojo); negativo = a favor nuestro (verde).
+// AFILIADO: positivo = nos debe (verde); negativo = pagado de mas (rojo).
+const saldoColor = (rol: RolTercero | undefined, saldo: number) => {
+  if (saldo === 0) return "text-neutral-600";
+  const positivoEsBueno = rol === "AFILIADO";
+  const esBueno = positivoEsBueno ? saldo > 0 : saldo < 0;
+  return esBueno ? "text-emerald-700" : "text-rose-700";
+};
 type TipoMov = "debito" | "credito";
 type OrigenMov =
   | "factura"
@@ -207,7 +216,7 @@ export default function CuentaExtractoPage() {
     URL.revokeObjectURL(url);
   };
 
-  const saldoNeg = saldoActualCuenta < 0;
+  const colorSaldoActual = saldoColor(data?.cuenta?.rol, saldoActualCuenta);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -295,9 +304,7 @@ export default function CuentaExtractoPage() {
               Saldo actual
             </div>
             <div
-              className={`text-2xl font-bold tabular-nums ${
-                saldoNeg ? "text-rose-700" : "text-emerald-700"
-              }`}
+              className={`text-2xl font-bold tabular-nums ${colorSaldoActual}`}
             >
               ${money(saldoActualCuenta)}
             </div>
