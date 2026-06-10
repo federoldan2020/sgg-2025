@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
-import { InputFecha } from "@/components/InputFecha";
 import type {
   CrearPadronDto,
   CrearPadronResp,
@@ -78,20 +77,6 @@ function isLikelyDni(s: string) {
   return /^\d{6,}$/.test(s);
 }
 
-function splitApeNom(raw: string) {
-  const s = (raw ?? "").trim().replace(/\s+/g, " ");
-  if (!s) return { apellido: "", nombre: "" };
-  const coma = s.indexOf(",");
-  if (coma > -1) {
-    const ape = s.slice(0, coma).trim();
-    const nom = s.slice(coma + 1).trim();
-    return { apellido: ape, nombre: nom };
-  }
-  const parts = s.split(" ");
-  if (parts.length === 1) return { apellido: parts[0], nombre: "" };
-  return { apellido: parts[0], nombre: parts.slice(1).join(" ") };
-}
-
 export default function NuevoPadronPage() {
   const padronMask = usePadronMask();
 
@@ -135,7 +120,6 @@ export default function NuevoPadronPage() {
 
   // Alta combinada: afiliado nuevo
   const [dniNuevo, setDniNuevo] = useState("");
-  const [apeNom, setApeNom] = useState("");
   const [apellNuevo, setApellNuevo] = useState("");
   const [nombNuevo, setNombNuevo] = useState("");
   const [cuit, setCuit] = useState("");
@@ -177,22 +161,19 @@ export default function NuevoPadronPage() {
 
     if (creandoConAfiliadoNuevo) {
       const tieneNombre =
-        apellNuevo.trim().length > 0 ||
-        nombNuevo.trim().length > 0 ||
-        apeNom.trim().length > 0;
+        apellNuevo.trim().length > 0 || nombNuevo.trim().length > 0;
       const dniOk = /^\d{6,}$/.test(dniNuevo.trim());
       return dniOk && tieneNombre;
     }
     return false;
   }, [
     creando,
-    padronMask.value, // ← Cambiar esta dependencia
+    padronMask.value,
     creandoConAfiliadoExistente,
     creandoConAfiliadoNuevo,
     dniNuevo,
     apellNuevo,
     nombNuevo,
-    apeNom,
   ]);
 
   const opt = (s: string) => (s?.trim() ? s.trim() : undefined);
@@ -324,7 +305,6 @@ export default function NuevoPadronPage() {
     setAfiliado(null);
     limpiarPadron();
     setDniNuevo("");
-    setApeNom("");
     setApellNuevo("");
     setNombNuevo("");
     setCuit("");
@@ -425,13 +405,8 @@ export default function NuevoPadronPage() {
           if (rows.length) payload.colaterales = rows;
         }
       } else if (creandoConAfiliadoNuevo && sinResultadosDniExacto) {
-        let apellido = apellNuevo.trim();
-        let nombre = nombNuevo.trim();
-        if (apeNom.trim()) {
-          const { apellido: ape, nombre: nom } = splitApeNom(apeNom);
-          if (!apellido) apellido = ape;
-          if (!nombre) nombre = nom;
-        }
+        const apellido = apellNuevo.trim();
+        const nombre = nombNuevo.trim();
 
         const afNuevo: CrearAfiliadoDto = {
           dni: Number(dniNuevo),
@@ -643,13 +618,6 @@ export default function NuevoPadronPage() {
                   <Input className={fc} inputMode="numeric" value={dniNuevo} onChange={(e) => setDniNuevo(e.target.value.replace(/\D+/g, ""))} placeholder="12345678" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Apellido y Nombre (helper)</Label>
-                  <div className="flex gap-2">
-                    <Input className={`flex-1 ${fc}`} value={apeNom} onChange={(e) => setApeNom(e.target.value)} placeholder="PÉREZ, JUAN" />
-                    <Button variant="outline" size="sm" type="button" onClick={() => { const s = splitApeNom(apeNom); if (!apellNuevo && s.apellido) setApellNuevo(s.apellido); if (!nombNuevo && s.nombre) setNombNuevo(s.nombre); }}>Separar</Button>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
                   <Label>CUIT/CUIL</Label>
                   <Input className={fc} value={cuit} onChange={(e) => setCuit(e.target.value)} placeholder="20-12345678-9" />
                 </div>
@@ -663,7 +631,7 @@ export default function NuevoPadronPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Fecha de Nacimiento</Label>
-                  <InputFecha value={fechaNacimiento} onChange={(iso) => setFechaNacimiento(iso)} placeholder="dd/mm/aaaa" className={fc} />
+                  <Input type="date" value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)} className={fc} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Sexo</Label>
@@ -786,11 +754,11 @@ export default function NuevoPadronPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Fecha Alta</Label>
-              <InputFecha value={fechaAlta} onChange={(iso) => setFechaAlta(iso)} placeholder="dd/mm/aaaa" className={fc} />
+              <Input type="date" value={fechaAlta} onChange={(e) => setFechaAlta(e.target.value)} className={fc} />
             </div>
             <div className="space-y-1.5">
               <Label>Fecha Baja</Label>
-              <InputFecha value={fechaBaja} onChange={(iso) => setFechaBaja(iso)} placeholder="dd/mm/aaaa" className={fc} />
+              <Input type="date" value={fechaBaja} onChange={(e) => setFechaBaja(e.target.value)} className={fc} />
             </div>
             <div className="flex items-end space-y-1.5 pb-1">
               <label className="flex items-center gap-2 text-sm">
@@ -922,7 +890,7 @@ function ColateralRow({
         </div>
         <div className="space-y-1.5">
           <Label>Fecha de Nacimiento</Label>
-          <InputFecha value={colateral.fechaNacimiento || ""} onChange={(iso) => onChange({ fechaNacimiento: iso })} placeholder="dd/mm/aaaa" className={fc} />
+          <Input type="date" value={colateral.fechaNacimiento || ""} onChange={(e) => onChange({ fechaNacimiento: e.target.value })} className={fc} />
         </div>
       </div>
       <Button variant="ghost" size="sm" className="shrink-0 text-red-500 hover:bg-red-50 hover:text-red-700" onClick={onRemove} type="button" title="Quitar colateral">
