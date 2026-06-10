@@ -37,6 +37,111 @@ const ROLES_DISPONIBLES = [
   'TERCEROS', 'AFILIADOS', 'FINANZAS', 'TESORERIA', 'CAJA', 'SOLO_LECTURA',
 ];
 
+/**
+ * FormField vive FUERA del componente padre. Si se define adentro, cada
+ * setState del padre lo re-crea como referencia nueva → React desmonta y
+ * remonta el <Input>, perdiendo foco al tipear.
+ */
+function FormField({
+  id,
+  label,
+  type = 'text',
+  placeholder,
+  value,
+  onChange,
+  required,
+}: {
+  id: string;
+  label: string;
+  type?: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-sm font-medium text-neutral-700">
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </Label>
+      <Input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-lg border-neutral-200 bg-white"
+      />
+    </div>
+  );
+}
+
+/**
+ * ModalOverlay y ModalDialog también deben vivir afuera del padre.
+ * Si están adentro, cada render del padre los reconstruye y desmonta
+ * todo lo que tienen dentro (incluidos los <Input>), perdiendo foco.
+ */
+function ModalOverlay({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ModalDialog({
+  title,
+  description,
+  children,
+  maxWidth = 768,
+  onClose,
+  onClickStop,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  maxWidth?: number;
+  onClose: () => void;
+  onClickStop?: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <Card
+      className="rounded-xl border-neutral-200 shadow-xl"
+      style={{ width: `min(calc(100vw - 2rem), ${maxWidth}px)` }}
+      onClick={onClickStop ?? ((e) => e.stopPropagation())}
+    >
+      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-neutral-100 pb-4">
+        <div>
+          <CardTitle className="text-lg font-semibold text-neutral-900">{title}</CardTitle>
+          {description && (
+            <CardDescription className="mt-1">{description}</CardDescription>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
+          onClick={onClose}
+          aria-label="Cerrar"
+        >
+          <X className="size-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-5">{children}</CardContent>
+    </Card>
+  );
+}
+
 export default function AdminUsuariosPage() {
   const [lista, setLista] = useState<UsuarioRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,86 +322,7 @@ export default function AdminUsuariosPage() {
     setMsg(null);
   };
 
-  const ModalOverlay = ({ children }: { children: React.ReactNode }) => (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={cerrarModal}
-    >
-      {children}
-    </div>
-  );
 
-  const ModalDialog = ({
-    title,
-    description,
-    children,
-    maxWidth = 768,
-    onClickStop,
-  }: {
-    title: string;
-    description?: string;
-    children: React.ReactNode;
-    maxWidth?: number;
-    onClickStop?: (e: React.MouseEvent) => void;
-  }) => (
-    <Card
-      className="rounded-xl border-neutral-200 shadow-xl"
-      style={{ width: `min(calc(100vw - 2rem), ${maxWidth}px)` }}
-      onClick={onClickStop ?? ((e) => e.stopPropagation())}
-    >
-      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-neutral-100 pb-4">
-        <div>
-          <CardTitle className="text-lg font-semibold text-neutral-900">{title}</CardTitle>
-          {description && (
-            <CardDescription className="mt-1">{description}</CardDescription>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 shrink-0 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
-          onClick={cerrarModal}
-          aria-label="Cerrar"
-        >
-          <X className="size-4" />
-        </Button>
-      </CardHeader>
-      <CardContent className="pt-5">{children}</CardContent>
-    </Card>
-  );
-
-  const FormField = ({
-    id,
-    label,
-    type = 'text',
-    placeholder,
-    value,
-    onChange,
-    required,
-  }: {
-    id: string;
-    label: string;
-    type?: string;
-    placeholder?: string;
-    value: string;
-    onChange: (v: string) => void;
-    required?: boolean;
-  }) => (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="text-sm font-medium text-neutral-700">
-        {label}
-        {required && <span className="text-red-500"> *</span>}
-      </Label>
-      <Input
-        id={id}
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border-neutral-200 bg-white"
-      />
-    </div>
-  );
 
   return (
     <AuthGate roles={['ADMIN', 'SUPERADMIN']}>
@@ -435,8 +461,8 @@ export default function AdminUsuariosPage() {
         </Card>
 
         {modal === 'crear' && (
-          <ModalOverlay>
-            <ModalDialog
+          <ModalOverlay onClose={cerrarModal}>
+            <ModalDialog onClose={cerrarModal}
               title="Nuevo usuario"
               description="Completa los datos del nuevo usuario."
             >
@@ -522,8 +548,8 @@ export default function AdminUsuariosPage() {
         )}
 
         {modal === 'editar' && (
-          <ModalOverlay>
-            <ModalDialog
+          <ModalOverlay onClose={cerrarModal}>
+            <ModalDialog onClose={cerrarModal}
               title="Editar usuario"
               description="Modifica los datos del usuario."
             >
@@ -600,8 +626,8 @@ export default function AdminUsuariosPage() {
         )}
 
         {modal === 'reset' && (
-          <ModalOverlay>
-            <ModalDialog
+          <ModalOverlay onClose={cerrarModal}>
+            <ModalDialog onClose={cerrarModal}
               title="Restablecer contraseña"
               description="Define una nueva contraseña para el usuario."
             >
@@ -638,8 +664,8 @@ export default function AdminUsuariosPage() {
         )}
 
         {modal === 'sesiones' && (
-          <ModalOverlay>
-            <ModalDialog
+          <ModalOverlay onClose={cerrarModal}>
+            <ModalDialog onClose={cerrarModal}
               title="Sesiones activas"
               description="Dispositivos y sesiones del usuario."
             >
