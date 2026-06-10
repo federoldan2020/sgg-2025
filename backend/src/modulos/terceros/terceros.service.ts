@@ -763,8 +763,10 @@ export class TercerosService {
     const titular = nn((r.titular ?? (r as any).TITULAR) as string | undefined);
     const cuitTitular = cleanCuit((r as any).cuit_titular as string | undefined);
 
-    const saldoInicial = parseMoney((r as any).SALDO_ANT ?? null) ?? undefined;
     const saldoActual = parseMoney((r as any).SALDO_ACT ?? null) ?? undefined;
+    // Si el CSV no trae SALDO_ANT, usamos SALDO_ACT como saldo inicial — sembrado en una sola pasada.
+    const saldoInicial =
+      parseMoney((r as any).SALDO_ANT ?? null) ?? saldoActual;
 
     const retGanancias = parseMoney((r as any).P_RETENCIO ?? null);
 
