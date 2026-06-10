@@ -427,7 +427,7 @@ function DialogCancelar({
           <Button variant="ghost" onClick={onClose}>
             Volver
           </Button>
-          <Button variant="destructive" onClick={submit} disabled={loading}>
+          <Button variant="error" onClick={submit} disabled={loading}>
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
