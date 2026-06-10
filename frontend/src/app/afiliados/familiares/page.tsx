@@ -3,6 +3,43 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
 import { formatearFechaArgentina } from "@/utiles/formatos";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Search,
+  UserPlus,
+  X,
+  Pencil,
+  UserMinus,
+  UserCheck,
+  Trash2,
+  Check,
+  XCircle,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 
 type AfiliadoSuggest = {
   id: string;
@@ -12,11 +49,25 @@ type AfiliadoSuggest = {
 
 type Parentesco = { id: string | number; codigo?: number | null; nombre: string };
 
+type AfiliadoLite = {
+  id: string | number;
+  dni: string | number | null;
+  apellido: string | null;
+  nombre: string | null;
+  estado?: string;
+};
+
 type Colateral = {
   id: string | number;
+  afiliadoId: string | number;
   parentescoId?: string | number | null;
   parentescoNombre?: string | null;
-  parentesco?: { id?: string | number; codigo?: number | null; descripcion?: string | null };
+  parentesco?: {
+    id?: string | number;
+    codigo?: number | null;
+    descripcion?: string | null;
+  };
+  afiliado?: AfiliadoLite;
   nombre: string;
   dni?: string | null;
   fechaNacimiento?: string | null;
@@ -24,7 +75,14 @@ type Colateral = {
   esColateral?: boolean;
 };
 
-function useDebounced<T>(value: T, ms = 250) {
+type PagedResp = {
+  items: Colateral[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+function useDebounced<T>(value: T, ms = 350) {
   const [v, setV] = useState(value);
   useEffect(() => {
     const h = setTimeout(() => setV(value), ms);
@@ -38,90 +96,110 @@ const formatFecha = (v?: string | null) => {
   return formatearFechaArgentina(v) || v;
 };
 
-// Convierte fecha ISO o Date a formato YYYY-MM-DD para input date
 const fechaParaInput = (v?: string | null | Date): string => {
   if (!v) return "";
-  if (v instanceof Date) {
-    return v.toISOString().slice(0, 10);
-  }
-  // Si es string ISO (YYYY-MM-DD) o formato DD/MM/YYYY
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === "string") {
-    // Si ya está en formato YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-      return v;
-    }
-    // Si está en formato DD/MM/YYYY, convertir
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
       const [d, m, y] = v.split("/");
       return `${y}-${m}-${d}`;
     }
-    // Intentar parsear como ISO
     try {
       const d = new Date(v);
-      if (!isNaN(d.getTime())) {
-        return d.toISOString().slice(0, 10);
-      }
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
     } catch {
-      // Ignorar
+      /* ignore */
     }
   }
   return "";
 };
 
-export default function AfiliadosFamiliaresPage() {
-  const [afiliado, setAfiliado] = useState<AfiliadoSuggest | null>(null);
-  const [q, setQ] = useState("");
-  const dq = useDebounced(q, 250);
-  const [sugerencias, setSugerencias] = useState<AfiliadoSuggest[]>([]);
-  const [buscando, setBuscando] = useState(false);
+const formatDni = (dni: string | number | null | undefined) => {
+  if (dni == null) return "";
+  const s = String(dni).replace(/\D+/g, "");
+  if (!s) return "";
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
 
-  const [parentescos, setParentescos] = useState<Parentesco[]>([]);
-  const [colaterales, setColaterales] = useState<Colateral[]>([]);
+const titularLabel = (a?: AfiliadoLite | null) => {
+  if (!a) return "—";
+  const ap = (a.apellido ?? "").trim();
+  const no = (a.nombre ?? "").trim();
+  if (ap && no) return `${ap}, ${no}`;
+  return ap || no || "(sin nombre)";
+};
+
+export default function AfiliadosFamiliaresPage() {
+  // Filtros
+  const [q, setQ] = useState("");
+  const dq = useDebounced(q, 350);
+  const [estado, setEstado] = useState<"todos" | "activos" | "baja">("todos");
+  const [j38, setJ38] = useState<"todos" | "true" | "false">("todos");
+
+  // Paginación
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+
+  // Datos
+  const [rows, setRows] = useState<Colateral[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [parentescos, setParentescos] = useState<Parentesco[]>([]);
+
+  // Modal edit
   const [editColat, setEditColat] = useState<{
     open: boolean;
     row?: Partial<Colateral>;
     isNew?: boolean;
+    afiliado?: AfiliadoSuggest | AfiliadoLite | null;
   }>({ open: false });
 
+  // Modal "agregar" requiere primero elegir afiliado
+  const [addStep, setAddStep] = useState<"pickAfiliado" | "form">("pickAfiliado");
+  const [pickQ, setPickQ] = useState("");
+  const pickDq = useDebounced(pickQ, 250);
+  const [pickResults, setPickResults] = useState<AfiliadoSuggest[]>([]);
+  const [pickBuscando, setPickBuscando] = useState(false);
+
+  // Cargar parentescos
   useEffect(() => {
     let active = true;
     api<Parentesco[]>(`/colaterales/parentescos`, { method: "GET" })
       .then((r) => active && setParentescos(r ?? []))
       .catch(() => {
-        /* opcional */
+        /* ignore */
       });
     return () => {
       active = false;
     };
   }, []);
 
-  useEffect(() => {
-    if (dq.trim().length < 2) {
-      setSugerencias([]);
-      return;
-    }
-    setBuscando(true);
-    api<AfiliadoSuggest[]>(
-      `/afiliados/suggest?q=${encodeURIComponent(dq)}`,
-      { method: "GET" }
-    )
-      .then((r) => setSugerencias(r ?? []))
-      .finally(() => setBuscando(false));
-  }, [dq]);
+  // Fetch paginado
+  const params = useMemo(() => {
+    const p = new URLSearchParams();
+    if (dq.trim()) p.set("q", dq.trim());
+    if (estado !== "todos") p.set("estado", estado);
+    if (j38 !== "todos") p.set("esColateral", j38);
+    p.set("page", String(page));
+    p.set("limit", String(limit));
+    return p.toString();
+  }, [dq, estado, j38, page, limit]);
 
-  const recargarFamilia = async (afiliadoId: string) => {
+  const recargar = async () => {
     try {
       setLoading(true);
-      const familia = await api<Colateral[]>(
-        `/colaterales/afiliados/${afiliadoId}/colaterales?soloActivos=false`,
-        { method: "GET" }
-      );
-      setColaterales(familia ?? []);
+      const resp = await api<PagedResp>(`/colaterales/paged?${params}`, {
+        method: "GET",
+      });
+      setRows(resp.items ?? []);
+      setTotal(resp.total ?? 0);
     } catch (e) {
+      setRows([]);
+      setTotal(0);
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
       setLoading(false);
@@ -129,24 +207,83 @@ export default function AfiliadosFamiliaresPage() {
   };
 
   useEffect(() => {
-    if (!afiliado?.id) {
-      setColaterales([]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const resp = await api<PagedResp>(`/colaterales/paged?${params}`, {
+          method: "GET",
+        });
+        if (cancelled) return;
+        setRows(resp.items ?? []);
+        setTotal(resp.total ?? 0);
+      } catch (e) {
+        if (!cancelled) {
+          setRows([]);
+          setTotal(0);
+          setMsg(`ERROR:${getErrorMessage(e)}`);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params]);
+
+  // Picker afiliado
+  useEffect(() => {
+    if (pickDq.trim().length < 2) {
+      setPickResults([]);
       return;
     }
-    void recargarFamilia(String(afiliado.id));
-  }, [afiliado?.id]);
+    setPickBuscando(true);
+    api<AfiliadoSuggest[]>(
+      `/afiliados/suggest?q=${encodeURIComponent(pickDq)}`,
+      { method: "GET" },
+    )
+      .then((r) => setPickResults(r ?? []))
+      .finally(() => setPickBuscando(false));
+  }, [pickDq]);
 
   const parentescoNombre = (c: Colateral) => {
     if (c.parentescoNombre) return c.parentescoNombre;
     if (c.parentesco?.descripcion) return c.parentesco.descripcion;
-    const cat = parentescos.find((p) => String(p.id) === String(c.parentescoId));
+    const cat = parentescos.find(
+      (p) => String(p.id) === String(c.parentescoId ?? c.parentesco?.id),
+    );
     return cat?.nombre ?? c.parentesco?.codigo ?? c.parentescoId ?? "—";
   };
 
-  const abrirNuevoColat = () => {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const canPrev = page > 1 && !loading;
+  const canNext = page < totalPages && !loading;
+
+  const onChangeLimit = (val: number) => {
+    setLimit(val);
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    q.trim() !== "" || estado !== "todos" || j38 !== "todos";
+
+  const handleClearFilters = () => {
+    setQ("");
+    setEstado("todos");
+    setJ38("todos");
+    setPage(1);
+  };
+
+  // === Acciones ===
+  const abrirAgregar = () => {
+    setAddStep("pickAfiliado");
+    setPickQ("");
+    setPickResults([]);
     setEditColat({
       open: true,
       isNew: true,
+      afiliado: null,
       row: {
         parentescoId: parentescos[0]?.id ?? "",
         nombre: "",
@@ -158,10 +295,11 @@ export default function AfiliadosFamiliaresPage() {
     });
   };
 
-  const abrirEditarColat = (row: Colateral) => {
+  const abrirEditar = (row: Colateral) => {
     setEditColat({
       open: true,
       isNew: false,
+      afiliado: row.afiliado ?? null,
       row: {
         ...row,
         parentescoId: row.parentescoId ?? row.parentesco?.id ?? "",
@@ -170,11 +308,15 @@ export default function AfiliadosFamiliaresPage() {
     });
   };
 
-  const cerrarModalColat = () => setEditColat({ open: false });
+  const cerrarModal = () => setEditColat({ open: false });
 
-  const guardarColat = async () => {
-    if (!afiliado?.id) return;
+  const guardar = async () => {
     const r = editColat.row ?? {};
+    const af = editColat.afiliado;
+    if (!af?.id) {
+      setMsg("ERROR:Seleccioná un titular.");
+      return;
+    }
     if (!r.nombre?.toString().trim()) {
       setMsg("ERROR:El nombre es obligatorio.");
       return;
@@ -196,21 +338,21 @@ export default function AfiliadosFamiliaresPage() {
       };
 
       if (editColat.isNew) {
-        await api(`/colaterales/afiliados/${afiliado.id}/colaterales`, {
+        await api(`/colaterales/afiliados/${af.id}/colaterales`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
         setMsg("SUCCESS:Familiar agregado");
       } else if (r.id != null) {
-        await api(`/colaterales/afiliados/${afiliado.id}/colaterales/${r.id}`, {
+        await api(`/colaterales/afiliados/${af.id}/colaterales/${r.id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
         setMsg("SUCCESS:Familiar actualizado");
       }
 
-      cerrarModalColat();
-      await recargarFamilia(String(afiliado.id));
+      cerrarModal();
+      await recargar();
     } catch (e) {
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
@@ -218,17 +360,16 @@ export default function AfiliadosFamiliaresPage() {
     }
   };
 
-  const darDeBajaColat = async (id: string | number, nombre: string) => {
-    if (!afiliado?.id) return;
-    if (!confirm(`¿Dar de baja a ${nombre} del grupo familiar?`)) return;
+  const darDeBaja = async (row: Colateral) => {
+    if (!confirm(`¿Dar de baja a ${row.nombre} del grupo familiar?`)) return;
     try {
       setBusy(true);
-      await api(`/colaterales/afiliados/${afiliado.id}/colaterales/${id}`, {
+      await api(`/colaterales/afiliados/${row.afiliadoId}/colaterales/${row.id}`, {
         method: "PATCH",
         body: JSON.stringify({ activo: false }),
       });
       setMsg("SUCCESS:Familiar dado de baja");
-      await recargarFamilia(String(afiliado.id));
+      await recargar();
     } catch (e) {
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
@@ -236,17 +377,16 @@ export default function AfiliadosFamiliaresPage() {
     }
   };
 
-  const reactivarColat = async (id: string | number, nombre: string) => {
-    if (!afiliado?.id) return;
-    if (!confirm(`¿Reactivar a ${nombre} en el grupo familiar?`)) return;
+  const reactivar = async (row: Colateral) => {
+    if (!confirm(`¿Reactivar a ${row.nombre} en el grupo familiar?`)) return;
     try {
       setBusy(true);
-      await api(`/colaterales/afiliados/${afiliado.id}/colaterales/${id}`, {
+      await api(`/colaterales/afiliados/${row.afiliadoId}/colaterales/${row.id}`, {
         method: "PATCH",
         body: JSON.stringify({ activo: true }),
       });
       setMsg("SUCCESS:Familiar reactivado");
-      await recargarFamilia(String(afiliado.id));
+      await recargar();
     } catch (e) {
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
@@ -254,16 +394,20 @@ export default function AfiliadosFamiliaresPage() {
     }
   };
 
-  const eliminarColat = async (id: string | number) => {
-    if (!afiliado?.id) return;
-    if (!confirm("¿Eliminar permanentemente este familiar? Esta acción no se puede deshacer.")) return;
+  const eliminar = async (row: Colateral) => {
+    if (
+      !confirm(
+        "¿Eliminar permanentemente este familiar? Esta acción no se puede deshacer.",
+      )
+    )
+      return;
     try {
       setBusy(true);
-      await api(`/colaterales/afiliados/${afiliado.id}/colaterales/${id}`, {
+      await api(`/colaterales/afiliados/${row.afiliadoId}/colaterales/${row.id}`, {
         method: "DELETE",
       });
       setMsg("SUCCESS:Familiar eliminado");
-      await recargarFamilia(String(afiliado.id));
+      await recargar();
     } catch (e) {
       setMsg(`ERROR:${getErrorMessage(e)}`);
     } finally {
@@ -271,425 +415,547 @@ export default function AfiliadosFamiliaresPage() {
     }
   };
 
-  const seleccionLabel = useMemo(() => {
-    if (!afiliado) return "Buscá afiliado por DNI, nombre o padrón…";
-    return `${afiliado.display} (DNI ${afiliado.dni})`;
-  }, [afiliado]);
-
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">ABM familiares</h1>
-          <p className="page-subtitle">Gestión del grupo familiar de afiliados.</p>
-        </div>
-      </div>
-
+    <div className="mx-auto max-w-7xl">
       {msg && (
         <div
-          className={`alert ${
+          className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-3 ${
             msg.startsWith("SUCCESS:")
-              ? "alert-success"
-
+              ? "border-medical-200 bg-medical-50 text-medical-800"
               : msg.startsWith("ERROR:")
-              ? "alert-error"
-              : "alert-warning"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
           }`}
-          style={{ marginBottom: 16 }}
+          role="alert"
         >
-          {msg.replace(/^SUCCESS:|^ERROR:/, "")}
+          {msg.startsWith("SUCCESS:") ? (
+            <Check className="size-5 shrink-0" />
+          ) : msg.startsWith("ERROR:") ? (
+            <XCircle className="size-5 shrink-0" />
+          ) : (
+            <AlertTriangle className="size-5 shrink-0" />
+          )}
+          <span className="text-sm font-medium">
+            {msg.replace(/^(SUCCESS:|ERROR:)/, "")}
+          </span>
         </div>
       )}
 
-      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <label className="filter-label" style={{ display: "block", marginBottom: 8 }}>
-          Afiliado
-        </label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input
-            className="filter-select"
-            style={{ minWidth: 280, flex: 1 }}
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[280px] flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+          <Input
+            placeholder="Buscar por familiar o titular (DNI, nombre, padrón)..."
+            aria-label="Buscar familiares"
             value={q}
-            placeholder={seleccionLabel}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 rounded-lg border-neutral-200 pl-9 pr-8"
           />
-          {afiliado && (
-            <button
-              className="btn btn-secondary"
+          {q && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 size-7 -translate-y-1/2"
               onClick={() => {
-                setAfiliado(null);
                 setQ("");
-                setSugerencias([]);
+                setPage(1);
               }}
+              title="Limpiar búsqueda"
             >
-              Cambiar afiliado
-            </button>
+              <X className="size-4" />
+            </Button>
           )}
         </div>
-
-        {buscando && (
-          <div className="no-data" style={{ marginTop: 8 }}>
-            Buscando afiliados...
-          </div>
-        )}
-
-        {!buscando && sugerencias.length > 0 && (
-          <div
-            className="table-container"
-            style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 8 }}
+        <select
+          aria-label="Filtro de estado"
+          value={estado}
+          onChange={(e) => {
+            setEstado(e.target.value as "todos" | "activos" | "baja");
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+        >
+          <option value="todos">Todos los estados</option>
+          <option value="activos">Solo activos</option>
+          <option value="baja">Solo bajas</option>
+        </select>
+        <select
+          aria-label="Filtro J38"
+          value={j38}
+          onChange={(e) => {
+            setJ38(e.target.value as "todos" | "true" | "false");
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+          title="Participa en J38"
+        >
+          <option value="todos">J38: todos</option>
+          <option value="true">J38: sí</option>
+          <option value="false">J38: no</option>
+        </select>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearFilters}
+            title="Limpiar todos los filtros"
+            className="h-9 gap-1 text-neutral-600"
           >
-            <table className="data-table" style={{ width: "100%" }}>
-              <tbody>
-                {sugerencias.map((s) => (
-                  <tr
-                    key={s.id}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => {
-                      setAfiliado(s);
-                      setQ("");
-                      setSugerencias([]);
-                    }}
-                  >
-                    <td style={{ padding: 10, fontWeight: 600 }}>{s.display}</td>
-                    <td style={{ padding: 10, color: "#666" }}>DNI {s.dni}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            <Trash2 className="size-4" />
+            Limpiar
+          </Button>
         )}
+        <div className="ml-auto">
+          <Button className="h-9 gap-2" onClick={abrirAgregar} disabled={busy}>
+            <UserPlus className="size-4" />
+            Agregar familiar
+          </Button>
+        </div>
       </div>
 
-      {!afiliado && (
-        <div className="card" style={{ padding: 16 }}>
-          <div className="no-data">Seleccioná un afiliado para administrar el grupo familiar.</div>
-        </div>
-      )}
-
-      {afiliado && (
-        <div className="card" style={{ padding: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 12,
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 600 }}>{afiliado.display}</div>
-              <div style={{ fontSize: 12, color: "#666" }}>DNI {afiliado.dni}</div>
-            </div>
-            <button className="btn btn-primary" onClick={abrirNuevoColat} disabled={busy}>
-              Agregar familiar
-            </button>
-          </div>
-
-          <div
-            className="table-container"
-            style={{ border: "1px solid #eee", borderRadius: 10, overflow: "hidden" }}
-          >
-            <table
-              className="data-table"
-              style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}
-            >
-              <thead>
-                <tr>
-                  <th style={{ padding: 8 }}>Parentesco</th>
-                  <th style={{ padding: 8 }}>Nombre</th>
-                  <th style={{ padding: 8 }}>DNI</th>
-                  <th style={{ padding: 8 }}>Fecha nac.</th>
-                  <th style={{ padding: 8 }} className="table-col-center">
-                    J38
-                  </th>
-                  <th style={{ padding: 8 }} className="table-col-center">
-                    Activo
-                  </th>
-                  <th style={{ padding: 8 }} className="table-col-center">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 12, color: "#666" }}>
-                      Cargando...
-                    </td>
-                  </tr>
-                ) : colaterales.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 12, color: "#666" }}>
-                      Sin familiares cargados
-                    </td>
-                  </tr>
-                ) : (
-                  colaterales.map((c) => {
-                    const participaJ38 = c.esColateral ?? true;
-                    return (
-                      <tr key={String(c.id)} style={{ borderTop: "1px solid #eee" }}>
-                        <td style={{ padding: 8 }}>{parentescoNombre(c)}</td>
-                        <td style={{ padding: 8 }}>{c.nombre}</td>
-                        <td style={{ padding: 8 }}>{(c.dni ?? "").toString() || "—"}</td>
-                        <td style={{ padding: 8 }}>{formatFecha(c.fechaNacimiento)}</td>
-                        <td style={{ padding: 8 }} className="table-col-center">
-                          <span
-                            className={`feature-badge ${
-                              participaJ38 ? "feature-yes" : "feature-no"
-                            }`}
-                          >
-                            {participaJ38 ? "Sí" : "No"}
-                          </span>
-                        </td>
-                        <td style={{ padding: 8 }} className="table-col-center">
-                          <span
-                            className={`feature-badge ${
-                              c.activo ? "feature-yes" : "feature-no"
-                            }`}
-                          >
-                            {c.activo ? "Sí" : "No"}
-                          </span>
-                        </td>
-                        <td style={{ padding: 8 }} className="table-col-center">
-                          <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => abrirEditarColat(c)}
-                              disabled={busy}
-                            >
-                              Editar
-                            </button>
-                            {c.activo ? (
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => void darDeBajaColat(c.id, c.nombre)}
-                                disabled={busy}
-                                title="Dar de baja del grupo familiar"
-                              >
-                                Dar de baja
-                              </button>
-                            ) : (
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => void reactivarColat(c.id, c.nombre)}
-                                disabled={busy}
-                                title="Reactivar en el grupo familiar"
-                              >
-                                Reactivar
-                              </button>
-                            )}
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => void eliminarColat(c.id)}
-                              disabled={busy}
-                              title="Eliminar permanentemente"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {editColat.open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="modal-backdrop"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => !busy && cerrarModalColat()}
-        >
-          <div
-            className="modal"
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              minWidth: 420,
-              maxWidth: 560,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: 0, marginBottom: 8 }}>
-              {editColat.isNew ? "Agregar familiar" : "Editar familiar"}
+      {/* Tabla */}
+      <Card className="relative mb-4 overflow-hidden rounded-xl border-neutral-200">
+        {loading && rows.length > 0 && (
+          <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-medical-500" />
+        )}
+        {!loading && rows.length === 0 ? (
+          <div className="flex w-full flex-col items-center justify-center px-6 py-16 text-center">
+            <div className="mb-4 text-4xl">{hasActiveFilters ? "🔍" : "👪"}</div>
+            <h3 className="text-lg font-semibold text-neutral-900">
+              {hasActiveFilters ? "Sin resultados" : "No hay familiares cargados"}
             </h3>
+            <p className="mt-1 w-full max-w-md text-sm text-neutral-600">
+              {hasActiveFilters
+                ? "No se encontraron familiares que coincidan con los filtros aplicados"
+                : "Empezá agregando el primer familiar al sistema"}
+            </p>
+            {hasActiveFilters ? (
+              <Button variant="outline" className="mt-4" onClick={handleClearFilters}>
+                Limpiar filtros
+              </Button>
+            ) : (
+              <Button className="mt-4 gap-2" onClick={abrirAgregar} disabled={busy}>
+                <UserPlus className="size-4" />
+                Agregar primer familiar
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div
+            className={`transition-opacity duration-200 ${
+              loading && rows.length > 0 ? "opacity-60" : "opacity-100"
+            }`}
+            aria-busy={loading}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow className="border-neutral-200 hover:bg-transparent">
+                  <TableHead className="font-semibold text-neutral-700">Titular</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">Parentesco</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">Familiar</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">DNI</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">Fecha nac.</TableHead>
+                  <TableHead className="text-center font-semibold text-neutral-700" title="Participa en J38">J38</TableHead>
+                  <TableHead className="text-center font-semibold text-neutral-700">Estado</TableHead>
+                  <TableHead className="text-right font-semibold text-neutral-700">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading && rows.length === 0 &&
+                  Array.from({ length: Math.min(limit, 8) }).map((_, i) => (
+                    <TableRow key={`sk-${i}`} className="border-neutral-100">
+                      <TableCell><Skeleton className="h-4 w-44" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-4" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="mx-auto h-5 w-14" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="ml-auto h-7 w-24" /></TableCell>
+                    </TableRow>
+                  ))}
+                {rows.map((c) => {
+                  const participaJ38 = c.esColateral ?? true;
+                  return (
+                    <TableRow key={String(c.id)} className="border-neutral-100">
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-neutral-900">
+                            {titularLabel(c.afiliado)}
+                          </span>
+                          <span className="font-mono text-xs text-neutral-500">
+                            DNI {formatDni(c.afiliado?.dni) || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-neutral-700">{parentescoNombre(c)}</TableCell>
+                      <TableCell className="font-medium text-neutral-900">{c.nombre}</TableCell>
+                      <TableCell className="font-mono text-sm text-neutral-700">
+                        {(c.dni ?? "").toString() || "—"}
+                      </TableCell>
+                      <TableCell className="text-neutral-700">{formatFecha(c.fechaNacimiento)}</TableCell>
+                      <TableCell className="text-center">
+                        {participaJ38 ? (
+                          <Check className="mx-auto size-4 text-medical-600" aria-label="Sí" />
+                        ) : (
+                          <span className="text-neutral-300">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={c.activo ? "default" : "outline"} className="gap-1">
+                          {c.activo ? <Check className="size-3" /> : <XCircle className="size-3" />}
+                          {c.activo ? "Activo" : "Baja"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            title="Editar"
+                            onClick={() => abrirEditar(c)}
+                            disabled={busy}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          {c.activo ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              title="Dar de baja"
+                              onClick={() => void darDeBaja(c)}
+                              disabled={busy}
+                            >
+                              <UserMinus className="size-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              title="Reactivar"
+                              onClick={() => void reactivar(c)}
+                              disabled={busy}
+                            >
+                              <UserCheck className="size-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            title="Eliminar"
+                            onClick={() => void eliminar(c)}
+                            disabled={busy}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </Card>
 
-            <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-              <div className="alert-content">
-                <div className="alert-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <circle cx="12" cy="16" r="1" />
-                  </svg>
-                </div>
-                <div className="alert-text">
-                  Marcá <b>Participa en J38</b> si este integrante es colateral
-                  del coseguro. Podés desmarcarlo para mantenerlo en el grupo
-                  familiar sin impactar el J38.
-                </div>
-              </div>
+      {/* Paginación */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2">
+          <span className="text-sm text-neutral-600">
+            {(page - 1) * limit + 1}-{Math.min(page * limit, total)} de {total}
+          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="limit-fam" className="text-sm text-neutral-600">
+                Filas
+              </Label>
+              <select
+                id="limit-fam"
+                aria-label="Filas por página"
+                value={String(limit)}
+                onChange={(e) => onChangeLimit(Number(e.target.value))}
+                className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+              >
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
             </div>
-
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label className="filter-label" style={{ display: "block", fontSize: 12 }}>
-                  Parentesco
-                </label>
-                {parentescos.length > 0 ? (
-                  <select
-                    className="filter-select"
-                    value={String(editColat.row?.parentescoId ?? "")}
-                    onChange={(e) =>
-                      setEditColat((s) => ({
-                        ...s,
-                        row: { ...s.row, parentescoId: e.target.value },
-                      }))
-                    }
-                  >
-                    {parentescos.map((p) => (
-                      <option key={String(p.id)} value={String(p.id)}>
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    className="filter-select"
-                    placeholder="ID de parentesco"
-                    value={String(editColat.row?.parentescoId ?? "")}
-                    onChange={(e) =>
-                      setEditColat((s) => ({
-                        ...s,
-                        row: { ...s.row, parentescoId: e.target.value },
-                      }))
-                    }
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className="filter-label" style={{ display: "block", fontSize: 12 }}>
-                  Nombre
-                </label>
-                <input
-                  className="filter-select"
-                  placeholder="Nombre completo"
-                  value={String(editColat.row?.nombre ?? "")}
-                  onChange={(e) =>
-                    setEditColat((s) => ({
-                      ...s,
-                      row: { ...s.row, nombre: e.target.value },
-                    }))
-                  }
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label className="filter-label" style={{ display: "block", fontSize: 12 }}>
-                    DNI
-                  </label>
-                  <input
-                    className="filter-select"
-                    placeholder="DNI (opcional)"
-                    value={String(editColat.row?.dni ?? "")}
-                    onChange={(e) =>
-                      setEditColat((s) => ({
-                        ...s,
-                        row: { ...s.row, dni: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="filter-label" style={{ display: "block", fontSize: 12 }}>
-                    Fecha nac.
-                  </label>
-                  <input
-                    className="filter-select"
-                    type="date"
-                    value={String(editColat.row?.fechaNacimiento ?? "")}
-                    onChange={(e) =>
-                      setEditColat((s) => ({
-                        ...s,
-                        row: { ...s.row, fechaNacimiento: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="checkbox-group">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(editColat.row?.esColateral ?? true)}
-                    onChange={(e) =>
-                      setEditColat((s) => ({
-                        ...s,
-                        row: { ...s.row, esColateral: e.target.checked },
-                      }))
-                    }
-                  />
-                  <span>Participa en J38</span>
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(editColat.row?.activo ?? true)}
-                    onChange={(e) =>
-                      setEditColat((s) => ({
-                        ...s,
-                        row: { ...s.row, activo: e.target.checked },
-                      }))
-                    }
-                  />
-                  <span>Activo</span>
-                </label>
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: 16,
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
-              <button className="btn btn-secondary" onClick={cerrarModalColat} disabled={busy}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={guardarColat} disabled={busy}>
-                Guardar
-              </button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage(1)}
+                disabled={!canPrev}
+                title="Primera página"
+              >
+                <ChevronsLeft className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+                title="Anterior"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="min-w-[3.5rem] text-center text-sm font-medium text-neutral-700">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!canNext}
+                title="Siguiente"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage(totalPages)}
+                disabled={!canNext}
+                title="Última página"
+              >
+                <ChevronsRight className="size-4" />
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modal edit / agregar */}
+      <Dialog
+        open={editColat.open}
+        onOpenChange={(open) => {
+          if (!open && !busy) cerrarModal();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editColat.isNew ? "Agregar familiar" : "Editar familiar"}
+            </DialogTitle>
+            {editColat.afiliado && (
+              <DialogDescription>
+                Titular: {titularLabel(editColat.afiliado)} · DNI{" "}
+                {formatDni(editColat.afiliado.dni) || "—"}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <div>
+              {/* Paso 1: elegir afiliado (solo cuando es nuevo y no hay afiliado) */}
+              {editColat.isNew && addStep === "pickAfiliado" && !editColat.afiliado ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Seleccioná primero al titular del grupo familiar.
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                    <Input
+                      autoFocus
+                      placeholder="Buscar afiliado por DNI, nombre o padrón..."
+                      value={pickQ}
+                      onChange={(e) => setPickQ(e.target.value)}
+                      className="h-9 rounded-lg border-neutral-200 pl-9"
+                    />
+                  </div>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-neutral-200">
+                    {pickBuscando ? (
+                      <div className="space-y-2 p-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="flex items-center gap-3">
+                            <Skeleton className="h-4 w-48" />
+                            <Skeleton className="h-4 w-24" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : pickResults.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-neutral-500">
+                        {pickDq.trim().length < 2
+                          ? "Escribí al menos 2 caracteres"
+                          : "Sin resultados"}
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-neutral-100">
+                        {pickResults.map((s) => (
+                          <li key={s.id}>
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm transition-colors hover:bg-neutral-50"
+                              onClick={() => {
+                                setEditColat((st) => ({ ...st, afiliado: s }));
+                                setAddStep("form");
+                              }}
+                            >
+                              <span className="font-medium text-neutral-900">{s.display}</span>
+                              <span className="font-mono text-xs text-neutral-500">DNI {s.dni}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={cerrarModal} disabled={busy}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                      Marcá <b>Participa en J38</b> si este integrante es colateral
+                      del coseguro. Podés desmarcarlo para mantenerlo en el grupo
+                      familiar sin impactar el J38.
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div>
+                      <Label className="text-xs font-medium text-neutral-600">Parentesco</Label>
+                      <select
+                        className="mt-1 h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+                        value={String(editColat.row?.parentescoId ?? "")}
+                        onChange={(e) =>
+                          setEditColat((s) => ({
+                            ...s,
+                            row: { ...s.row, parentescoId: e.target.value },
+                          }))
+                        }
+                      >
+                        {parentescos.map((p) => (
+                          <option key={String(p.id)} value={String(p.id)}>
+                            {p.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs font-medium text-neutral-600">Nombre</Label>
+                      <Input
+                        className="mt-1"
+                        placeholder="Nombre completo"
+                        value={String(editColat.row?.nombre ?? "")}
+                        onChange={(e) =>
+                          setEditColat((s) => ({
+                            ...s,
+                            row: { ...s.row, nombre: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-medium text-neutral-600">DNI</Label>
+                        <Input
+                          className="mt-1"
+                          placeholder="DNI (opcional)"
+                          value={String(editColat.row?.dni ?? "")}
+                          onChange={(e) =>
+                            setEditColat((s) => ({
+                              ...s,
+                              row: { ...s.row, dni: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-neutral-600">Fecha nac.</Label>
+                        <Input
+                          className="mt-1"
+                          type="date"
+                          value={String(editColat.row?.fechaNacimiento ?? "")}
+                          onChange={(e) =>
+                            setEditColat((s) => ({
+                              ...s,
+                              row: { ...s.row, fechaNacimiento: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 pt-1">
+                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editColat.row?.esColateral ?? true)}
+                          onChange={(e) =>
+                            setEditColat((s) => ({
+                              ...s,
+                              row: { ...s.row, esColateral: e.target.checked },
+                            }))
+                          }
+                          className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
+                        />
+                        Participa en J38
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editColat.row?.activo ?? true)}
+                          onChange={(e) =>
+                            setEditColat((s) => ({
+                              ...s,
+                              row: { ...s.row, activo: e.target.checked },
+                            }))
+                          }
+                          className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
+                        />
+                        Activo
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex justify-end gap-2">
+                    {editColat.isNew && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setAddStep("pickAfiliado");
+                          setEditColat((s) => ({ ...s, afiliado: null }));
+                          setPickQ("");
+                          setPickResults([]);
+                        }}
+                        disabled={busy}
+                      >
+                        Cambiar titular
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={cerrarModal} disabled={busy}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => void guardar()} disabled={busy}>
+                      {busy ? "Guardando..." : "Guardar"}
+                    </Button>
+                  </div>
+                </>
+              )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -4,12 +4,12 @@ import { PrismaService } from '../../common/prisma.service';
 import { ColateralesController } from './colaterales.controller';
 import { ColateralesService } from './colaterales.service';
 import { ColateralesCalculoService } from './colaterales-calculo.service';
-import { NovedadesModule } from '../novedades/novedades.module'; // si ColateralesService encola novedades
 import { ColateralesReglasController } from './colaterales-reglas.controller';
 import { ColateralesReglasService } from './colaterales-reglas.service';
 import { ColateralesImportController } from './colaterales-import.controller';
 import { ColateralesImportService } from './colaterales-import.service';
 import { AuditService } from '../../common/audit.service';
+import { NovedadesModule } from '../novedades/novedades.module';
 
 @Module({
   imports: [NovedadesModule],

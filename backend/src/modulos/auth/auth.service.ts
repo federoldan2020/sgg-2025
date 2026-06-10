@@ -52,19 +52,58 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<LoginResponse> {
-    // 1. Buscar usuario
-    const usuario = await this.prisma.usuario.findUnique({
+    const email = dto.email.trim().toLowerCase();
+    let organizacionId = dto.organizacionId?.trim() || '';
+
+    // Sin organización explícita: resolver por email (una sola cuenta) o única org activa
+    if (!organizacionId) {
+      const porEmail = await this.prisma.usuario.findMany({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: { organizacionId: true },
+      });
+      const orgsDistintas = [...new Set(porEmail.map((u) => u.organizacionId))];
+      if (orgsDistintas.length === 1) {
+        organizacionId = orgsDistintas[0];
+      } else if (orgsDistintas.length === 0) {
+        const unicaOrg = await this.prisma.organizacion.findMany({
+          where: { activo: true },
+          select: { id: true },
+        });
+        if (unicaOrg.length === 1) {
+          organizacionId = unicaOrg[0].id;
+        }
+      }
+    }
+
+    if (!organizacionId) {
+      throw new UnauthorizedException(
+        'Seleccioná la organización para iniciar sesión.',
+      );
+    }
+
+    // 1. Buscar usuario (email sin distinguir mayúsculas)
+    const usuario = await this.prisma.usuario.findFirst({
       where: {
-        organizacionId_email: {
-          organizacionId: dto.organizacionId,
-          email: dto.email,
-        },
+        organizacionId,
+        email: { equals: email, mode: 'insensitive' },
       },
     });
 
     if (!usuario) {
+      const existeEnOtraOrg = await this.prisma.usuario.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (existeEnOtraOrg) {
+        this.logger.warn(
+          `Login fallido: email=${email} existe pero no en organizacionId=${organizacionId}`,
+        );
+        throw new UnauthorizedException(
+          'El usuario pertenece a otra organización. Verificá la organización seleccionada.',
+        );
+      }
       this.logger.warn(
-        `Login fallido: usuario no encontrado para email=${dto.email} organizacionId=${dto.organizacionId || '(vacío)'}. Verificá que el usuario exista en esa organización.`,
+        `Login fallido: usuario no encontrado para email=${email} organizacionId=${organizacionId}`,
       );
       throw new UnauthorizedException('Credenciales inválidas');
     }
@@ -118,12 +157,13 @@ export class AuthService {
 
   async refreshToken(dto: RefreshTokenDto): Promise<LoginResponse> {
     // 1. Buscar sesión activa
+    const ahora = new Date();
     const sesion = await this.prisma.sesionUsuario.findUnique({
       where: { refreshToken: dto.refreshToken },
       include: { usuario: true },
     });
 
-    if (!sesion || !sesion.activa || sesion.expiraEn < new Date()) {
+    if (!sesion || !sesion.activa || sesion.expiraEn < ahora) {
       throw new UnauthorizedException('Refresh token inválido o expirado');
     }
 
@@ -135,13 +175,22 @@ export class AuthService {
 
     // 3. Rotación: generar nuevo refresh token e invalidar el anterior
     const nuevoRefreshToken = this.generarRefreshToken();
-    await this.prisma.sesionUsuario.update({
-      where: { id: sesion.id },
+    const rotacion = await this.prisma.sesionUsuario.updateMany({
+      where: {
+        id: sesion.id,
+        refreshToken: dto.refreshToken,
+        activa: true,
+        expiraEn: { gt: ahora },
+      },
       data: {
         refreshToken: nuevoRefreshToken,
-        ultimoUso: new Date(),
+        ultimoUso: ahora,
       },
     });
+
+    if (rotacion.count !== 1) {
+      throw new UnauthorizedException('Refresh token invÃ¡lido o reutilizado');
+    }
 
     // 4. Generar nuevo access token
     const payload: JwtPayload = {

@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { NovedadesService } from '../novedades/novedades.service';
+import { NovedadesPendientesService } from '../novedades/novedades-pendientes.service';
 
 type IdLike = string | number | bigint;
 const toBig = (v: IdLike) => {
@@ -20,7 +20,7 @@ const toBig = (v: IdLike) => {
 export class CoseguroService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly novedades: NovedadesService,
+    private readonly novedadesPendientes: NovedadesPendientesService,
   ) {}
 
   // ----------------- helpers -----------------
@@ -92,8 +92,6 @@ export class CoseguroService {
           estado: true,
           fechaAlta: true,
           fechaBaja: true,
-          suspendidoEn: true,
-          motivoSuspension: true,
           imputacionPadronIdCoseguro: true,
         },
       }),
@@ -110,8 +108,6 @@ export class CoseguroService {
           estado: (coseguro.estado as 'activo' | 'baja') ?? 'baja',
           fechaAlta: coseguro.fechaAlta?.toISOString().slice(0, 10) ?? null,
           fechaBaja: coseguro.fechaBaja?.toISOString().slice(0, 10) ?? null,
-          suspendidoEn: coseguro.suspendidoEn?.toISOString().slice(0, 10) ?? null,
-          motivoSuspension: coseguro.motivoSuspension ?? null,
           padronCoseguroId: coseguro.imputacionPadronIdCoseguro ?? null,
         };
 
@@ -232,60 +228,12 @@ export class CoseguroService {
       }
     });
 
-    // novedades (fuera del tx)
+    // El modelo nuevo de novedades detecta deltas vs el último envío al
+    // momento de generar el lote; ya no se registra cada cambio en buffer.
+    // Las bajas explícitas se registran vía `BajaInformable` (TODO al codear
+    // el nuevo módulo de novedades).
     const estadoNuevo = actualizado.estado as 'activo' | 'baja';
     const padronFinal = actualizado.imputacionPadronIdCoseguro ?? null;
-
-    const ensurePadron = async (p?: bigint | null) =>
-      p != null ? p : await this.padronDestino(organizacionId, afId);
-
-    // Alta / Baja simples
-    if (estadoPrevio !== 'activo' && estadoNuevo === 'activo') {
-      const p = await ensurePadron(padronFinal);
-      await this.novedades.registrarAltaCoseguro({
-        organizacionId,
-        afiliadoId: afId,
-        padronId: p,
-        ocurridoEn: fecha,
-        observacion: 'Alta coseguro (upsert)',
-      });
-    } else if (estadoPrevio === 'activo' && estadoNuevo !== 'activo') {
-      const p = await ensurePadron(padronPrevio);
-      await this.novedades.registrarBajaCoseguro({
-        organizacionId,
-        afiliadoId: afId,
-        padronId: p,
-        ocurridoEn: fecha,
-        observacion: 'Baja coseguro (upsert)',
-      });
-    }
-
-    // Reasignación (activo → activo con padrón distinto y reasignar=true)
-    const reasigno =
-      quiereActivo &&
-      estadoPrevio === 'activo' &&
-      padronPrevio != null &&
-      padronFinal != null &&
-      padronPrevio !== padronFinal;
-
-    if (reasigno) {
-      // 1) baja en padrón anterior (J22 = 0)
-      await this.novedades.registrarBajaCoseguro({
-        organizacionId,
-        afiliadoId: afId,
-        padronId: padronPrevio,
-        ocurridoEn: fecha,
-        observacion: 'Reasignación J22: baja en padrón anterior',
-      });
-      // 2) alta en padrón nuevo (J22 = precio vigente)
-      await this.novedades.registrarAltaCoseguro({
-        organizacionId,
-        afiliadoId: afId,
-        padronId: padronFinal,
-        ocurridoEn: fecha,
-        observacion: 'Reasignación J22: alta en padrón nuevo',
-      });
-    }
 
     return {
       estado: estadoNuevo,
@@ -307,38 +255,72 @@ export class CoseguroService {
     const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
     const fecha = ocurridoEn ?? new Date();
 
+    const regla = await this.reglaCoseguroVigente(organizacionId, fecha);
+    const valorJ22 = regla ? Number(regla.precioBase) : null;
+
     await this.prisma.$transaction(async (tx) => {
       const existente = await tx.coseguroAfiliado.findFirst({
         where: { organizacionId, afiliadoId: afId },
-        select: { id: true, fechaAlta: true },
+        select: { id: true, fechaAlta: true, estado: true },
       });
+      const yaActivo = existente?.estado === 'activo';
       const data: any = {
         organizacionId,
         afiliadoId: afId,
         estado: 'activo',
+        // Limpiar origenBaja: si venía de una baja previa (manual o auto),
+        // el alta lo resetea.
+        origenBaja: null,
         imputacionPadronIdCoseguro: toBig(padronId),
-        fechaAlta: existente?.fechaAlta ?? fecha, // nunca null
+        fechaAlta: existente?.fechaAlta ?? fecha,
       };
       if (!existente) {
         await tx.coseguroAfiliado.create({ data });
       } else {
         await tx.coseguroAfiliado.update({ where: { id: existente.id }, data });
       }
-    });
 
-    await this.novedades.registrarAltaCoseguro({
-      organizacionId,
-      afiliadoId: afId,
-      padronId: toBig(padronId),
-      ocurridoEn: fecha,
-      observacion: 'Alta coseguro (directa)',
+      // Si ya estaba activo no emitimos novedad (no hay delta para Cómputos).
+      // Si arrancó / se reactivó, encolamos ALTA J22 al lote del mes corriente.
+      if (!yaActivo) {
+        if (valorJ22 == null || valorJ22 <= 0) {
+          throw new BadRequestException(
+            'No hay ReglaPrecioCoseguro vigente: cargá una regla activa antes de dar de alta el coseguro.',
+          );
+        }
+        await this.novedadesPendientes.crear(
+          {
+            organizacionId,
+            padronId: toBig(padronId),
+            afiliadoId: afId,
+            concepto: 'J22',
+            tipoMovimiento: 'alta',
+            destino: 'COMPUTOS',
+            valor: valorJ22,
+            origenEvento: 'hook_coseguro_alta',
+          },
+          tx,
+        );
+      }
     });
 
     return { ok: true };
   }
 
-  /** Baja directa de coseguro (J22=0). */
-  async bajaCoseguro(organizacionId: string, afiliadoId: IdLike, ocurridoEn?: Date) {
+  /**
+   * Baja directa de coseguro (J22=0).
+   * `origenBaja`:
+   *   - "manual_operador" (default) → baja desde la ficha del afiliado.
+   *   - "auto_3m_sin_j22"  → job de baja automática (3 meses sin cobranza).
+   *   - "padron_inactivo"  → cascada por baja del padrón imputado.
+   * Solo "auto_3m_sin_j22" se reactiva sola cuando el afiliado salda la deuda.
+   */
+  async bajaCoseguro(
+    organizacionId: string,
+    afiliadoId: IdLike,
+    ocurridoEn?: Date,
+    origenBaja: 'manual_operador' | 'auto_3m_sin_j22' | 'padron_inactivo' = 'manual_operador',
+  ) {
     const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
     const fecha = ocurridoEn ?? new Date();
 
@@ -351,7 +333,7 @@ export class CoseguroService {
       if (cos) {
         await tx.coseguroAfiliado.update({
           where: { id: cos.id },
-          data: { estado: 'baja', fechaBaja: fecha },
+          data: { estado: 'baja', fechaBaja: fecha, origenBaja },
         });
       } else {
         await tx.coseguroAfiliado.create({
@@ -359,22 +341,30 @@ export class CoseguroService {
             organizacionId,
             afiliadoId: afId,
             estado: 'baja',
-            fechaAlta: fecha, // requerido por el esquema
+            origenBaja,
+            fechaAlta: fecha,
             fechaBaja: fecha,
             imputacionPadronIdCoseguro: null,
           },
         });
       }
-    });
 
-    const pad = cos?.imputacionPadronIdCoseguro ?? (await this.padronDestino(organizacionId, afId));
-
-    await this.novedades.registrarBajaCoseguro({
-      organizacionId,
-      afiliadoId: afId,
-      padronId: pad,
-      ocurridoEn: fecha,
-      observacion: 'Baja coseguro (directa)',
+      // Solo informamos baja si efectivamente estaba imputado a un padrón
+      // (caso contrario Cómputos nunca lo conoció).
+      if (cos?.imputacionPadronIdCoseguro) {
+        await this.novedadesPendientes.crear(
+          {
+            organizacionId,
+            padronId: cos.imputacionPadronIdCoseguro,
+            afiliadoId: afId,
+            concepto: 'J22',
+            tipoMovimiento: 'baja',
+            destino: 'COMPUTOS',
+            origenEvento: 'hook_coseguro_baja',
+          },
+          tx,
+        );
+      }
     });
 
     return { ok: true };
@@ -388,99 +378,50 @@ export class CoseguroService {
     nuevoPrecio: string | number,
     ocurridoEn?: Date,
   ) {
-    const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
-
-    await this.novedades.registrarModifCoseguro({
-      organizacionId,
-      afiliadoId: afId,
-      padronId: toBig(padronId),
-      nuevoPrecio,
-      ocurridoEn: ocurridoEn ?? new Date(),
-      observacion: 'Modificación precio coseguro (manual)',
-    });
-
+    await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
+    // Modificación queda implícita por el cambio en la regla vigente;
+    // el módulo nuevo de novedades enviará el nuevo precio en el próximo
+    // lote (delta vs último envío).
+    void padronId;
+    void nuevoPrecio;
+    void ocurridoEn;
     return { ok: true };
   }
 
-  /** Suspender afiliado en coseguro (no afecta J22/J38). */
+  /**
+   * @deprecated en modelo nuevo el "coseguro suspendido" se evalúa
+   * dinámicamente vía `GateService.puedeUsarCoseguro` (J22 cubierto del mes
+   * corriente + sin deuda histórica J22). Esta función queda como compatibilidad:
+   * pasa el coseguro a estado='baja' con la fecha indicada. La novedad de
+   * baja a Cómputos se materializa vía `BajaInformable`.
+   */
   async suspenderCoseguro(
     organizacionId: string,
     afiliadoId: IdLike,
-    motivo?: string,
-    suspendidoPorId?: string,
+    _motivo?: string,
+    _suspendidoPorId?: string,
     ocurridoEn?: Date,
   ) {
     const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
     const fecha = ocurridoEn ?? new Date();
-
-    await this.prisma.$transaction(async (tx) => {
-      const existente = await tx.coseguroAfiliado.findFirst({
-        where: { organizacionId, afiliadoId: afId },
-        select: { id: true },
-      });
-      if (!existente) {
-        await tx.coseguroAfiliado.create({
-          data: {
-            organizacionId,
-            afiliadoId: afId,
-            estado: 'baja',
-            fechaAlta: fecha,
-            fechaBaja: fecha,
-            suspendidoEn: fecha,
-            motivoSuspension: motivo?.trim() || null,
-            suspendidoPorId: suspendidoPorId?.trim() || null,
-          },
-        });
-      } else {
-        await tx.coseguroAfiliado.update({
-          where: { id: existente.id },
-          data: {
-            suspendidoEn: fecha,
-            motivoSuspension: motivo?.trim() || null,
-            suspendidoPorId: suspendidoPorId?.trim() || null,
-          },
-        });
-      }
+    await this.prisma.coseguroAfiliado.updateMany({
+      where: { organizacionId, afiliadoId: afId },
+      data: { estado: 'baja', fechaBaja: fecha },
     });
-
     return { ok: true };
   }
 
-  /** Rehabilitar afiliado en coseguro (limpia suspension). */
+  /** @deprecated reactivar coseguro: pasa a estado='activo'. */
   async rehabilitarCoseguro(
     organizacionId: string,
     afiliadoId: IdLike,
-    ocurridoEn?: Date,
+    _ocurridoEn?: Date,
   ) {
     const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
-    const fecha = ocurridoEn ?? new Date();
-
-    await this.prisma.$transaction(async (tx) => {
-      const existente = await tx.coseguroAfiliado.findFirst({
-        where: { organizacionId, afiliadoId: afId },
-        select: { id: true, fechaAlta: true },
-      });
-      if (!existente) {
-        await tx.coseguroAfiliado.create({
-          data: {
-            organizacionId,
-            afiliadoId: afId,
-            estado: 'baja',
-            fechaAlta: fecha,
-            fechaBaja: fecha,
-            suspendidoEn: null,
-            motivoSuspension: null,
-            suspendidoPorId: null,
-          },
-        });
-      } else {
-        await tx.coseguroAfiliado.update({
-          where: { id: existente.id },
-          data: { suspendidoEn: null, motivoSuspension: null, suspendidoPorId: null },
-        });
-      }
+    await this.prisma.coseguroAfiliado.updateMany({
+      where: { organizacionId, afiliadoId: afId },
+      data: { estado: 'activo', fechaBaja: null },
     });
-
     return { ok: true };
   }
 }

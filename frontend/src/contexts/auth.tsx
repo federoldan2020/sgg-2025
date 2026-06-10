@@ -55,11 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []); // Array vacío para ejecutar solo al montar
 
   const login = useCallback(async (email: string, password: string, organizacionId?: string) => {
-    const ok = await authLogin({ email, password, organizacionId: organizacionId || '' });
-    if (ok) {
-      await refreshProfile();
-    }
-    return ok;
+    await authLogin({ email, password, organizacionId });
+    await refreshProfile();
+    return true;
   }, [refreshProfile]);
 
   const logout = useCallback(async () => {

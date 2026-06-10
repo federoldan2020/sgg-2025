@@ -18,16 +18,56 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
+  const staticOrigins = new Set<string>([
+    'http://localhost:3010',
+    'http://localhost:3000',
+    'http://localhost:3002',
+    'https://udap.fourdev.com.ar',
+    'https://www.udap.fourdev.com.ar',
+  ]);
+
+  if (process.env.FRONTEND_URL) {
+    staticOrigins.add(process.env.FRONTEND_URL.trim());
+  }
+
+  if (process.env.CORS_ORIGINS) {
+    for (const o of process.env.CORS_ORIGINS.split(',')) {
+      const trimmed = o.trim();
+      if (trimmed) staticOrigins.add(trimmed);
+    }
+  }
+
+  const isDev = process.env.NODE_ENV !== 'production';
+
   app.enableCors({
-    origin: [
-      'http://localhost:3010',
-      'http://localhost:3000',
-      'https://udap.fourdev.com.ar',
-      'https://www.udap.fourdev.com.ar',
-    ],
+    origin: (origin, callback) => {
+      // Postman, curl, server-side
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (staticOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      if (
+        isDev &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Organizacion-ID', 'X-Org-Id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Organizacion-ID',
+      'X-Org-Id',
+    ],
+    optionsSuccessStatus: 204,
   });
   app.useGlobalInterceptors(new SerializeInterceptor());
 

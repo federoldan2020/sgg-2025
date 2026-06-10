@@ -34,7 +34,7 @@ export function EmptyState({
         {icon ?? <Inbox className="h-12 w-12" />}
       </div>
       <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <p className="mb-4 max-w-sm text-sm text-muted-foreground">
+      <p className="mb-4 w-full max-w-sm text-sm text-muted-foreground">
         {description}
       </p>
       {action && (
@@ -73,7 +73,7 @@ export function ErrorState({
         <AlertCircle className="h-12 w-12" />
       </div>
       <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <p className="mb-4 max-w-sm text-sm text-muted-foreground">
+      <p className="mb-4 w-full max-w-sm text-sm text-muted-foreground">
         {description}
       </p>
       {onRetry && (

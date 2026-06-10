@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { getErrorMessage, ORG } from "@/servicios/api";
+import { apiFetch, getErrorMessage } from "@/servicios/api";
 import Link from "next/link";
 
 type TipoImport = "prestadores" | "proveedores" | "terceros";
@@ -53,8 +53,6 @@ export default function TercerosImportPage() {
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingRun, setLoadingRun] = useState(false);
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
-
   const doPreview = async () => {
     try {
       setLoadingPrev(true);
@@ -66,11 +64,11 @@ export default function TercerosImportPage() {
       const fd = new FormData();
       fd.append("file", file);
 
-      const url = `${API}/terceros/import/preview?tipo=${encodeURIComponent(
-        tipo
-      )}`;
-      const res = await fetch(url, { method: "POST", body: fd });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await apiFetch(
+        `/terceros/import/preview?tipo=${encodeURIComponent(tipo)}`,
+        { method: "POST", body: fd },
+        { includeJsonContentType: false },
+      );
       const r = (await res.json()) as PreviewResp;
       setPreview(r);
     } catch (e) {
@@ -90,18 +88,15 @@ export default function TercerosImportPage() {
       const fd = new FormData();
       fd.append("file", file);
 
-      const res = await fetch(
-        `${API}/terceros/import?tipo=${encodeURIComponent(tipo)}`,
+      const res = await apiFetch(
+        `/terceros/import?tipo=${encodeURIComponent(tipo)}`,
         {
           method: "POST",
-          body: fd, // NO setear Content-Type manualmente
-          headers: {
-            "X-Organizacion-ID": ORG, // header org
-          },
+          body: fd,
           cache: "no-store",
-        }
+        },
+        { includeJsonContentType: false },
       );
-      if (!res.ok) throw new Error(await res.text());
       const r = (await res.json()) as ImportResultado;
 
       setResultado(r);

@@ -9,7 +9,6 @@ import { AsientosController } from './modulos/contabilidad/asientos.controller';
 import { CoseguroModule } from './modulos/coseguro/coseguro.module';
 import { ParametricosModule } from './modulos/parametricos/parametricos.module';
 import { OrdenesModule } from './modulos/ordenes/ordenes.module';
-import { NovedadesModule } from './modulos/novedades/novedades.module';
 import { NominaModule } from './modulos/nomina/nomina.module';
 import { ContabilidadModule } from './modulos/contabilidad/contabilidad.module';
 import { TercerosModule } from './modulos/terceros/terceros.module';
@@ -25,7 +24,11 @@ import { MovimientosModule } from './modulos/movimientos/movimientos.module';
 import { AuthModule } from './modulos/auth/auth.module';
 import { JwtAuthGuard } from './modulos/auth/guards/jwt-auth.guard';
 import { ReintegrosModule } from './modulos/reintegros/reintegros.module';
+import { NovedadesModule } from './modulos/novedades/novedades.module';
 import { HealthModule } from './health/health.module';
+import { DashboardController } from './modulos/dashboard/dashboard.controller';
+import { SuspensionesModule } from './modulos/suspensiones/suspensiones.module';
+import { CupoModule } from './modulos/cupo/cupo.module';
 
 @Module({
   imports: [
@@ -48,6 +51,8 @@ import { HealthModule } from './health/health.module';
     ComerciosModule,
     MovimientosModule,
     ReintegrosModule,
+    SuspensionesModule,
+    CupoModule,
   ],
   controllers: [
     AfiliadosController,
@@ -55,6 +60,7 @@ import { HealthModule } from './health/health.module';
     ObligacionesController,
     CajaController,
     AsientosController,
+    DashboardController,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

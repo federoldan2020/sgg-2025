@@ -230,17 +230,18 @@ export default function AdminUsuariosPage() {
     title,
     description,
     children,
-    maxWidth = 'max-w-3xl',
+    maxWidth = 768,
     onClickStop,
   }: {
     title: string;
     description?: string;
     children: React.ReactNode;
-    maxWidth?: string;
+    maxWidth?: number;
     onClickStop?: (e: React.MouseEvent) => void;
   }) => (
     <Card
-      className={`w-full ${maxWidth} rounded-xl border-neutral-200 shadow-xl`}
+      className="rounded-xl border-neutral-200 shadow-xl"
+      style={{ width: `min(calc(100vw - 2rem), ${maxWidth}px)` }}
       onClick={onClickStop ?? ((e) => e.stopPropagation())}
     >
       <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-neutral-100 pb-4">
@@ -438,7 +439,6 @@ export default function AdminUsuariosPage() {
             <ModalDialog
               title="Nuevo usuario"
               description="Completa los datos del nuevo usuario."
-              maxWidth="max-w-3xl"
             >
               <form
                 className="space-y-6"
@@ -526,7 +526,6 @@ export default function AdminUsuariosPage() {
             <ModalDialog
               title="Editar usuario"
               description="Modifica los datos del usuario."
-              maxWidth="max-w-3xl"
             >
               <form
                 className="space-y-6"
@@ -643,7 +642,6 @@ export default function AdminUsuariosPage() {
             <ModalDialog
               title="Sesiones activas"
               description="Dispositivos y sesiones del usuario."
-              maxWidth="max-w-3xl"
             >
               {sesionesUsuario.length === 0 ? (
                 <p className="py-6 text-center text-sm text-neutral-500">

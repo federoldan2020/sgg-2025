@@ -1030,12 +1030,14 @@ export class ReintegrosService {
 
     const cos = await this.prisma.coseguroAfiliado.findFirst({
       where: { organizacionId, afiliadoId: afId },
-      select: { estado: true, suspendidoEn: true },
+      select: { estado: true },
     });
 
     const motivos: string[] = [];
     if (!cos || cos.estado !== 'activo') motivos.push('COSEGURO_INACTIVO');
-    if (cos?.suspendidoEn) motivos.push('COSEGURO_SUSPENDIDO');
+    // Suspensión de coseguro se evalúa dinámicamente vía GateService
+    // (J22 cubierto del mes corriente + sin deuda histórica J22).
+    // TODO: invocar GateService.puedeUsarCoseguro y agregar a `motivos`.
 
     const { desde, hasta } = this.getYearRange(fechaFactura);
     const ordenesUsadas = await this.prisma.reintegroSolicitud.count({

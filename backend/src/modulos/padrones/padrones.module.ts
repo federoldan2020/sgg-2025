@@ -7,8 +7,8 @@ import { PadronesService } from './padrones.service';
 import { PrismaService } from '../../common/prisma.service';
 import { PadronesImportController } from './padrones-import.controller';
 import { PadronesImportService } from './padrones-import.service';
-import { NovedadesModule } from '../novedades/novedades.module';
 import { AuditService } from '../../common/audit.service';
+import { NovedadesModule } from '../novedades/novedades.module';
 
 @Module({
   imports: [NovedadesModule],

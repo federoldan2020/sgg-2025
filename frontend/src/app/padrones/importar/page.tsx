@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { API_URL, getErrorMessage } from '@/servicios/api';
+import { api, apiFetch, getErrorMessage } from '@/servicios/api';
 
 type OperacionPreview = {
   fila: number;
@@ -41,19 +41,11 @@ export default function ImportarPadronesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const orgId = typeof window !== 'undefined' ? (localStorage.getItem('orgId') || process.env.NEXT_PUBLIC_TENANT_ID || '') : '';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') || '' : '';
-
   const upload = async (endpoint: string, body: FormData) => {
-    const r = await fetch(`${API_URL}${endpoint}`, {
+    const r = await apiFetch(endpoint, {
       method: 'POST',
       body,
-      headers: {
-        'X-Organizacion-ID': orgId,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-    if (!r.ok) throw new Error(await r.text());
+    }, { includeJsonContentType: false });
     return r.json() as Promise<ImportPreviewResponse>;
   };
 
@@ -74,13 +66,10 @@ export default function ImportarPadronesPage() {
     if (!preview) return;
     setLoading(true); setError(null);
     try {
-      const r = await fetch(`${API_URL}/padrones/import/confirm`, {
+      const data = await api<ImportConfirmResponse>('/padrones/import/confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Organizacion-ID': orgId, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ previewId: preview.previewId }),
       });
-      if (!r.ok) throw new Error(await r.text());
-      const data: ImportConfirmResponse = await r.json();
       setPreview(null);
       if (data.exitoso) {
         alert(`Importación: creados ${data.resumen.creados}, actualizados ${data.resumen.actualizados}`);
@@ -102,8 +91,28 @@ export default function ImportarPadronesPage() {
           <div className="flex items-center gap-3">
             <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             <Button onClick={onPreview} disabled={!file || loading}>Previsualizar</Button>
-            <a href={`${API_URL}/padrones/import/template`} className="text-blue-600 underline" target="_blank" rel="noreferrer">Descargar plantilla</a>
-            <a href={`${API_URL}/padrones/import/ejemplo`} className="text-blue-600 underline" target="_blank" rel="noreferrer">Descargar ejemplo</a>
+            <Button variant="secondary" onClick={() => void apiFetch('/padrones/import/template', { method: 'GET' }, { includeJsonContentType: false }).then(async (response) => {
+              const blob = await response.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'plantilla_padrones.csv';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(url);
+            }).catch((e: unknown) => setError(getErrorMessage(e)))} disabled={loading}>Descargar plantilla</Button>
+            <Button variant="secondary" onClick={() => void apiFetch('/padrones/import/ejemplo', { method: 'GET' }, { includeJsonContentType: false }).then(async (response) => {
+              const blob = await response.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'ejemplo_padrones.csv';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(url);
+            }).catch((e: unknown) => setError(getErrorMessage(e)))} disabled={loading}>Descargar ejemplo</Button>
           </div>
 
           {error && <div className="text-red-600">{error}</div>}

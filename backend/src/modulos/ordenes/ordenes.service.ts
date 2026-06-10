@@ -4,6 +4,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { CrearOrdenCreditoDto, PreviewOrdenCreditoDto } from './dto';
 import { PrismaService } from 'src/common/prisma.service';
 import { MovimientosService } from '../movimientos/movimientos.service';
+import { CupoService } from '../cupo/cupo.service';
 
 type PreviewCuota = { numero: number; periodoVenc: string; importe: string };
 type PreviewResp = {
@@ -22,6 +23,7 @@ export class OrdenesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly movs: MovimientosService,
+    private readonly cupo: CupoService,
   ) {}
 
   // ====== helpers fecha/periodo ======
@@ -221,6 +223,9 @@ export class OrdenesService {
     const comercio = await this.validarComercio(organizacionId, pv.comercioId, pv.cantidadCuotas);
     const comercioId = comercio.id as unknown as bigint;
 
+    // Validar cupo disponible antes de materializar.
+    await this.cupo.asegurarCupoSuficiente(organizacionId, afiliadoId, Number(pv.importeTotal));
+
     const enCuotas = (dto as any).enCuotas ?? pv.cantidadCuotas > 1;
 
     return this.prisma.$transaction(async (tx) => {
@@ -249,41 +254,71 @@ export class OrdenesService {
         select: { id: true },
       });
 
-      // Detalle de cuotas
-      await tx.ordenCreditoCuota.createMany({
-        data: pv.cuotas.map((c) => ({
-          ordenId: orden.id,
-          comercioId,
-          numero: c.numero,
-          periodoVenc: c.periodoVenc,
-          importe: new Prisma.Decimal(c.importe),
-          cancelado: new Prisma.Decimal(0),
-          saldo: new Prisma.Decimal(c.importe),
-          estado: 'pendiente',
-          obligacionId: null,
-          fechaGeneracionObligacion: null,
-          fechaCancelacion: null,
-        })),
+      // ===== Materializar una Obligacion K16 por cada cuota =====
+      // Cada cuota queda como Obligacion(concepto='ORDEN_CREDITO',
+      // periodo=cuota.periodoVenc) cobrable por caja / débito / nómina. El
+      // generador de novedades K16 las suma filtrando por período <= período
+      // del lote (las cuotas futuras no se envían hasta su mes).
+      const conceptoK16 = await tx.concepto.findFirst({
+        where: { organizacionId, codigo: 'ORDEN_CREDITO' },
+        select: { id: true },
       });
+      if (!conceptoK16) {
+        throw new BadRequestException(
+          "Falta concepto 'ORDEN_CREDITO' en la organización. Cargalo antes de crear órdenes.",
+        );
+      }
 
-      // ===== Cuenta Corriente: DEBITO en periodoPrimera =====
-      // ===== Cuenta Corriente: DEBITOS por cada cuota =====
-      // OPCIÓN A: Usar fecha física de creación + periodoContable para agrupación
       for (const c of pv.cuotas) {
+        // 1) Obligación K16 de la cuota
+        const obligacion = await tx.obligacion.create({
+          data: {
+            organizacionId,
+            afiliadoId,
+            padronId,
+            conceptoId: conceptoK16.id,
+            periodo: c.periodoVenc,
+            origen: 'orden_credito',
+            monto: new Prisma.Decimal(c.importe),
+            saldo: new Prisma.Decimal(c.importe),
+            estado: 'pendiente',
+            bloqueada: false,
+          },
+          select: { id: true },
+        });
+
+        // 2) OrdenCreditoCuota enlazada
+        await tx.ordenCreditoCuota.create({
+          data: {
+            ordenId: orden.id,
+            comercioId,
+            numero: c.numero,
+            periodoVenc: c.periodoVenc,
+            importe: new Prisma.Decimal(c.importe),
+            cancelado: new Prisma.Decimal(0),
+            saldo: new Prisma.Decimal(c.importe),
+            estado: 'pendiente',
+            obligacionId: obligacion.id,
+            fechaGeneracionObligacion: new Date(),
+            fechaCancelacion: null,
+          },
+        });
+
+        // 3) Movimiento débito en cuenta corriente
         const periodoContable = this.normalizarPeriodo(c.periodoVenc);
         await this.movs.postMovimiento({
           tx: tx as unknown as PrismaClient,
           organizacionId,
           afiliadoId,
           padronId,
-          fecha: new Date(), // 👈 Fecha física de creación (orden cronológico correcto)
-          periodoContable, // 👈 Período contable para agrupar por período cuando se necesite
+          fecha: new Date(),
+          periodoContable,
           naturaleza: 'debito',
           origen: 'orden_credito',
           concepto: `ORD#${orden.id.toString()} cuota ${c.numero}/${pv.cantidadCuotas} (${c.periodoVenc}) - ${comercio.razonSocial}`,
-          importe: c.importe, // 👈 sólo el importe de esa cuota
+          importe: c.importe,
           ordenId: orden.id,
-          // asiento: { ... } (cuando definas los mapeos contables)
+          obligacionId: obligacion.id,
         });
       }
 

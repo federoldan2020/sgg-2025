@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -12,7 +13,10 @@ import { PageQuery, parsePage } from '../../common/pagination.util';
 import { CreatePadronDto } from './dto/create-padron.dto';
 import { UpdatePadronDto } from './dto/update-padron.dto';
 import { PadronesQueryDto } from './dto/padrones-query.dto';
-import { NovedadesService } from '../novedades/novedades.service';
+import { NovedadesPendientesService } from '../novedades/novedades-pendientes.service';
+
+/** % de cuota societaria UDAP (2.00%). TODO: leer de OrganizacionConfig. */
+const J17_PORCENTAJE_DEFAULT = 2.0;
 
 const MOTIVOS_BAJA_PERMITIDOS = new Set<string>([
   'renuncia',
@@ -42,9 +46,11 @@ function assertFechaNoFutura(fecha?: Date | string) {
 
 @Injectable()
 export class PadronesService {
+  private readonly logger = new Logger(PadronesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly novedades: NovedadesService,
+    private readonly novedadesPendientes: NovedadesPendientesService,
   ) {}
 
   // =============================================================
@@ -184,52 +190,44 @@ export class PadronesService {
         }
       }
 
-      // 4) NOVEDADES (fuera de la transacción principal)
-      queueMicrotask(async () => {
-        const ocurridoEn = dto.fechaAlta ? new Date(dto.fechaAlta) : new Date();
-
-        // SIEMPRE: alta de padrón ⇒ J17 = 2.00
-        try {
-          await this.novedades.registrarAltaPadronJ17({
-            organizacionId,
-            afiliadoId,
-            padronId: pad.id,
-            ocurridoEn,
-          });
-        } catch {
-          /* noop */
-        }
-
-        // Si además se creó/tenía coseguro ⇒ J22 (+ J38 si cargaste colaterales)
-        if (dto.crearCoseguro) {
-          try {
-            await this.novedades.registrarAltaCoseguro({
-              organizacionId,
-              afiliadoId,
-              padronId: pad.id,
-              ocurridoEn,
-            });
-          } catch {
-            /* noop */
-          }
-
-          if (dto.colaterales?.length) {
-            try {
-              await this.novedades.registrarAltaColaterales({
-                organizacionId,
-                afiliadoId,
-                padronId: pad.id,
-                ocurridoEn,
-              });
-            } catch {
-              /* noop */
-            }
-          }
-        }
-      });
-
+      return pad;
+    }).then(async (pad) => {
+      // Emitir ALTA J17 en la cola de novedades pendientes.
+      // Destino: ANSES si el padrón trae numeroBeneficio, COMPUTOS en otro caso.
+      await this.emitirJ17(pad as any, 'alta', 'hook_afiliado_alta');
       return toJSONSafe(pad);
     });
+  }
+
+  /**
+   * Emite una NovedadPendiente J17 alta/baja para el padrón. Manejo de errores:
+   * si la emisión falla loggeamos pero NO rompemos la operación principal
+   * (el padrón ya quedó creado/dado de baja en BD).
+   */
+  private async emitirJ17(
+    padron: { id: bigint; organizacionId: string; afiliadoId: bigint; numeroBeneficio?: string | null },
+    tipo: 'alta' | 'baja',
+    origen: 'hook_afiliado_alta' | 'hook_afiliado_baja',
+  ): Promise<void> {
+    try {
+      const destino: 'COMPUTOS' | 'ANSES' = padron.numeroBeneficio ? 'ANSES' : 'COMPUTOS';
+      await this.novedadesPendientes.crear({
+        organizacionId: padron.organizacionId,
+        padronId: padron.id,
+        afiliadoId: padron.afiliadoId,
+        concepto: 'J17',
+        tipoMovimiento: tipo,
+        destino,
+        valor: tipo === 'baja' ? null : J17_PORCENTAJE_DEFAULT,
+        origenEvento: origen,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Fallo emitiendo NovedadPendiente J17 ${tipo} padrón ${padron.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   // =============================================================
@@ -424,19 +422,14 @@ export class PadronesService {
         return padronSoft;
       });
 
-      // Novedad J17=0.00 (baja de padrón)
-      queueMicrotask(async () => {
-        try {
-          await this.novedades.registrarBajaPadronJ17({
-            organizacionId,
-            afiliadoId,
-            padronId: result.id,
-            ocurridoEn: new Date(),
-          });
-        } catch {
-          /* noop */
-        }
+      // Emitir BAJA J17 en la cola de novedades pendientes.
+      const padFull = await this.prisma.padron.findUnique({
+        where: { id: result.id },
+        select: { id: true, organizacionId: true, afiliadoId: true, numeroBeneficio: true },
       });
+      if (padFull) {
+        await this.emitirJ17(padFull, 'baja', 'hook_afiliado_baja');
+      }
 
       return toJSONSafe(result);
     } catch (e: unknown) {

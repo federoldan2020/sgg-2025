@@ -29,33 +29,38 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]",
-        "w-[92vw] sm:w-[85vw] md:w-auto md:min-w-[500px]",
-        "max-h-[85vh] overflow-y-auto",
-        "rounded-xl border border-neutral-200 bg-white shadow-lg",
-        "p-5 sm:p-6 space-y-4",
-        "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-        "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-medical-500 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-neutral-100 data-[state=open]:text-neutral-500">
-        <X className="h-4 w-4 text-neutral-500" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
-  </DialogPortal>
-))
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    maxWidth?: number | string;
+  }
+>(({ className, children, style, maxWidth = 512, ...props }, ref) => {
+  const maxW = typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth;
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        style={{ width: `min(calc(100vw - 2rem), ${maxW})`, ...style }}
+        className={cn(
+          "fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]",
+          "max-h-[85vh] overflow-y-auto",
+          "rounded-xl border border-neutral-200 bg-white shadow-lg",
+          "p-5 sm:p-6 space-y-4",
+          "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-medical-500 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-neutral-100 data-[state=open]:text-neutral-500">
+          <X className="h-4 w-4 text-neutral-500" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+})
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogHeader = ({

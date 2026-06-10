@@ -6,24 +6,24 @@ export const NAV_GROUPS: NavGroup[] = [
     titulo: "Afiliados",
     roles: ["AFILIADOS", "ADMIN"],
     items: [
-      { href: "/afiliados", label: "ABM" },
-      { href: "/afiliados/familiares", label: "ABM familiares" },
-      { href: "/movimientos", label: "Movimientos" },
+      { href: "/afiliados", label: "Afiliados" },
+      { href: "/afiliados/familiares", label: "Familiares" },
+      { href: "/movimientos", label: "Cuenta corriente" },
+      { href: "/padrones/nuevo", label: "Alta por padrón" },
       { href: "/afiliados/importar", label: "Importar afiliados" },
       { href: "/afiliados/familiares/importar", label: "Importar familiares" },
       { href: "/padrones/importar", label: "Importar padrones" },
-      { href: "/padrones/nuevo", label: "Alta afiliado / padrón" },
     ],
   },
 
-  /* ===== Operación ===== */
+  /* ===== Operación (caja y órdenes de crédito) ===== */
   {
     titulo: "Operación",
     roles: ["OPERACION", "ADMIN"],
     items: [
       { href: "/caja", label: "Caja" },
-      { href: "/ordenes/nueva", label: "Nueva orden de crédito" },
       { href: "/ordenes", label: "Órdenes por afiliado" },
+      { href: "/ordenes/nueva", label: "Nueva orden de crédito" },
     ],
   },
 
@@ -32,36 +32,24 @@ export const NAV_GROUPS: NavGroup[] = [
     titulo: "Coseguro",
     roles: ["COSEGURO", "ADMIN"],
     items: [
-      { href: "/coseguro/", label: "ABM" },
+      { href: "/coseguro/", label: "Coseguro" },
       { href: "/coseguro/colaterales", label: "Colaterales" },
-      { href: "/coseguro/configurar", label: "Configurar" },
-      { href: "/coseguro/resumen", label: "Resumen (consulta)" },
       { href: "/coseguro/reintegros", label: "Reintegros" },
-      { href: "/coseguro/reintegros/politicas", label: "Reintegros - Políticas" },
+      { href: "/coseguro/reintegros/politicas", label: "Políticas de reintegro" },
+      { href: "/coseguro/resumen", label: "Resumen" },
+      { href: "/coseguro/configurar", label: "Configuración" },
     ],
   },
 
-  /* ===== Novedades (envío a nómina) ===== */
+  /* ===== Nómina y cómputos ===== */
   {
-    titulo: "Novedades",
+    titulo: "Nómina y cómputos",
     roles: ["NOMINA", "ADMIN"],
     items: [
-      { href: "/novedades/", label: "Monitor" },
-      { href: "/novedades/generar", label: "Generar Novedades" },
-      { href: "/novedades/generadas", label: "Generaciones" },
-      { href: "/novedades/manuales", label: "Novedades Manuales" },
-      { href: "/novedades/fechas", label: "Fechas de Corte" },
-      { href: "/novedades/conciliar", label: "Conciliación" },
-    ],
-  },
-
-  /* ===== Conciliación de Nómina (recepción de descuentos) ===== */
-  {
-    titulo: "Conciliación de Nómina",
-    roles: ["NOMINA", "ADMIN"],
-    items: [
-      { href: "/nomina/conciliar/nuevo", label: "Conciliar Devolución" },
-      { href: "/nomina/conciliar", label: "Conciliaciones" },
+      { href: "/novedades/pendientes", label: "Novedades pendientes" },
+      { href: "/novedades", label: "Generar novedades" },
+      { href: "/nomina/importar-cobranza", label: "Importar cobranza (TXT)" },
+      { href: "/nomina/importar-cobranza-anses", label: "Importar cobranza ANSES" },
     ],
   },
 
@@ -70,11 +58,11 @@ export const NAV_GROUPS: NavGroup[] = [
     titulo: "Tesorería",
     roles: ["TESORERIA", "FINANZAS", "ADMIN"],
     items: [
-      { href: "/terceros/comprobantes/nuevo", label: "Cargar comprobante" },
       { href: "/terceros/comprobantes", label: "Comprobantes" },
-      { href: "/terceros/ordenes-pago/nueva", label: "Nueva orden de pago" },
+      { href: "/terceros/comprobantes/nuevo", label: "Cargar comprobante" },
       { href: "/terceros/ordenes-pago", label: "Órdenes de pago" },
-      { href: "/finanzas/cuentas", label: "Cuentas de terceros" }, // ver extractos por cuenta
+      { href: "/terceros/ordenes-pago/nueva", label: "Nueva orden de pago" },
+      { href: "/finanzas/cuentas", label: "Cuentas de terceros" },
     ],
   },
 
@@ -90,78 +78,48 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  /* ===== Terceros (maestro) ===== */
+  /* ===== Terceros (maestro de proveedores/comercios) ===== */
   {
     titulo: "Terceros",
     roles: ["TERCEROS", "ADMIN"],
     items: [
-      { href: "/terceros", label: "Listado" },
+      { href: "/terceros", label: "Terceros" },
       { href: "/terceros/new", label: "Nuevo tercero" },
-      // la cuenta y sus comprobantes se ven desde Tesorería/Finanzas
+      { href: "/terceros/import", label: "Importar terceros" },
+      { href: "/importadores/comercios", label: "Importar comercios" },
     ],
   },
 
-  /* ===== Paramétricos ===== */
+  /* ===== Configuración (paramétricos) ===== */
   {
-    titulo: "Paramétricos",
+    titulo: "Configuración",
     roles: ["ADMIN"],
     items: [
       { href: "/parametricos/parentescos", label: "Parentescos" },
       { href: "/parametricos/parentescos/importar", label: "Importar parentescos" },
-      { href: "/parametricos/reglas/base", label: "Reglas base" },
-      {
-        href: "/parametricos/reglas/colaterales",
-        label: "Reglas por colaterales",
-      },
+      { href: "/parametricos/reglas/colaterales", label: "Reglas de colaterales" },
+      { href: "/parametros", label: "Parámetros de cobertura" },
     ],
   },
 
-  /* ===== Admin (usuarios, auditoría) ===== */
+  /* ===== Administración ===== */
   {
-    titulo: "Admin",
+    titulo: "Administración",
     roles: ["ADMIN"],
     items: [
-      { href: "/admin/usuarios", label: "ABM Usuarios" },
+      { href: "/admin/usuarios", label: "Usuarios" },
       { href: "/admin/auditoria", label: "Auditoría" },
+      { href: "/cierre-mensual", label: "Cierre mensual" },
+      { href: "/admin/materializar-mes", label: "Materializar coseguro" },
     ],
   },
 
-  /* ===== Superadmin (solo dueño de plataforma) ===== */
+  /* ===== Superadmin (dueño de plataforma) ===== */
   {
     titulo: "Superadmin",
     roles: ["SUPERADMIN"],
     items: [
-      { href: "/superadmin/organizaciones", label: "ABM Organizaciones" },
-    ],
-  },
-
-  {
-    titulo: "Importadores",
-    roles: ["ADMIN"],
-    items: [
-      {
-        href: "/importadores/comercios",
-        icon: "upload",
-        label: "Importar comercios",
-      },
-      { href: "/terceros/import", icon: "upload", label: "Importar Terceros" },
-      { href: "/afiliados/importar", icon: "upload", label: "Importar Afiliados" },
-      { href: "/afiliados/familiares/importar", icon: "upload", label: "Importar Familiares" },
-      { href: "/padrones/importar", icon: "upload", label: "Importar Padrones" },
-      { href: "/parametricos/parentescos/importar", icon: "upload", label: "Importar Parentescos" },
+      { href: "/superadmin/organizaciones", label: "Organizaciones" },
     ],
   },
 ];
-/*
-  {
-    titulo: "Terceros",
-    roles: ["TERCEROS", "ADMIN"],
-    items: [
-      { href: "/terceros", label: "Listado" },
-      { href: "/terceros/new", label: "Nuevo tercero" },
-      { href: "/terceros/import", label: "Importar (CSV)" },
-      { href: "/terceros/comprobantes/nuevo", label: "Cargar comprobante" },
-      { href: "/terceros/ordenes-pago/nueva", label: "Nueva orden de pago" },
-    ],
-  },
-  */

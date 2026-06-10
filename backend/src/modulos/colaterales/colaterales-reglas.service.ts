@@ -3,7 +3,6 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma.service';
 import { CreateReglaColateralDto, UpdateReglaColateralDto } from './dtos';
 import { ColateralesCalculoService } from './colaterales-calculo.service';
-import { NovedadesService } from '../novedades/novedades.service';
 
 type ListParams = { activo?: boolean; parentescoId?: bigint | number | string };
 const toBig = (v: bigint | number | string): bigint => {
@@ -19,7 +18,6 @@ export class ColateralesReglasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calc: ColateralesCalculoService,
-    private readonly novedades: NovedadesService,
   ) {}
 
   private ensureDates(input: { vigenteDesde: string; vigenteHasta?: string | null }) {
@@ -150,18 +148,9 @@ export class ColateralesReglasService {
     });
 
     for (const row of afiliados) {
-      const total = await this.calc.calcularTotalJ38(organizacionId, row.afiliadoId, ahora);
-      const padronId = (await this.calc.getPadronDestino(organizacionId, row.afiliadoId)) ?? 0n;
-
-      // Requisito: “si es baja total, enviamos 0” → MODIF con nuevoTotal=0
-      await this.novedades.registrarModifColaterales({
-        organizacionId,
-        afiliadoId: row.afiliadoId,
-        padronId,
-        ocurridoEn: ahora,
-        observacion: 'Recalculo por cambio de regla J38',
-        nuevoTotal: total, // puede ser 0
-      });
+      // Mantenemos el recálculo para invalidar caches/uso futuro; el módulo
+      // nuevo de novedades detectará el delta J38 al generar el lote.
+      await this.calc.calcularTotalJ38(organizacionId, row.afiliadoId, ahora);
     }
 
     return { total: afiliados.length };

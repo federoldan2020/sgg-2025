@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, getErrorMessage } from "@/servicios/api";
+import { fmtFechaHora } from "@/utiles/formatos";
 
 type Linea = { id: string; cuenta: string; debe: number; haber: number };
 type Detalle = {
@@ -53,7 +54,7 @@ export default function AsientoDetallePage() {
     <main style={{ padding: 24 }}>
       <h1>Asiento #{det.id}</h1>
       <p>
-        <b>Fecha:</b> {new Date(det.fecha).toLocaleString()} <br />
+        <b>Fecha:</b> {fmtFechaHora(det.fecha)} <br />
         <b>Origen:</b> {det.origen} <br />
         <b>Referencia:</b> {det.referenciaId ?? "—"} <br />
         <b>Descripción:</b> {det.descripcion ?? "—"}

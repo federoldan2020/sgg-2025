@@ -1,14 +1,19 @@
 import { Module } from '@nestjs/common';
 import { NovedadesController } from './novedades.controller';
 import { NovedadesService } from './novedades.service';
-import { PrismaService } from 'src/common/prisma.service';
-import { MovimientosModule } from '../movimientos/movimientos.module';
-import { ContabilidadModule } from '../contabilidad/contabilidad.module';
+import { NovedadesPendientesController } from './novedades-pendientes.controller';
+import { NovedadesPendientesService } from './novedades-pendientes.service';
+import { PrismaService } from '../../common/prisma.service';
+import { AuditService } from '../../common/audit.service';
 
 @Module({
-  imports: [MovimientosModule, ContabilidadModule],
-  controllers: [NovedadesController],
-  providers: [NovedadesService, PrismaService],
-  exports: [NovedadesService],
+  controllers: [NovedadesController, NovedadesPendientesController],
+  providers: [
+    NovedadesService,
+    NovedadesPendientesService,
+    PrismaService,
+    AuditService,
+  ],
+  exports: [NovedadesService, NovedadesPendientesService],
 })
 export class NovedadesModule {}

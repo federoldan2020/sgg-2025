@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { API_URL, ORG, getErrorMessage } from "@/servicios/api";
+import { api, apiBlob, getErrorMessage } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -411,9 +411,6 @@ function CajaCobrosInner() {
 
     try {
       setLoading(true);
-      const token = localStorage.getItem("accessToken");
-      if (!token) throw new Error("No hay token de acceso");
-
       Swal.fire({
         title: "Generando recibo…",
         text: "Por favor esperá",
@@ -421,34 +418,14 @@ function CajaCobrosInner() {
         didOpen: () => Swal.showLoading(),
       });
 
-      const pagoDataResponse = await fetch(`${API_URL}/caja/pagos/${idPago}/para-imprimir`, {
-        headers: { Authorization: `Bearer ${token}`, "X-Organizacion-ID": ORG },
+      const pagoData = await api<Record<string, unknown>>(`/caja/pagos/${idPago}/para-imprimir`, {
+        method: "GET",
       });
 
-      if (!pagoDataResponse.ok) {
-        const errorText = await pagoDataResponse.text();
-        throw new Error(`Error al obtener datos del pago: ${pagoDataResponse.status} ${errorText}`);
-      }
-
-      const pagoData = await pagoDataResponse.json();
-
-      const url = `${API_URL}/print/comprobantes?disposition=attachment`;
-      const response = await fetch(url, {
+      const blob = await apiBlob("/print/comprobantes?disposition=attachment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Organizacion-ID": ORG,
-        },
         body: JSON.stringify({ ...pagoData, formato }),
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error al generar el recibo: ${response.status} ${errorText}`);
-      }
-
-      const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;

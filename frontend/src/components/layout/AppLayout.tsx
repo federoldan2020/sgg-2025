@@ -36,11 +36,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <UserContext.Provider value={ctx}>
-        <div className="relative min-h-screen bg-neutral-50">
-          <Header
-            onOpenMobileNav={() => setMobileOpen(true)}
-            onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
-            sidebarCollapsed={sidebarCollapsed}
+        <div className="relative min-h-screen bg-gradient-to-br from-neutral-50 via-white to-medical-50/40">
+          {/* Decorative subtle radial glow */}
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,rgba(14,165,233,0.06),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(56,189,248,0.05),transparent_50%)]"
           />
 
           <SidebarNav
@@ -51,11 +51,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
           />
 
-          <main className={`pt-14 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'} min-h-screen bg-neutral-50`}>
+          <Header
+            onOpenMobileNav={() => setMobileOpen(true)}
+            onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+            sidebarCollapsed={sidebarCollapsed}
+          />
+
+          <main
+            className={`pt-14 transition-[padding] duration-300 ease-in-out ${
+              sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-64"
+            } min-h-screen`}
+          >
             <div className="min-h-[calc(100vh-3.5rem)] p-4 sm:p-6 lg:p-8">
-              <div className="mx-auto max-w-7xl">
-                {children}
-              </div>
+              <div className="mx-auto max-w-7xl">{children}</div>
             </div>
           </main>
         </div>

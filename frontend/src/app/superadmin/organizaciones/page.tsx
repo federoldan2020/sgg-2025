@@ -158,7 +158,7 @@ export default function SuperadminOrganizacionesPage() {
 
         {modal === 'crear' && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md">
+            <Card style={{ width: "min(calc(100vw - 2rem), 28rem)" }}>
               <CardHeader className="flex flex-row justify-between">
                 <CardTitle>Nueva organización</CardTitle>
                 <Button variant="ghost" onClick={() => setModal(null)}>✕</Button>
@@ -188,7 +188,7 @@ export default function SuperadminOrganizacionesPage() {
 
         {modal === 'editar' && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="w-full max-w-md">
+            <Card style={{ width: "min(calc(100vw - 2rem), 28rem)" }}>
               <CardHeader className="flex flex-row justify-between">
                 <CardTitle>Editar organización</CardTitle>
                 <Button variant="ghost" onClick={() => setModal(null)}>✕</Button>

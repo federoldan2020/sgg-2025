@@ -54,6 +54,63 @@ export function mon(v: unknown): string {
 // Alias más descriptivo
 export const formatearMoneda = mon;
 
+// ─────────────────────────────────────────────────────────────────────────
+//  Formato de fecha / fecha+hora / período (convención AR)
+//  Helpers cortos para usar en toda la app. Reemplazan los `fmtFecha`,
+//  `fmtFechaHora`, `fmtPeriodo` duplicados que aparecían en cada página.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** "DD/MM/AAAA" — devuelve "—" si no hay fecha o es inválida. */
+export function fmtFecha(v: Date | string | null | undefined): string {
+  if (!v) return "—";
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/** "DD/MM/AAAA HH:mm" (24 hs) — devuelve "—" si no hay fecha o es inválida. */
+export function fmtFechaHora(v: Date | string | null | undefined): string {
+  if (!v) return "—";
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+/**
+ * Período "MM/AAAA" desde varios formatos de entrada:
+ *   - "YYYY-MM"  →  "MM/AAAA"   (ej "2026-06" → "06/2026")
+ *   - "YYYYMM"   →  "MM/AAAA"
+ *   - "MM/YYYY"  →  pasa tal cual
+ *   - Date       →  toma año/mes
+ */
+export function fmtPeriodo(v: string | Date | null | undefined): string {
+  if (!v) return "—";
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return "—";
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    return `${m}/${v.getFullYear()}`;
+  }
+  const s = String(v).trim();
+  const m1 = s.match(/^(\d{4})-(\d{2})$/);
+  if (m1) return `${m1[2]}/${m1[1]}`;
+  const m2 = s.match(/^(\d{4})(\d{2})$/);
+  if (m2) return `${m2[2]}/${m2[1]}`;
+  const m3 = s.match(/^(\d{2})\/(\d{4})$/);
+  if (m3) return `${m3[1]}/${m3[2]}`;
+  return s;
+}
+
 /**
  * Formatea una fecha en formato argentino: dd/mm/aaaa
  * @param fecha - Date, string ISO (yyyy-mm-dd), o null/undefined

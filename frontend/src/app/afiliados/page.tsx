@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PageHeader } from "@/components/ui-kit";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search,
   UserPlus,
@@ -325,22 +325,98 @@ export default function AfiliadosListadoPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
-        title="Listado de Afiliados"
-        subtitle="Gestión y consulta de afiliados del sistema"
-      >
-        <Button asChild className="gap-2">
-          <Link href="/padrones/nuevo">
-            <UserPlus className="size-4" />
-            Nuevo Afiliado
-          </Link>
-        </Button>
-      </PageHeader>
+    <div className="mx-auto max-w-7xl">
+      {/* Toolbar compacta: filtros + acción primaria en una sola línea */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[260px] flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+          <Input
+            placeholder="Buscar por DNI, apellido, nombre o padrón..."
+            aria-label="Buscar afiliados"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 rounded-lg border-neutral-200 pl-9 pr-8"
+          />
+          {q && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 size-7 -translate-y-1/2"
+              onClick={() => {
+                setQ("");
+                setPage(1);
+              }}
+              title="Limpiar búsqueda"
+            >
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
+        <select
+          aria-label="Filtro de estado"
+          value={estado}
+          onChange={(e) => {
+            setEstado(e.target.value as any);
+            setPage(1);
+          }}
+          className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+        >
+          <option value="todos">Todos los estados</option>
+          <option value="activos">Solo activos</option>
+          <option value="baja">Solo bajas</option>
+        </select>
+        <label className="flex cursor-pointer items-center gap-1.5 text-sm text-neutral-700">
+          <input
+            type="checkbox"
+            checked={soloCoseguro}
+            onChange={(e) => {
+              setSoloCoseguro(e.target.checked);
+              setPage(1);
+            }}
+            className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
+          />
+          Coseguro
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-sm text-neutral-700">
+          <input
+            type="checkbox"
+            checked={soloColaterales}
+            onChange={(e) => {
+              setSoloColaterales(e.target.checked);
+              setPage(1);
+            }}
+            className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
+          />
+          Colaterales
+        </label>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearFilters}
+            title="Limpiar todos los filtros"
+            className="h-9 gap-1 text-neutral-600"
+          >
+            <Trash2 className="size-4" />
+            Limpiar
+          </Button>
+        )}
+        <div className="ml-auto">
+          <Button asChild className="h-9 gap-2">
+            <Link href="/padrones/nuevo">
+              <UserPlus className="size-4" />
+              Nuevo afiliado
+            </Link>
+          </Button>
+        </div>
+      </div>
 
       {msg && (
         <div
-          className={`mb-6 flex items-center gap-3 rounded-lg border px-4 py-3 ${
+          className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-3 ${
             msg.startsWith("SUCCESS:")
               ? "border-medical-200 bg-medical-50 text-medical-800"
               : msg.startsWith("ERROR:")
@@ -362,143 +438,18 @@ export default function AfiliadosListadoPage() {
         </div>
       )}
 
-      <Card className="mb-6 rounded-xl border-neutral-200">
-        <CardHeader className="border-b border-neutral-100 pb-4">
-          <CardTitle className="text-base">Filtros y búsqueda</CardTitle>
-          <CardDescription>Refiná el listado por estado, coseguro o colaterales</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="relative min-w-[280px] flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
-              <Input
-                placeholder="Buscar por DNI, apellido, nombre o padrón (ej: 642574-1)..."
-                aria-label="Buscar afiliados"
-                value={q}
-                onChange={(e) => {
-                  setQ(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-9 rounded-lg border-neutral-200"
-              />
-              {q && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 size-8"
-                  onClick={() => {
-                    setQ("");
-                    setPage(1);
-                  }}
-                  title="Limpiar búsqueda"
-                >
-                  <X className="size-4" />
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-neutral-600">Estado</Label>
-                <select
-                  aria-label="Filtro de estado"
-                  value={estado}
-                  onChange={(e) => {
-                    setEstado(e.target.value as any);
-                    setPage(1);
-                  }}
-                  className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
-                >
-                  <option value="todos">Todos los estados</option>
-                  <option value="activos">Solo activos</option>
-                  <option value="baja">Solo dados de baja</option>
-                </select>
-              </div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={soloCoseguro}
-                  onChange={(e) => {
-                    setSoloCoseguro(e.target.checked);
-                    setPage(1);
-                  }}
-                  className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
-                />
-                Con coseguro
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={soloColaterales}
-                  onChange={(e) => {
-                    setSoloColaterales(e.target.checked);
-                    setPage(1);
-                  }}
-                  className="rounded border-neutral-300 text-medical-600 focus:ring-medical-500"
-                />
-                Con colaterales
-              </label>
-              {hasActiveFilters && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearFilters}
-                  title="Limpiar todos los filtros"
-                  className="gap-1"
-                >
-                  <Trash2 className="size-4" />
-                  Limpiar filtros
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 pt-3">
-            {loading ? (
-              <span className="flex items-center gap-2 text-sm text-neutral-500">
-                <span className="size-4 animate-spin rounded-full border-2 border-neutral-300 border-t-medical-500" />
-                Cargando...
-              </span>
-            ) : (
-              <span className="text-sm text-neutral-600">
-                {total === 0
-                  ? "0 resultados"
-                  : `${(page - 1) * limit + 1}-${Math.min(page * limit, total)} de ${total}`}
-              </span>
-            )}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="limit-afiliados" className="text-sm text-neutral-600">
-                Filas por página
-              </Label>
-              <select
-                id="limit-afiliados"
-                aria-label="Filas por página"
-                value={String(limit)}
-                onChange={(e) => onChangeLimit(Number(e.target.value))}
-                className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
-              >
-                {[10, 20, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n} por página
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-6 overflow-hidden rounded-xl border-neutral-200">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-medical-500" />
-            <p className="mt-3 text-sm text-neutral-500">Cargando afiliados...</p>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
+      <Card className="relative mb-4 overflow-hidden rounded-xl border-neutral-200">
+        {/* Barra de progreso superior durante refetch (no bloquea la tabla) */}
+        {loading && rows.length > 0 && (
+          <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-medical-500" />
+        )}
+        {!loading && rows.length === 0 ? (
+          <div className="flex w-full flex-col items-center justify-center px-6 py-16 text-center">
             <div className="mb-4 text-4xl">{hasActiveFilters ? "🔍" : "👥"}</div>
             <h3 className="text-lg font-semibold text-neutral-900">
               {hasActiveFilters ? "Sin resultados" : "No hay afiliados registrados"}
             </h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-600">
+            <p className="mt-1 w-full max-w-md text-sm text-neutral-600">
               {hasActiveFilters
                 ? "No se encontraron afiliados que coincidan con los filtros aplicados"
                 : "Comienza agregando el primer afiliado al sistema"}
@@ -517,41 +468,46 @@ export default function AfiliadosListadoPage() {
             )}
           </div>
         ) : (
-          <>
+          <div
+            className={`transition-opacity duration-200 ${
+              loading && rows.length > 0 ? "opacity-60" : "opacity-100"
+            }`}
+            aria-busy={loading}
+          >
             <Table>
               <TableHeader>
                 <TableRow className="border-neutral-200 hover:bg-transparent">
                   <TableHead className="font-semibold text-neutral-700">Afiliado</TableHead>
                   <TableHead className="font-semibold text-neutral-700">DNI</TableHead>
-                  <TableHead className="font-semibold text-neutral-700">Estado</TableHead>
                   <TableHead className="font-semibold text-neutral-700">Padrones</TableHead>
-                  <TableHead className="text-center font-semibold text-neutral-700">Coseguro</TableHead>
-                  <TableHead className="text-center font-semibold text-neutral-700">Colaterales</TableHead>
+                  <TableHead className="font-semibold text-neutral-700">Estado</TableHead>
+                  <TableHead className="text-center font-semibold text-neutral-700" title="Coseguro">Cos.</TableHead>
+                  <TableHead className="text-center font-semibold text-neutral-700" title="Colaterales">Col.</TableHead>
                   <TableHead className="text-right font-semibold text-neutral-700">Deuda</TableHead>
                   <TableHead className="text-right font-semibold text-neutral-700">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {loading && rows.length === 0 &&
+                  Array.from({ length: Math.min(limit, 8) }).map((_, i) => (
+                    <TableRow key={`sk-${i}`} className="border-neutral-100">
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-4" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="mx-auto h-4 w-4" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="ml-auto h-4 w-12" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="ml-auto h-7 w-24" /></TableCell>
+                    </TableRow>
+                  ))}
                 {rows.map((r) => (
                   <TableRow key={String(r.id)} className="border-neutral-100">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600">
-                          <Eye className="size-4" />
-                        </div>
-                        <span className="font-medium text-neutral-900">{r.apellidoNombre}</span>
-                      </div>
+                    <TableCell className="font-medium text-neutral-900">
+                      {r.apellidoNombre}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono">
-                        {r.dni || "—"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={r.estado === "activo" ? "default" : "outline"} className="gap-1">
-                        {r.estado === "activo" ? <Check className="size-3" /> : <XCircle className="size-3" />}
-                        {r.estado === "activo" ? "Activo" : "Baja"}
-                      </Badge>
+                    <TableCell className="font-mono text-sm text-neutral-700">
+                      {r.dni || "—"}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
@@ -562,52 +518,59 @@ export default function AfiliadosListadoPage() {
                             </Badge>
                           ))
                         ) : (
-                          <span className="text-sm text-neutral-500">Sin padrones</span>
+                          <span className="text-sm text-neutral-400">—</span>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={r.coseguro ? "default" : "secondary"}>
-                        {r.coseguro ? "Sí" : "No"}
+                    <TableCell>
+                      <Badge variant={r.estado === "activo" ? "default" : "outline"} className="gap-1">
+                        {r.estado === "activo" ? <Check className="size-3" /> : <XCircle className="size-3" />}
+                        {r.estado === "activo" ? "Activo" : "Baja"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={r.colaterales ? "default" : "secondary"}>
-                        {r.colaterales ? "Sí" : "No"}
-                      </Badge>
+                      {r.coseguro ? (
+                        <Check className="mx-auto size-4 text-medical-600" aria-label="Sí" />
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {r.colaterales ? (
+                        <Check className="mx-auto size-4 text-medical-600" aria-label="Sí" />
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-neutral-700">
                       {r.deudaActual || "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        <Button asChild variant="outline" size="sm" className="gap-1">
+                      <div className="flex justify-end gap-0.5">
+                        <Button asChild variant="ghost" size="icon" className="size-8" title="Ver detalle">
                           <Link href={`/afiliados/${r.id}`}>
-                            <Eye className="size-3.5" />
-                            Ver
+                            <Eye className="size-4" />
                           </Link>
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
                           title="Dar de baja"
                           onClick={() => abrirBaja(r)}
                           disabled={r.padrones.length === 0}
-                          className="gap-1"
                         >
-                          <UserMinus className="size-3.5" />
-                          Baja
+                          <UserMinus className="size-4" />
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
                           title="Modificar padrón"
                           onClick={() => abrirEditar(r)}
                           disabled={r.padrones.length === 0}
-                          className="gap-1"
                         >
-                          <Pencil className="size-3.5" />
-                          Modificar
+                          <Pencil className="size-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -615,59 +578,79 @@ export default function AfiliadosListadoPage() {
                 ))}
               </TableBody>
             </Table>
-          </>
+          </div>
         )}
       </Card>
 
-      {!loading && rows.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3">
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2">
           <span className="text-sm text-neutral-600">
-            Página {page} de {totalPages} · {total} resultados
+            {(page - 1) * limit + 1}-{Math.min(page * limit, total)} de {total}
           </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9"
-              onClick={() => setPage(1)}
-              disabled={!canPrev}
-              title="Primera página"
-            >
-              <ChevronsLeft className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={!canPrev}
-              title="Anterior"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="min-w-[4rem] text-center text-sm font-medium text-neutral-700">
-              {page}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={!canNext}
-              title="Siguiente"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9"
-              onClick={() => setPage(totalPages)}
-              disabled={!canNext}
-              title="Última página"
-            >
-              <ChevronsRight className="size-4" />
-            </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="limit-afiliados" className="text-sm text-neutral-600">
+                Filas
+              </Label>
+              <select
+                id="limit-afiliados"
+                aria-label="Filas por página"
+                value={String(limit)}
+                onChange={(e) => onChangeLimit(Number(e.target.value))}
+                className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500"
+              >
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage(1)}
+                disabled={!canPrev}
+                title="Primera página"
+              >
+                <ChevronsLeft className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+                title="Anterior"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="min-w-[3.5rem] text-center text-sm font-medium text-neutral-700">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!canNext}
+                title="Siguiente"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setPage(totalPages)}
+                disabled={!canNext}
+                title="Última página"
+              >
+                <ChevronsRight className="size-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -681,7 +664,8 @@ export default function AfiliadosListadoPage() {
           onClick={() => !busy && setBajaOpen({ open: false })}
         >
           <Card
-            className="w-full max-w-lg rounded-xl border-neutral-200 shadow-xl"
+            className="rounded-xl border-neutral-200 shadow-xl"
+            style={{ width: "min(calc(100vw - 2rem), 32rem)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <CardHeader className="flex flex-row items-start justify-between border-b border-neutral-100 pb-4">
@@ -914,7 +898,8 @@ export default function AfiliadosListadoPage() {
           onClick={() => !busy && setEditOpen({ open: false })}
         >
           <Card
-            className="w-full max-w-lg rounded-xl border-neutral-200 shadow-xl"
+            className="rounded-xl border-neutral-200 shadow-xl"
+            style={{ width: "min(calc(100vw - 2rem), 32rem)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <CardHeader className="flex flex-row items-start justify-between border-b border-neutral-100 pb-4">

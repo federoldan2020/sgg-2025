@@ -1,10 +1,7 @@
 "use client";
-import { useState } from "react";
 
-// Si ya tenés estos valores centralizados, podés importarlos.
-// Los leo directo de env para no depender de otros helpers
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-const ORG = process.env.NEXT_PUBLIC_TENANT_ID ?? "";
+import { useState } from "react";
+import { apiFetch, getErrorMessage } from "@/servicios/api";
 
 type Resumen = { total: number; padres: number; hijos: number };
 
@@ -21,7 +18,6 @@ export default function ImportarPlanPage() {
   };
 
   const descargarTemplate = () => {
-    // Encabezados: cuenta	subcta	nombre	tipcta	tipo	UDAP
     const contenido = [
       "cuenta\tsubcta\tnombre\ttipcta\ttipo\tUDAP",
       "10000\t000\tACTIVO CORRIENTE\tGRUPAL\t\t",
@@ -49,48 +45,33 @@ export default function ImportarPlanPage() {
       setResumen(null);
 
       if (!file) {
-        setMsg("Seleccioná un archivo CSV/TSV.");
-        return;
-      }
-      if (!API_URL) {
-        setMsg("Falta configurar NEXT_PUBLIC_API_URL.");
-        return;
-      }
-      if (!ORG) {
-        setMsg("Falta configurar NEXT_PUBLIC_TENANT_ID.");
+        setMsg("Selecciona un archivo CSV/TSV.");
         return;
       }
 
       const fd = new FormData();
       fd.append("file", file);
 
-      const resp = await fetch(`${API_URL}/contabilidad/plan/import`, {
-        method: "POST",
-        body: fd, // NO setear Content-Type manualmente
-        headers: {
-          "X-Organizacion-ID": ORG, // 👈 necesario para que el backend no tire “Falta organización”
+      const resp = await apiFetch(
+        "/contabilidad/plan/import",
+        {
+          method: "POST",
+          body: fd,
+          cache: "no-store",
         },
-        cache: "no-store",
-        // credentials: "include", // descomentá si usás cookies/sesión
-      });
+        { includeJsonContentType: false },
+      );
 
       const ct = resp.headers.get("content-type") || "";
       const payload = ct.includes("application/json")
         ? await resp.json()
         : await resp.text();
 
-      if (!resp.ok) {
-        const texto =
-          typeof payload === "string" ? payload : JSON.stringify(payload);
-        throw new Error(texto || `Falló la importación (${resp.status})`);
-      }
-
       const data = payload as Resumen & { ok?: boolean };
       setResumen({ total: data.total, padres: data.padres, hijos: data.hijos });
-      setMsg("Importación exitosa.");
+      setMsg("Importacion exitosa.");
     } catch (e) {
-      const err = e as Error;
-      setMsg(err?.message ?? "Error al importar");
+      setMsg(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -118,7 +99,7 @@ export default function ImportarPlanPage() {
           onChange={onSelect}
         />
         <button disabled={!file || loading} onClick={subir}>
-          {loading ? "Importando…" : "Importar"}
+          {loading ? "Importando..." : "Importar"}
         </button>
       </div>
 
@@ -126,7 +107,9 @@ export default function ImportarPlanPage() {
         <p
           style={{
             marginTop: 16,
-            color: msg.includes("exitosa") ? "green" : "crimson",
+            color: msg.toLowerCase().includes("exitosa") || msg.toLowerCase().includes("importacion exitosa")
+              ? "green"
+              : "crimson",
           }}
         >
           {msg}
@@ -149,21 +132,19 @@ export default function ImportarPlanPage() {
         <summary>Notas</summary>
         <ul>
           <li>
-            Detectamos automáticamente coma, punto y coma o tabulación como
-            separador.
+            Detectamos automaticamente coma, punto y coma o tabulacion como separador.
           </li>
           <li>
-            <b>Jerarquía</b>: si <code>subcta = 000</code> es nodo padre; si no,
+            <b>Jerarquia</b>: si <code>subcta = 000</code> es nodo padre; si no,
             se cuelga de <code>{`{cuenta}.000`}</code>.
           </li>
           <li>
-            <b>Imputable</b>: es <code>true</code> cuando{" "}
-            <code>tipcta = SIMPLE</code>; los padres <code>000</code> nunca son
-            imputables.
+            <b>Imputable</b>: es <code>true</code> cuando <code>tipcta = SIMPLE</code>;
+            los padres <code>000</code> nunca son imputables.
           </li>
           <li>
-            Si llega un hijo sin su padre, el backend crea el padre
-            “placeholder” con el código como nombre.
+            Si llega un hijo sin su padre, el backend crea el padre "placeholder"
+            con el codigo como nombre.
           </li>
         </ul>
       </details>

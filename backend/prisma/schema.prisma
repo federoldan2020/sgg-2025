@@ -20,46 +20,53 @@ model Organizacion {
   creadoEn DateTime @default(now())
 
   // Relaciones (back-relations)
-  afiliados              Afiliado[]
-  padrones               Padron[]
-  conceptos              Concepto[]
-  obligaciones           Obligacion[]
-  cajas                  Caja[]
-  pagos                  Pago[]
-  asientos               Asiento[]
+  afiliados             Afiliado[]
+  padrones              Padron[]
+  conceptos             Concepto[]
+  obligaciones          Obligacion[]
+  cajas                 Caja[]
+  pagos                 Pago[]
+  asientos              Asiento[]
   // Sprint 2
-  parentescos            Parentesco[]
-  reglasPrecioCoseguro   ReglaPrecioCoseguro[]
-  reglasPrecioColateral  ReglaPrecioColateral[]
-  coseguros              CoseguroAfiliado[]
-  reintegros             ReintegroSolicitud[]
-  reintegroPoliticas     ReintegroPolitica[]
-  prestacionTipos        PrestacionTipo[]
-  prestacionSubtipos     PrestacionSubtipo[]
-  prestacionPracticas    PrestacionPractica[]
-  prestacionReglas       PrestacionRegla[]
-  OrdenCredito           OrdenCredito[]
-  OrganizacionConfig     OrganizacionConfig[]
-  NovedadGenerada        NovedadGenerada[]
-  NovedadGeneradaItem    NovedadGeneradaItem[]
-  Novedad                Novedad[]
-  CreditoAfiliado        CreditoAfiliado[]
-  LoteNomina             LoteNomina[]
-  CreditoFavor           CreditoFavor[]
-  CuentaContable         CuentaContable[]
-  CuentaMapeo            CuentaMapeo[]
-  Tercero                Tercero[]
-  Clasificacion          Clasificacion[]
-  CuentaTercero          CuentaTercero[]
-  ComprobanteTercero     ComprobanteTercero[]
-  OrdenPagoTercero       OrdenPagoTercero[]
-  NovedadPendiente       NovedadPendiente[]
-  NovedadCalendario      NovedadCalendario[]
-  NovedadPendientePadron NovedadPendientePadron[]
-  MovimientoAfiliado     MovimientoAfiliado[]
-  usuarios               Usuario[]
-  sesiones               SesionUsuario[]
-  eventosAuditoria       EventoAuditoria[]
+  parentescos           Parentesco[]
+  reglasPrecioCoseguro  ReglaPrecioCoseguro[]
+  reglasPrecioColateral ReglaPrecioColateral[]
+  coseguros             CoseguroAfiliado[]
+  reintegros            ReintegroSolicitud[]
+  reintegroPoliticas    ReintegroPolitica[]
+  prestacionTipos       PrestacionTipo[]
+  prestacionSubtipos    PrestacionSubtipo[]
+  prestacionPracticas   PrestacionPractica[]
+  prestacionReglas      PrestacionRegla[]
+  OrdenCredito          OrdenCredito[]
+  OrganizacionConfig    OrganizacionConfig[]
+  CreditoAfiliado       CreditoAfiliado[]
+  LoteNomina            LoteNomina[]
+  CreditoFavor          CreditoFavor[]
+  CuentaContable        CuentaContable[]
+  CuentaMapeo           CuentaMapeo[]
+  Tercero               Tercero[]
+  Clasificacion         Clasificacion[]
+  CuentaTercero         CuentaTercero[]
+  ComprobanteTercero    ComprobanteTercero[]
+  OrdenPagoTercero      OrdenPagoTercero[]
+  MovimientoAfiliado    MovimientoAfiliado[]
+  usuarios              Usuario[]
+  sesiones              SesionUsuario[]
+  eventosAuditoria      EventoAuditoria[]
+
+  // Circuito Suspensiones (Fase 1 / núcleo del modelo)
+  parametroJ17Minimo            ParametroJ17Minimo[]
+  parametroJ17Cuota04           ParametroJ17Cuota04[]
+  afiliadoSuspensiones          AfiliadoSuspension[]
+  afiliadoExcepcionesSuspension AfiliadoExcepcionSuspension[]
+  coberturasAfiliadoPeriodo     CoberturaAfiliadoPeriodo[]
+  cierresMensuales              CierreMensual[]
+
+  // Generación de novedades (Cómputos)
+  novedadLotes        NovedadLote[]
+  bajasInformables    BajaInformable[]
+  novedadesPendientes NovedadPendiente[]
 }
 
 /**
@@ -69,8 +76,8 @@ model EventoAuditoria {
   id             BigInt   @id @default(autoincrement())
   organizacionId String?
   usuarioId      String?
-  accion         String   // ej: USUARIO_CREAR, USUARIO_ACTUALIZAR, LOGIN, ORGANIZACION_CREAR
-  entidad        String   // ej: Usuario, Organizacion, Caja
+  accion         String // ej: USUARIO_CREAR, USUARIO_ACTUALIZAR, LOGIN, ORGANIZACION_CREAR
+  entidad        String // ej: Usuario, Organizacion, Caja
   entidadId      String?
   payloadAntes   Json?
   payloadDespues Json?
@@ -195,9 +202,15 @@ enum AfiliadoTipo {
 
 enum Sistema {
   ESC
+  JUV
   SGR
   SG
-  JUV
+  /// Planta Permanente (empleados de UDAP)
+  PP
+  /// "04": pagador por caja / débito automático. No genera novedades a Cómputos.
+  /// El alias TS es `CERO_CUATRO` porque los identificadores de enum no pueden
+  /// empezar con un dígito; en la base se guarda y compara como "04".
+  CERO_CUATRO @map("04")
 }
 
 // ===================== Afiliado (extendido) =====================
@@ -239,19 +252,26 @@ model Afiliado {
   // ---- Relaciones
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
-  padrones            Padron[]
-  obligaciones        Obligacion[]
-  pagos               Pago[]
-  coseguro            CoseguroAfiliado?
-  OrdenCredito        OrdenCredito[]
-  NovedadGeneradaItem NovedadGeneradaItem[]
-  Novedad             Novedad[]
-  CreditoAfiliado     CreditoAfiliado[]
-  NominaDetalle       NominaDetalle[]
-  CreditoFavor        CreditoFavor[]
-  Colateral           Colateral[]
-  MovimientoAfiliado  MovimientoAfiliado[]
-  ReintegroSolicitud  ReintegroSolicitud[]
+  padrones           Padron[]
+  obligaciones       Obligacion[]
+  pagos              Pago[]
+  coseguro           CoseguroAfiliado?
+  OrdenCredito       OrdenCredito[]
+  CreditoAfiliado    CreditoAfiliado[]
+  NominaDetalle      NominaDetalle[]
+  CreditoFavor       CreditoFavor[]
+  Colateral          Colateral[]
+  MovimientoAfiliado MovimientoAfiliado[]
+  ReintegroSolicitud ReintegroSolicitud[]
+
+  // Circuito Suspensiones
+  suspensiones          AfiliadoSuspension[]
+  excepcionesSuspension AfiliadoExcepcionSuspension[]
+  coberturasPeriodo     CoberturaAfiliadoPeriodo[]
+
+  // Generación de novedades
+  novedadLoteItems    NovedadLoteItem[]
+  novedadesPendientes NovedadPendiente[]
 
   // ---- Índices / Uniques
   @@unique([organizacionId, dni], name: "organizacionId_dni")
@@ -259,6 +279,7 @@ model Afiliado {
   @@index([organizacionId])
   @@index([organizacionId, numeroSocio])
   @@index([organizacionId, apellido, nombre])
+  @@index([organizacionId, estado])
 }
 
 // ===================== Padron (extendido) =====================
@@ -285,12 +306,23 @@ model Padron {
   motivoBaja           String?
   cajaAhorro           String? // nro de cuenta/caja ahorro (jubilados)
   beneficiarioJubilado String? // nombre del beneficiario (si aplica)
+  /// Número de beneficio ANSES (11 dígitos). Clave para matchear contra el
+  /// archivo UDAME de ANSES. Conservar como string (puede empezar con 0).
+  numeroBeneficio      String?
 
   // ---- Sistema / importes
   sistema      Sistema?
   sueldoBasico Decimal  @default(0) @db.Decimal(14, 2)
   cupo         Decimal  @default(0) @db.Decimal(14, 2)
   saldo        Decimal  @default(0) @db.Decimal(14, 2)
+
+  // ---- Tracking de cobertura (circuito suspensiones)
+  // Último período (YYYY-MM) en el que este padrón descontó algo > 0 para J17.
+  ultimoPeriodoCobranzaJ17 String?
+  // Monto último cobrado de J17 (para diagnóstico rápido).
+  ultimoMontoCobradoJ17    Decimal?  @db.Decimal(14, 2)
+  // Cuándo se evaluó por última vez la actividad del padrón.
+  evaluadoCoberturaEn      DateTime?
 
   // ---- Relaciones
   afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
@@ -300,19 +332,22 @@ model Padron {
   reintegros   ReintegroSolicitud[]
 
   // Sprint 2: back-relations nombrados (2 referencias desde CoseguroAfiliado)
-  coseguroImputaciones    CoseguroAfiliado[]       @relation("CoseguroImputacion")
-  colateralesImputaciones CoseguroAfiliado[]       @relation("ColateralesImputacion")
+  coseguroImputaciones    CoseguroAfiliado[] @relation("CoseguroImputacion")
+  colateralesImputaciones CoseguroAfiliado[] @relation("ColateralesImputacion")
   OrdenCredito            OrdenCredito[]
-  NovedadGeneradaItem     NovedadGeneradaItem[]
-  Novedad                 Novedad[]
   NominaDetalle           NominaDetalle[]
-  NovedadPendientePadron  NovedadPendientePadron[]
-  MovimientoAfiliado      MovimientoAfiliado[]
+
+  // Generación de novedades
+  novedadLoteItems     NovedadLoteItem[]
+  bajasInformables     BajaInformable[]
+  novedadesPendientes  NovedadPendiente[]
+  MovimientoAfiliado   MovimientoAfiliado[]
 
   // ---- Índices / Uniques
   @@unique([organizacionId, padron])
   @@index([organizacionId, afiliadoId])
   @@index([organizacionId, sistema])
+  @@index([organizacionId, numeroBeneficio])
 }
 
 /**
@@ -370,6 +405,10 @@ model Obligacion {
   conciliacionFecha   DateTime?
 
   AplicacionCredito AplicacionCredito[]
+
+  // Generación de novedades
+  novedadLoteObligaciones NovedadLoteObligacion[]
+  novedadK16Detalle       NovedadK16Detalle[]
 
   @@index([organizacionId, afiliadoId])
   @@index([organizacionId, conceptoId])
@@ -511,9 +550,13 @@ model CoseguroAfiliado {
   fechaAlta                     DateTime  @db.Date
   fechaBaja                     DateTime? @db.Date
   estado                        String    @default("activo")
-  suspendidoEn                  DateTime? @db.Date
-  motivoSuspension              String?
-  suspendidoPorId               String?
+  /// Quién/qué disparó la última baja:
+  ///   - "manual_operador"   → baja desde la ficha del afiliado.
+  ///   - "auto_3m_sin_j22"   → job de baja automática (3 meses sin J22 cobrado).
+  ///   - "padron_inactivo"   → cascada por baja del padrón imputado.
+  /// Se usa para decidir si la reactivación al cancelar deuda debe ser
+  /// automática (auto_3m_sin_j22) o requiere alta manual (resto).
+  origenBaja                    String?
   imputacionPadronIdCoseguro    BigInt?
   imputacionPadronIdColaterales BigInt?
 
@@ -540,9 +583,9 @@ model Colateral {
   activo          Boolean   @default(true)
   esColateral     Boolean   @default(true)
 
-  afiliado   Afiliado          @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  coseguro   CoseguroAfiliado? @relation(fields: [coseguroId], references: [id], onDelete: Cascade) // 👈 AQUÍ EL CAMBIO
-  parentesco Parentesco        @relation(fields: [parentescoId], references: [id])
+  afiliado   Afiliado             @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  coseguro   CoseguroAfiliado?    @relation(fields: [coseguroId], references: [id], onDelete: Cascade) // 👈 AQUÍ EL CAMBIO
+  parentesco Parentesco           @relation(fields: [parentescoId], references: [id])
   reintegros ReintegroSolicitud[]
 
   @@unique([afiliadoId, dni])
@@ -651,28 +694,28 @@ enum ReintegroPagoEstado {
 }
 
 model ReintegroSolicitud {
-  id             BigInt              @id @default(autoincrement())
-  organizacionId String
-  personaTipo    ReintegroPersonaTipo
-  afiliadoId     BigInt
-  familiarId     BigInt?
-  tipo           ReintegroTipo
-  estado         ReintegroEstado     @default(BORRADOR)
-  fechaFactura   DateTime            @db.Date
-  fechaPresentacion DateTime?        @db.Date
-  importeTotal   Decimal             @db.Decimal(14, 2)
-  importeReintegro Decimal?          @db.Decimal(14, 2)
-  importeAprobado Decimal?           @db.Decimal(14, 2)
-  padronId       BigInt?
-  observaciones  String?             @db.Text
-  creadoPorId    String?
-  creadoAt       DateTime            @default(now())
-  actualizadoAt  DateTime            @updatedAt
+  id                BigInt               @id @default(autoincrement())
+  organizacionId    String
+  personaTipo       ReintegroPersonaTipo
+  afiliadoId        BigInt
+  familiarId        BigInt?
+  tipo              ReintegroTipo
+  estado            ReintegroEstado      @default(BORRADOR)
+  fechaFactura      DateTime             @db.Date
+  fechaPresentacion DateTime?            @db.Date
+  importeTotal      Decimal              @db.Decimal(14, 2)
+  importeReintegro  Decimal?             @db.Decimal(14, 2)
+  importeAprobado   Decimal?             @db.Decimal(14, 2)
+  padronId          BigInt?
+  observaciones     String?              @db.Text
+  creadoPorId       String?
+  creadoAt          DateTime             @default(now())
+  actualizadoAt     DateTime             @updatedAt
 
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  familiar     Colateral?   @relation(fields: [familiarId], references: [id])
-  padron       Padron?      @relation(fields: [padronId], references: [id])
+  organizacion Organizacion               @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado                   @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  familiar     Colateral?                 @relation(fields: [familiarId], references: [id])
+  padron       Padron?                    @relation(fields: [padronId], references: [id])
   items        ReintegroItem[]
   adjuntos     ReintegroAdjunto[]
   historial    ReintegroHistorialEstado[]
@@ -685,18 +728,18 @@ model ReintegroSolicitud {
 }
 
 model ReintegroItem {
-  id             BigInt         @id @default(autoincrement())
-  solicitudId    BigInt
-  prestacionId   BigInt?
-  descripcion    String
-  cantidad       Int
-  importe        Decimal        @db.Decimal(14, 2)
-  porcentaje     Decimal?       @db.Decimal(5, 2)
-  importeAprobado Decimal?      @db.Decimal(14, 2)
+  id                BigInt        @id @default(autoincrement())
+  solicitudId       BigInt
+  prestacionId      BigInt?
+  descripcion       String
+  cantidad          Int
+  importe           Decimal       @db.Decimal(14, 2)
+  porcentaje        Decimal?      @db.Decimal(5, 2)
+  importeAprobado   Decimal?      @db.Decimal(14, 2)
   codigoNomenclador String?
-  tipoItem       ReintegroTipo
+  tipoItem          ReintegroTipo
 
-  solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  solicitud  ReintegroSolicitud  @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
   prestacion PrestacionPractica? @relation(fields: [prestacionId], references: [id])
 
   @@index([solicitudId])
@@ -704,15 +747,15 @@ model ReintegroItem {
 }
 
 model ReintegroAdjunto {
-  id           BigInt              @id @default(autoincrement())
-  solicitudId  BigInt
-  tipoAdjunto  ReintegroAdjuntoTipo
-  url          String
-  hash         String?
-  mime         String?
-  size         Int?
-  fechaSubida  DateTime            @default(now())
-  subidoPorId  String?
+  id          BigInt               @id @default(autoincrement())
+  solicitudId BigInt
+  tipoAdjunto ReintegroAdjuntoTipo
+  url         String
+  hash        String?
+  mime        String?
+  size        Int?
+  fechaSubida DateTime             @default(now())
+  subidoPorId String?
 
   solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
 
@@ -720,14 +763,14 @@ model ReintegroAdjunto {
 }
 
 model ReintegroHistorialEstado {
-  id            BigInt           @id @default(autoincrement())
-  solicitudId   BigInt
+  id             BigInt           @id @default(autoincrement())
+  solicitudId    BigInt
   estadoAnterior ReintegroEstado?
-  estadoNuevo   ReintegroEstado
-  observacion   String?
-  actorId       String?
-  fecha         DateTime         @default(now())
-  payloadAntes  Json?
+  estadoNuevo    ReintegroEstado
+  observacion    String?
+  actorId        String?
+  fecha          DateTime         @default(now())
+  payloadAntes   Json?
   payloadDespues Json?
 
   solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
@@ -737,22 +780,22 @@ model ReintegroHistorialEstado {
 }
 
 model ReintegroPolitica {
-  id                        BigInt   @id @default(autoincrement())
-  organizacionId            String
-  vigenteDesde              DateTime @db.Date
-  vigenteHasta              DateTime? @db.Date
-  activo                    Boolean  @default(true)
-  topeMensual               Decimal? @db.Decimal(14, 2)
-  topeAnual                 Decimal? @db.Decimal(14, 2)
-  porcentajeMedicamento     Decimal? @db.Decimal(5, 2)
-  porcentajePractica        Decimal? @db.Decimal(5, 2)
-  diasVentanaPresentacion   Int?
-  carenciaMeses             Int?
-  maxOrdenesPorGrupo         Int?
-  maxMedicamentosPorOrden    Int?
-  topesPrestaciones         Json?
-  requisitosAdjuntos        Json?
-  exclusiones               Json?
+  id                      BigInt    @id @default(autoincrement())
+  organizacionId          String
+  vigenteDesde            DateTime  @db.Date
+  vigenteHasta            DateTime? @db.Date
+  activo                  Boolean   @default(true)
+  topeMensual             Decimal?  @db.Decimal(14, 2)
+  topeAnual               Decimal?  @db.Decimal(14, 2)
+  porcentajeMedicamento   Decimal?  @db.Decimal(5, 2)
+  porcentajePractica      Decimal?  @db.Decimal(5, 2)
+  diasVentanaPresentacion Int?
+  carenciaMeses           Int?
+  maxOrdenesPorGrupo      Int?
+  maxMedicamentosPorOrden Int?
+  topesPrestaciones       Json?
+  requisitosAdjuntos      Json?
+  exclusiones             Json?
 
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
@@ -761,33 +804,33 @@ model ReintegroPolitica {
 }
 
 model PrestacionTipo {
-  id             BigInt   @id @default(autoincrement())
+  id             BigInt  @id @default(autoincrement())
   organizacionId String
   nombre         String
   descripcion    String?
-  activo         Boolean  @default(true)
+  activo         Boolean @default(true)
   orden          Int?
 
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  subtipos      PrestacionSubtipo[]
-  practicas     PrestacionPractica[]
-  reglas        PrestacionRegla[]
+  organizacion Organizacion         @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  subtipos     PrestacionSubtipo[]
+  practicas    PrestacionPractica[]
+  reglas       PrestacionRegla[]
 
   @@unique([organizacionId, nombre])
   @@index([organizacionId, activo])
 }
 
 model PrestacionSubtipo {
-  id             BigInt   @id @default(autoincrement())
+  id             BigInt  @id @default(autoincrement())
   organizacionId String
   tipoId         BigInt
   nombre         String
   descripcion    String?
-  activo         Boolean  @default(true)
+  activo         Boolean @default(true)
   orden          Int?
 
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  tipo         PrestacionTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  organizacion Organizacion         @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tipo         PrestacionTipo       @relation(fields: [tipoId], references: [id], onDelete: Cascade)
   practicas    PrestacionPractica[]
   reglas       PrestacionRegla[]
 
@@ -797,18 +840,18 @@ model PrestacionSubtipo {
 }
 
 model PrestacionPractica {
-  id             BigInt   @id @default(autoincrement())
+  id             BigInt  @id @default(autoincrement())
   organizacionId String
   tipoId         BigInt
   subtipoId      BigInt?
   codigo         String?
   nombre         String
   descripcion    String?
-  activo         Boolean  @default(true)
+  activo         Boolean @default(true)
   orden          Int?
 
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  tipo         PrestacionTipo @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  organizacion Organizacion       @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tipo         PrestacionTipo     @relation(fields: [tipoId], references: [id], onDelete: Cascade)
   subtipo      PrestacionSubtipo? @relation(fields: [subtipoId], references: [id])
   reglas       PrestacionRegla[]
   reintegros   ReintegroItem[]
@@ -820,20 +863,20 @@ model PrestacionPractica {
 }
 
 model PrestacionRegla {
-  id             BigInt   @id @default(autoincrement())
+  id             BigInt    @id @default(autoincrement())
   organizacionId String
   tipoId         BigInt?
   subtipoId      BigInt?
   practicaId     BigInt?
-  porcentaje     Decimal? @db.Decimal(5, 2)
-  tope           Decimal? @db.Decimal(14, 2)
-  vigenteDesde   DateTime @db.Date
+  porcentaje     Decimal?  @db.Decimal(5, 2)
+  tope           Decimal?  @db.Decimal(14, 2)
+  vigenteDesde   DateTime  @db.Date
   vigenteHasta   DateTime? @db.Date
-  activo         Boolean  @default(true)
+  activo         Boolean   @default(true)
 
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  tipo         PrestacionTipo? @relation(fields: [tipoId], references: [id], onDelete: Cascade)
-  subtipo      PrestacionSubtipo? @relation(fields: [subtipoId], references: [id], onDelete: Cascade)
+  organizacion Organizacion        @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  tipo         PrestacionTipo?     @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+  subtipo      PrestacionSubtipo?  @relation(fields: [subtipoId], references: [id], onDelete: Cascade)
   practica     PrestacionPractica? @relation(fields: [practicaId], references: [id], onDelete: Cascade)
 
   @@index([organizacionId, vigenteDesde])
@@ -844,17 +887,17 @@ model PrestacionRegla {
 }
 
 model ReintegroPago {
-  id           BigInt             @id @default(autoincrement())
-  solicitudId  BigInt
-  ordenPagoId  BigInt?
+  id            BigInt              @id @default(autoincrement())
+  solicitudId   BigInt
+  ordenPagoId   BigInt?
   comprobanteId String?
-  monto        Decimal            @db.Decimal(14, 2)
-  medioPago    ReintegroMedioPago
-  fechaPago    DateTime?          @db.Date
-  estadoPago   ReintegroPagoEstado @default(PENDIENTE)
+  monto         Decimal             @db.Decimal(14, 2)
+  medioPago     ReintegroMedioPago
+  fechaPago     DateTime?           @db.Date
+  estadoPago    ReintegroPagoEstado @default(PENDIENTE)
 
-  solicitud ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
-  comprobante Comprobante? @relation(fields: [comprobanteId], references: [id])
+  solicitud   ReintegroSolicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  comprobante Comprobante?       @relation(fields: [comprobanteId], references: [id])
 
   @@index([solicitudId])
   @@index([comprobanteId])
@@ -1003,118 +1046,6 @@ model OrganizacionConfig {
   @@index([organizacionId])
 }
 
-/// ===================== Generación automática de novedades (por período) =====================
-model NovedadGenerada {
-  id               BigInt   @id @default(autoincrement())
-  organizacionId   String
-  periodo          String // "YYYY-MM"
-  sistema          String // "ES" | "SG"
-  archivoNombre    String // Ej: "ES3PROVI.AGO"
-  archivoContenido String   @db.Text // Contenido del TXT generado
-  totalRegistros   Int      @default(0)
-  totalImporte     Decimal  @default(0) @db.Decimal(14, 2)
-  generadoPor      String? // Usuario que generó
-  generadoEn       DateTime @default(now())
-
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-
-  items NovedadGeneradaItem[]
-
-  @@unique([organizacionId, periodo, sistema])
-  @@index([organizacionId, periodo])
-}
-
-model NovedadGeneradaItem {
-  id                BigInt  @id @default(autoincrement())
-  novedadGeneradaId BigInt
-  organizacionId    String
-  afiliadoId        BigInt
-  padronId          BigInt?
-  padronRaw         String // Número de padrón completo (ej: "123456-7")
-  centro            Int? // Número de centro
-  codigo            String // Código de descuento (ej: "P40", "J17", "J22")
-  importe           Decimal @db.Decimal(12, 2)
-
-  novedadGenerada NovedadGenerada @relation(fields: [novedadGeneradaId], references: [id], onDelete: Cascade)
-  organizacion    Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  afiliado        Afiliado        @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  padron          Padron?         @relation(fields: [padronId], references: [id])
-
-  @@index([organizacionId, novedadGeneradaId])
-  @@index([organizacionId, afiliadoId])
-  @@index([organizacionId, padronId])
-}
-
-/// ===================== Novedades (Buffer de eventos) =====================
-model NovedadPendiente {
-  id             BigInt @id @default(autoincrement())
-  organizacionId String
-  /// A qué periodo "YYYY-MM" va el evento (según regla de corte)
-  periodoDestino String
-  /// Tipo del evento: PADRON_ALTA | PADRON_BAJA | COSEGURO_ALTA | COSEGURO_BAJA | COLATERAL_ALTA | COLATERAL_BAJA | ...
-  tipo           String
-
-  afiliadoId   BigInt
-  padronId     BigInt?
-  /// Código/canal DPI (ej. P40, J22/J17 si tuvieran letras+2 dígitos). Lo tratamos como string de 3 chars.
-  canal        String?
-  /// Concepto interno (si aplica)
-  conceptoId   BigInt?
-  /// Importe asociado al evento, cuando corresponda
-  importe      Decimal? @db.Decimal(12, 2)
-  /// Id útil para trazar la entidad origen (padron/coseguro/colateral)
-  referenciaId BigInt?
-  observacion  String?
-  ocurridoEn   DateTime @default(now())
-
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-
-  @@index([organizacionId, periodoDestino])
-  @@index([organizacionId, afiliadoId])
-}
-
-/// ===================== Resumen de novedades por padrón/periodo (ADITIVO) =====================
-model NovedadPendientePadron {
-  id             BigInt @id @default(autoincrement())
-  organizacionId String
-  periodoDestino String // "YYYY-MM"
-  padronId       BigInt
-
-  // Datos utilitarios para monitor/TXT
-  centro  Int?
-  sistema String? // guardamos el prefijo DPI 'ES' | 'SG'
-
-  // Columnas por canal
-  j17 Decimal? @db.Decimal(12, 2)
-  j22 Decimal? @db.Decimal(12, 2)
-  j38 Decimal? @db.Decimal(12, 2)
-  k16 Decimal? @db.Decimal(12, 2)
-
-  ocurridoEn DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  // Relaciones (opcionales, pero útiles)
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  padron       Padron       @relation(fields: [padronId], references: [id])
-
-  @@unique([organizacionId, periodoDestino, padronId], name: "npp_unique_org_period_padron")
-  @@index([organizacionId, periodoDestino], name: "npp_idx_org_period")
-}
-
-/// ===================== (Opcional) Calendario de corte por periodo =====================
-model NovedadCalendario {
-  id             BigInt   @id @default(autoincrement())
-  organizacionId String
-  periodo        String // "YYYY-MM"
-  diaCorte       Int
-  fechaCorte     DateTime
-
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-
-  @@unique([organizacionId, periodo])
-}
-
 /// ===================== Créditos de afiliado (saldo a favor) =====================
 // Se generan SOLO en conciliación si detectamos doble cobro (no desde Caja).
 model CreditoAfiliado {
@@ -1149,32 +1080,6 @@ model AplicacionCredito {
   @@index([obligacionId])
 }
 
-/// ===================== Novedades manuales (carga manual del período en curso) =====================
-model Novedad {
-  id             BigInt   @id @default(autoincrement())
-  organizacionId String
-  periodo        String // "YYYY-MM" - período en curso
-  afiliadoId     BigInt
-  padronId       BigInt?
-  padronRaw      String // Número de padrón completo (ej: "123456-7")
-  centro         Int? // Número de centro
-  codigo         String // Código de descuento (ej: "P40", "J17", "J22")
-  importe        Decimal  @db.Decimal(12, 2)
-  observacion    String?
-  creadoPor      String? // Usuario que creó la novedad
-  creadoEn       DateTime @default(now())
-  actualizadoEn  DateTime @updatedAt
-
-  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  padron       Padron?      @relation(fields: [padronId], references: [id])
-
-  @@index([organizacionId, periodo])
-  @@index([organizacionId, afiliadoId])
-  @@index([organizacionId, padronId])
-  @@index([organizacionId, codigo])
-}
-
 /// ===================== Lotes de Devolución Nómina (entrada) =====================
 model LoteNomina {
   id             BigInt   @id @default(autoincrement())
@@ -1185,12 +1090,17 @@ model LoteNomina {
   cargadoPor     String?
   cargadoEn      DateTime @default(now())
   estado         String   @default("previsualizado") // previsualizado | confirmado
+  /// Canal del que proviene la cobranza:
+  ///   - "ESC"   → TXT de Cómputos (activos)
+  ///   - "ANSES" → archivo UDAME (jubilados)
+  canal          String   @default("ESC")
 
   organizacion Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
   detalles     NominaDetalle[]
 
   @@unique([organizacionId, periodo, hashContenido])
   @@index([organizacionId, periodo])
+  @@index([organizacionId, canal, periodo])
 }
 
 model NominaDetalle {
@@ -1764,7 +1674,7 @@ model Comprobante {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  items ComprobanteItem[]
+  items          ComprobanteItem[]
   reintegroPagos ReintegroPago[]
 
   @@unique([organizacionId, tipo, ptoVta, serie, numero])
@@ -1840,7 +1750,7 @@ model MovimientoAfiliado {
 
   // performa
   saldoPosterior Decimal? @db.Decimal(14, 2)
-  
+
   // Período contable: para agrupar movimientos por período cuando corresponde
   // Formato: "YYYY-MM" (ej: "2026-02")
   // Se usa cuando el movimiento corresponde a un período específico (ej: cuota de febrero)
@@ -1864,4 +1774,379 @@ model MovimientoAfiliado {
   @@index([organizacionId, cuotaId])
   @@index([organizacionId, pagoId])
   @@index([organizacionId, afiliadoId, periodoContable]) // Para agrupar por período
+}
+
+/**
+ * ===================== Circuito Suspensiones (Fase 1) =====================
+ * Documentación funcional completa en:
+ * docs/CIRCUITO_AFILIADOS_DEUDA_SUSPENSION.md
+ * Núcleo del modelo de morosidad por cobertura mínima de J17 (con J22/J38/K16
+ * cuando corresponde). Habilita: parámetros con vigencia, cálculo de
+ * cobertura por afiliado y período, suspensión / rehabilitación automática,
+ * excepciones ADMIN y cierre mensual con dry-run.
+ */
+
+/// Historia del valor mínimo de J17 (parametrizable). Único por organización.
+model ParametroJ17Minimo {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  valor          Decimal   @db.Decimal(12, 2)
+  vigenteDesde   DateTime  @db.Date
+  vigenteHasta   DateTime? @db.Date
+  creadoPorId    String?
+  creadoEn       DateTime  @default(now())
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, vigenteDesde])
+}
+
+/// Historia del valor de cuota J17 para afiliados tipo 04. Único por organización.
+model ParametroJ17Cuota04 {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  valor          Decimal   @db.Decimal(12, 2)
+  vigenteDesde   DateTime  @db.Date
+  vigenteHasta   DateTime? @db.Date
+  creadoPorId    String?
+  creadoEn       DateTime  @default(now())
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, vigenteDesde])
+}
+
+/// Estados posibles del afiliado (formaliza el campo string `Afiliado.estado`).
+/// Valores permitidos: activo | suspendido_provisorio | suspendido_firme | baja | baja_incobrable
+/// La validación se hace en la capa de servicio para no romper datos legacy.
+
+/// Historial de suspensiones del afiliado. Una suspensión vive desde
+/// `fechaInicio` hasta `fechaFin`. El estado actual del afiliado se calcula
+/// como "tiene una suspensión sin cerrar".
+model AfiliadoSuspension {
+  id              BigInt    @id @default(autoincrement())
+  organizacionId  String
+  afiliadoId      BigInt
+  /// Período (YYYY-MM) que originó la mora
+  periodoOrigen   String
+  /// provisoria | firme | revertida | rehabilitada
+  estado          String    @default("provisoria")
+  fechaInicio     DateTime  @default(now())
+  /// Cuándo pasó a `firme` (día 16). Null mientras es provisoria.
+  fechaFirme      DateTime?
+  /// Cuándo se cerró (rehabilitación o reversión). Null si está activa.
+  fechaFin        DateTime?
+  /// pago_caja | cobranza_periodo | excepcion_admin | reversion_admin
+  motivoFin       String?
+  /// usuario que ejecutó (null si fue automático)
+  creadoPorId     String?
+  finalizadoPorId String?
+  observacion     String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, afiliadoId])
+  @@index([organizacionId, estado])
+  @@index([organizacionId, periodoOrigen])
+  @@index([organizacionId, afiliadoId, estado])
+}
+
+/// Excepción ADMIN: afiliados que NO se suspenden automáticamente.
+/// Sólo ADMIN/SUPERADMIN puede crear/desactivar.
+model AfiliadoExcepcionSuspension {
+  id               BigInt    @id @default(autoincrement())
+  organizacionId   String
+  afiliadoId       BigInt
+  motivo           String
+  /// Null = indefinida
+  vigenciaHasta    DateTime? @db.Date
+  activa           Boolean   @default(true)
+  creadoPorId      String
+  creadoEn         DateTime  @default(now())
+  desactivadoEn    DateTime?
+  desactivadoPorId String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, afiliadoId, activa])
+  @@index([organizacionId, activa])
+}
+
+/// Resumen materializado de cobertura por afiliado y período.
+/// Se recalcula al procesar TXT de retorno o al cobrar por caja.
+model CoberturaAfiliadoPeriodo {
+  id             BigInt @id @default(autoincrement())
+  organizacionId String
+  afiliadoId     BigInt
+  periodo        String // "YYYY-MM"
+
+  j17Esperado Decimal @db.Decimal(12, 2)
+  j17Cobrado  Decimal @default(0) @db.Decimal(12, 2)
+  j22Esperado Decimal @default(0) @db.Decimal(12, 2)
+  j22Cobrado  Decimal @default(0) @db.Decimal(12, 2)
+  j38Esperado Decimal @default(0) @db.Decimal(12, 2)
+  j38Cobrado  Decimal @default(0) @db.Decimal(12, 2)
+  k16Esperado Decimal @default(0) @db.Decimal(12, 2)
+  k16Cobrado  Decimal @default(0) @db.Decimal(12, 2)
+
+  /// True si todos los códigos aplicables están cubiertos (derivado de los 3 flags).
+  cubierto    Boolean
+  /// Cubierto por concepto (modelo de gates separados — bloque 2 de decisiones).
+  /// j17 → estado afiliado | j22 → coseguro | j38 → colaterales.
+  j17Cubierto Boolean  @default(false)
+  /// true cuando NO aplica (afiliado sin coseguro) o cuando se cobró completo.
+  j22Cubierto Boolean  @default(true)
+  /// true cuando NO aplica (sin colaterales activos) o cuando se cobró completo.
+  j38Cubierto Boolean  @default(true)
+  /// Suma de diferencias (esperado − cobrado) ≥ 0.
+  deudaTotal  Decimal  @db.Decimal(12, 2)
+  calculadoEn DateTime @default(now())
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+
+  @@unique([organizacionId, afiliadoId, periodo], name: "cobertura_unique_org_afiliado_periodo")
+  @@index([organizacionId, periodo, cubierto])
+  @@index([organizacionId, afiliadoId])
+}
+
+/// Corrida de cierre mensual. Persiste el informe ejecutado el día 10.
+model CierreMensual {
+  id             BigInt    @id @default(autoincrement())
+  organizacionId String
+  periodo        String // "YYYY-MM" evaluado (el período que se cierra)
+  /// en_curso | completado | fallido | dry_run
+  estado         String    @default("en_curso")
+  iniciadoEn     DateTime  @default(now())
+  finalizadoEn   DateTime?
+  /// Null si fue automático por el cron.
+  iniciadoPorId  String?
+
+  totalSuspendidos      Int @default(0)
+  totalRehabilitados    Int @default(0)
+  totalPadronesMarcados Int @default(0)
+  totalExcluidos        Int @default(0)
+
+  /// Detalle estructurado del informe (afiliados afectados, motivos, etc.)
+  resumen      Json?
+  errorMensaje String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, periodo])
+  @@index([organizacionId, estado])
+}
+
+/**
+ * ===================== Generación de Novedades (Fase 1) =====================
+ * Documentación funcional en: docs/CIRCUITO_AFILIADOS_DEUDA_SUSPENSION.md § 9
+ * Bloque 3 (decisiones 24-40).
+ * Flujo:
+ * - El día 10 del mes M, UDAP corre `generarBorrador(periodo=M, canal='ESC')`.
+ * - El sistema arma el archivo TXT con deltas vs el último envío + K16 vigentes.
+ * - El operador descarga el .txt, lo envía por mail a Cómputos y marca el lote
+ * como `enviado` (botón con confirm). En ese momento se bloquean las
+ * Obligaciones referenciadas (`bloqueada=true`).
+ * - Al procesar el TXT de retorno (módulo nomina/importar-cobranza), las
+ * obligaciones se concilian y se desbloquean.
+ */
+
+model NovedadLote {
+  id             BigInt @id @default(autoincrement())
+  organizacionId String
+  /// "YYYY-MM"
+  periodo        String
+  /// "ESC" (futuros: "ANSES", "PP")
+  canal          String @default("ESC")
+  /// borrador | enviado | parcialmente_conciliado | conciliado | anulado
+  estado         String @default("borrador")
+
+  generadoEn      DateTime  @default(now())
+  generadoPorId   String?
+  enviadoEn       DateTime?
+  enviadoPorId    String?
+  conciliadoEn    DateTime?
+  anuladoEn       DateTime?
+  anuladoPorId    String?
+  motivoAnulacion String?
+
+  /// Nombre sugerido para el archivo descargado
+  archivoNombre    String?
+  /// SHA256 del contenido
+  archivoHash      String?
+  /// Snapshot inmutable del .txt
+  archivoContenido String? @db.Text
+
+  totalLineas    Int     @default(0)
+  totalAfiliados Int     @default(0)
+  totalJ22       Decimal @default(0) @db.Decimal(14, 2)
+  totalJ38       Decimal @default(0) @db.Decimal(14, 2)
+  totalK16       Decimal @default(0) @db.Decimal(14, 2)
+  /// Cantidad de líneas con J17 alta y baja respectivamente
+  totalJ17Altas  Int     @default(0)
+  totalJ17Bajas  Int     @default(0)
+
+  items                  NovedadLoteItem[]
+  obligacionesBloqueadas NovedadLoteObligacion[]
+  bajasInformadas        BajaInformable[]
+  novedadesPendientes    NovedadPendiente[]
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@index([organizacionId, periodo, canal, estado])
+}
+
+model NovedadLoteItem {
+  id             BigInt @id @default(autoincrement())
+  loteId         BigInt
+  padronId       BigInt
+  afiliadoId     BigInt
+  /// Snapshot del centro y padrón al momento de la generación
+  centroSnapshot Int?
+  padronSnapshot String
+
+  /// Línea del .txt exactamente como se envió (80 chars). Inmutable.
+  lineaCompleta  String
+  /// "alta" | "baja" | "mixto" | "k16_solo"
+  tipoMovimiento String
+  /// Indicador final de la línea (ej. "B3")
+  indicador      String @default("B3")
+
+  /// Null = el bloque no aparece. 0 = bloque baja. >0 = bloque alta con monto.
+  valorJ17 Decimal? @db.Decimal(12, 2)
+  valorJ22 Decimal? @db.Decimal(12, 2)
+  valorJ38 Decimal? @db.Decimal(12, 2)
+  valorK16 Decimal? @db.Decimal(12, 2)
+
+  lote       NovedadLote         @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  padron     Padron              @relation(fields: [padronId], references: [id])
+  afiliado   Afiliado            @relation(fields: [afiliadoId], references: [id])
+  k16Detalle NovedadK16Detalle[]
+
+  @@index([loteId, padronId])
+  @@index([padronId])
+}
+
+model NovedadK16Detalle {
+  id            BigInt  @id @default(autoincrement())
+  loteItemId    BigInt
+  obligacionId  BigInt
+  /// "cuota_mes" | "saldo_arrastrado" | "interes"
+  componente    String
+  monto         Decimal @db.Decimal(12, 2)
+  /// Período del que proviene el componente (YYYY-MM)
+  periodoOrigen String
+
+  loteItem   NovedadLoteItem @relation(fields: [loteItemId], references: [id], onDelete: Cascade)
+  obligacion Obligacion      @relation(fields: [obligacionId], references: [id])
+
+  @@index([loteItemId])
+}
+
+model NovedadLoteObligacion {
+  id             BigInt    @id @default(autoincrement())
+  loteId         BigInt
+  obligacionId   BigInt
+  desbloqueadaEn DateTime?
+
+  lote       NovedadLote @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  obligacion Obligacion  @relation(fields: [obligacionId], references: [id])
+
+  @@unique([loteId, obligacionId])
+  @@index([obligacionId])
+}
+
+/// Registro de cada baja a informar a Cómputos. Lo crean: operadores (manual),
+/// el cierre mensual (cierre_inactivo_3m) y los jobs de baja automática
+/// (baja_auto_coseguro_3m_sin_j22, etc.).
+model BajaInformable {
+  id              BigInt   @id @default(autoincrement())
+  organizacionId  String
+  padronId        BigInt
+  /// "PADRON_COMPLETO" | "J17" | "J22" | "J38" | "K16"
+  codigo          String
+  /// "manual_operador" | "cierre_inactivo_3m" | "baja_auto_coseguro_3m_sin_j22" | "baja_auto_colaterales_3m_sin_j38" | "baja_incobrable_admin" | "fallecimiento" | "renuncia"
+  motivo          String
+  observacion     String?
+  fechaSolicitada DateTime @default(now())
+  /// Null si fue automática
+  solicitadoPorId String?
+
+  /// pendiente | informada | cancelada
+  estado            String    @default("pendiente")
+  loteEnvioId       BigInt?
+  fechaInformada    DateTime?
+  fechaCancelada    DateTime?
+  canceladaPorId    String?
+  motivoCancelacion String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  padron       Padron       @relation(fields: [padronId], references: [id], onDelete: Cascade)
+  lote         NovedadLote? @relation(fields: [loteEnvioId], references: [id])
+
+  @@index([organizacionId, estado])
+  @@index([padronId, codigo, estado])
+}
+
+/// ===================== Novedades pendientes (operator-driven) =====================
+/// Cola de novedades J17/J22/J38 que el operador (o un hook automático) va
+/// acumulando durante el mes y que se vuelcan al lote correspondiente al
+/// confirmar el cierre. Reemplaza el modelo "snapshot del estado vigente".
+///
+/// Reglas:
+///   - alta / modificacion: requieren `valor`.
+///   - baja: `valor` queda null.
+///   - destino COMPUTOS: concepto puede ser J17 | J22 | J38.
+///   - destino ANSES:    concepto sólo puede ser J17.
+///   - Una pendiente sólo puede asociarse a UN lote (loteId se setea al enviar).
+model NovedadPendiente {
+  id             BigInt @id @default(autoincrement())
+  organizacionId String
+  padronId       BigInt
+  afiliadoId     BigInt
+
+  /// "J17" | "J22" | "J38"
+  concepto       String
+  /// "alta" | "baja" | "modificacion"
+  tipoMovimiento String
+  /// "COMPUTOS" | "ANSES"
+  destino        String
+  /// Para alta/modificacion: valor a informar. Null para baja.
+  valor          Decimal? @db.Decimal(12, 2)
+  /// Período del lote donde debe salir (YYYY-MM)
+  periodoObjetivo String
+
+  /// "pendiente" | "enviada" | "cancelada"
+  estado String @default("pendiente")
+
+  /// Origen del evento (audit trail).
+  /// "hook_coseguro_alta" | "hook_coseguro_baja" |
+  /// "hook_colaterales_alta" | "hook_colaterales_baja" |
+  /// "hook_afiliado_alta" | "hook_afiliado_baja" |
+  /// "manual_operador"
+  origenEvento String
+  observacion  String?
+
+  creadoEn    DateTime @default(now())
+  creadoPorId String?
+
+  /// Al confirmar el lote
+  loteId    BigInt?
+  enviadaEn DateTime?
+
+  /// Cuando el operador cancela antes del envío
+  canceladaEn       DateTime?
+  canceladaPorId    String?
+  motivoCancelacion String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  padron       Padron       @relation(fields: [padronId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  lote         NovedadLote? @relation(fields: [loteId], references: [id])
+
+  @@index([organizacionId, estado, periodoObjetivo, destino])
+  @@index([padronId, concepto, estado])
+  @@index([loteId])
 }

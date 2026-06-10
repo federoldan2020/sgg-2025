@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { API_URL, ORG, getErrorMessage } from '@/servicios/api';
+import { api, apiFetch, getErrorMessage } from '@/servicios/api';
 
 type OperacionPreview = {
   fila: number;
@@ -39,35 +39,20 @@ export default function ImportarParentescosPage() {
   const [ignoreWarnings, setIgnoreWarnings] = useState(false);
   const [importErrors, setImportErrors] = useState<Array<{ fila: number; mensaje: string }> | null>(null);
 
-  const orgId = ORG;
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') || '' : '';
-
   const upload = async (endpoint: string, body: FormData) => {
-    const r = await fetch(`${API_URL}${endpoint}`, {
+    const r = await apiFetch(endpoint, {
       method: 'POST',
       body,
-      headers: {
-        'X-Organizacion-ID': orgId,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-    if (!r.ok) throw new Error(await r.text());
+    }, { includeJsonContentType: false });
     return r.json() as Promise<ImportPreviewResponse>;
   };
 
   const downloadFile = async (endpoint: string, fallbackName: string) => {
     setError(null);
     try {
-      const r = await fetch(`${API_URL}${endpoint}`, {
-        method: 'GET',
-        headers: {
-          'X-Organizacion-ID': orgId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!r.ok) throw new Error(await r.text());
-      const blob = await r.blob();
-      const disposition = r.headers.get('content-disposition') || '';
+      const response = await apiFetch(endpoint, { method: 'GET' }, { includeJsonContentType: false });
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
       const match = disposition.match(/filename="([^"]+)"/i);
       const filename = match?.[1] || fallbackName;
       const url = window.URL.createObjectURL(blob);
@@ -110,17 +95,10 @@ export default function ImportarParentescosPage() {
       setProgress((p) => (p >= 95 ? p : p + Math.max(1, Math.floor((95 - p) / 6))));
     }, 350);
     try {
-      const r = await fetch(`${API_URL}/parametricos/parentescos/import/confirm`, {
+      const data = await api<{ resumen: { creados: number; actualizados: number; errores: number }; errores?: Array<{ fila: number; mensaje: string }> }>('/parametricos/parentescos/import/confirm', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Organizacion-ID': orgId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({ previewId: preview.previewId, ignoreWarnings }),
       });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
       setPreview(null);
       setProgress(100);
       if (data.resumen?.errores) {

@@ -1,8 +1,11 @@
 // src/modulos/caja/caja.controller.ts
-import { Controller, Post, Body, Req, Get, BadRequestException, Param } from '@nestjs/common';
+import { Controller, Post, Body, Req, Get, BadRequestException, Param, Logger } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { MovimientosService } from '../movimientos/movimientos.service';
+import { CoberturaService } from '../suspensiones/cobertura.service';
+import { SuspensionesService } from '../suspensiones/suspensiones.service';
+import { CoseguroService } from '../coseguro/coseguro.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuditService } from '../../common/audit.service';
@@ -20,10 +23,15 @@ type ReqOrg = { organizacionId?: string; ip?: string; headers?: Record<string, s
 
 @Controller('caja')
 export class CajaController {
+  private readonly logger = new Logger(CajaController.name);
+
   constructor(
     private readonly contab: ContabilidadService,
     private readonly movs: MovimientosService,
     private readonly audit: AuditService,
+    private readonly cobertura: CoberturaService,
+    private readonly suspensiones: SuspensionesService,
+    private readonly coseguro: CoseguroService,
   ) {}
 
   /**
@@ -129,7 +137,7 @@ export class CajaController {
       throw new Error('La suma de métodos debe igualar la suma aplicada');
     }
 
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const pago = await tx.pago.create({
         data: {
           organizacionId: org,
@@ -513,6 +521,159 @@ export class CajaController {
 
       return pagoCompleto;
     });
+
+    // ───── Hook post-pago: recalcular cobertura + rehabilitar si corresponde ─────
+    //
+    // Tras un pago por caja, los J17/J22/J38 del padrón pueden haber quedado
+    // cubiertos y el afiliado pasar de mora a al día. Recalculamos la cobertura
+    // para cada período tocado por las aplicaciones y, si el afiliado estaba
+    // suspendido, intentamos rehabilitarlo.
+    //
+    // Si esto falla NO revertimos el pago — el pago ya quedó commiteado.
+    // Lo loggeamos y seguimos.
+    try {
+      const afiliadoIdBig = BigInt(dto.afiliadoId);
+      const periodosAfectados = await this.calcularPeriodosAfectadosPorPago(
+        org,
+        dto.aplicaciones,
+      );
+      if (periodosAfectados.length > 0) {
+        await Promise.all(
+          periodosAfectados.map((p) =>
+            this.cobertura
+              .calcular(org, afiliadoIdBig, p)
+              .catch((e) =>
+                this.logger.warn(
+                  `Fallo al recalcular cobertura af=${afiliadoIdBig} per=${p}: ${
+                    e instanceof Error ? e.message : String(e)
+                  }`,
+                ),
+              ),
+          ),
+        );
+      }
+
+      const suspendido = await this.suspensiones.estaSuspendido(org, afiliadoIdBig);
+      if (suspendido) {
+        try {
+          await this.suspensiones.rehabilitar(org, afiliadoIdBig, 'pago_caja', {
+            usuarioId: user?.id?.toString(),
+          });
+        } catch {
+          // Hay deuda anterior que el pago no cubrió → queda suspendido. No es error.
+        }
+      }
+
+      // Reactivación automática de coseguro si fue dado de baja por el job
+      // de 3 meses y el pago saldó toda la deuda J22 pendiente.
+      await this.reactivarCoseguroAutoSiCorresponde(org, afiliadoIdBig);
+    } catch (e) {
+      this.logger.error(
+        `Hook post-pago caja falló (pago ${result?.id?.toString()}): ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Si el coseguro está en estado 'baja' con `origenBaja='auto_3m_sin_j22'`
+   * y ya no quedan obligaciones J22 abiertas (porque el pago las canceló),
+   * lo reactiva automáticamente reutilizando el padrón de imputación previo.
+   *
+   * NO reactiva si la baja fue manual (`manual_operador`) o por cascada
+   * (`padron_inactivo`): esas requieren acción explícita del operador.
+   */
+  private async reactivarCoseguroAutoSiCorresponde(
+    orgId: string,
+    afiliadoId: bigint,
+  ): Promise<void> {
+    const cos = await prisma.coseguroAfiliado.findFirst({
+      where: { organizacionId: orgId, afiliadoId },
+      select: {
+        id: true,
+        estado: true,
+        origenBaja: true,
+        imputacionPadronIdCoseguro: true,
+      },
+    });
+    if (!cos) return;
+    if (cos.estado !== 'baja') return;
+    if (cos.origenBaja !== 'auto_3m_sin_j22') return;
+    if (!cos.imputacionPadronIdCoseguro) return;
+
+    const conceptoJ22 = await prisma.concepto.findFirst({
+      where: { organizacionId: orgId, codigo: 'COSEGURO' },
+      select: { id: true },
+    });
+    if (!conceptoJ22) return;
+
+    const tieneJ22Abiertas = await prisma.obligacion.findFirst({
+      where: {
+        organizacionId: orgId,
+        afiliadoId,
+        conceptoId: conceptoJ22.id,
+        estado: { in: ['pendiente', 'parcialmente_pagada'] },
+        saldo: { gt: 0 },
+      },
+      select: { id: true },
+    });
+    if (tieneJ22Abiertas) return; // todavía hay deuda → no reactiva
+
+    try {
+      // Reusa el padrón de imputación que tenía antes de la baja.
+      // altaCoseguro va a:
+      //   - poner estado='activo' + origenBaja=null,
+      //   - emitir NovedadPendiente(J22, alta) automáticamente.
+      await this.coseguro.altaCoseguro(orgId, afiliadoId, cos.imputacionPadronIdCoseguro);
+      this.logger.log(
+        `Coseguro reactivado automáticamente para afiliado ${afiliadoId} (deuda J22 saldada).`,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `No se pudo reactivar coseguro auto para afiliado ${afiliadoId}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * Devuelve los períodos contables (YYYY-MM) afectados por las aplicaciones
+   * del pago: para obligaciones toma `obligacion.periodo`; para cuotas toma
+   * `cuota.periodoVenc` normalizado. Devuelve set único.
+   */
+  private async calcularPeriodosAfectadosPorPago(
+    orgId: string,
+    aplicaciones: AplicacionDto[],
+  ): Promise<string[]> {
+    const periodos = new Set<string>();
+    const oblIds = aplicaciones
+      .filter((a) => a.obligacionId)
+      .map((a) => BigInt(a.obligacionId!));
+    if (oblIds.length > 0) {
+      const obls = await prisma.obligacion.findMany({
+        where: { id: { in: oblIds }, organizacionId: orgId },
+        select: { periodo: true },
+      });
+      for (const o of obls) if (o.periodo) periodos.add(o.periodo);
+    }
+    const cuotaIds = aplicaciones
+      .filter((a) => a.cuotaId)
+      .map((a) => BigInt(a.cuotaId!));
+    if (cuotaIds.length > 0) {
+      const cuotas = await prisma.ordenCreditoCuota.findMany({
+        where: { id: { in: cuotaIds } },
+        select: { periodoVenc: true },
+      });
+      for (const c of cuotas) {
+        const norm = this.normalizarPeriodo(c.periodoVenc);
+        if (norm) periodos.add(norm);
+      }
+    }
+    return Array.from(periodos);
   }
 
   @Get('pagos/:pagoId/para-imprimir')

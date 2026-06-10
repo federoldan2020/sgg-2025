@@ -2,11 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { NovedadesService } from '../novedades/novedades.service';
 import { ColateralesCalculoService } from './colaterales-calculo.service';
+import { NovedadesPendientesService } from '../novedades/novedades-pendientes.service';
+import { parsePage, type PageQuery } from '../../common/pagination.util';
+import type { Prisma } from '@prisma/client';
 
 type IdLike = string | number | bigint;
 const toBig = (v: IdLike) => {
@@ -30,10 +33,12 @@ export type UpdateColateralDto = Partial<CreateColateralDto> & { esColateral?: b
 
 @Injectable()
 export class ColateralesService {
+  private readonly logger = new Logger(ColateralesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly novedades: NovedadesService,
     private readonly calc: ColateralesCalculoService,
+    private readonly novedadesPendientes: NovedadesPendientesService,
   ) {}
 
   // ----------------- helpers -----------------
@@ -73,6 +78,70 @@ export class ColateralesService {
     });
   }
 
+  async listColateralesPaged(
+    organizacionId: string,
+    params: PageQuery & {
+      q?: string;
+      estado?: 'activos' | 'baja' | 'todos';
+      esColateral?: 'true' | 'false' | 'todos';
+    },
+  ) {
+    const { skip, take, page, limit } = parsePage(params);
+    const q = params.q?.trim();
+    const estado = params.estado ?? 'todos';
+    const esColateral = params.esColateral ?? 'todos';
+
+    const afiliadoFilter: Prisma.AfiliadoWhereInput = { organizacionId };
+
+    const where: Prisma.ColateralWhereInput = {
+      afiliado: afiliadoFilter,
+      ...(estado === 'activos' ? { activo: true } : {}),
+      ...(estado === 'baja' ? { activo: false } : {}),
+      ...(esColateral === 'true' ? { esColateral: true } : {}),
+      ...(esColateral === 'false' ? { esColateral: false } : {}),
+    };
+
+    if (q) {
+      const padronNormalizado = q.replace(/\s+/g, '').replace(/-/g, '');
+      const padronMatch = padronNormalizado.match(/^(\d{6})(\d{1})$/);
+      const dniNumber = Number.isFinite(Number(q)) ? BigInt(q) : null;
+
+      const titularOr: Prisma.AfiliadoWhereInput[] = [
+        { apellido: { contains: q, mode: 'insensitive' } },
+        { nombre: { contains: q, mode: 'insensitive' } },
+        ...(dniNumber !== null ? [{ dni: dniNumber }] : []),
+      ];
+      if (padronMatch) {
+        const padronFormateado = `${padronMatch[1]}-${padronMatch[2]}`;
+        titularOr.push({ padrones: { some: { padron: padronFormateado } } });
+      }
+
+      where.OR = [
+        { nombre: { contains: q, mode: 'insensitive' } },
+        { dni: { contains: q, mode: 'insensitive' } },
+        { afiliado: { organizacionId, OR: titularOr } },
+      ];
+    }
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.colateral.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { id: 'desc' },
+        include: {
+          parentesco: true,
+          afiliado: {
+            select: { id: true, dni: true, apellido: true, nombre: true, estado: true },
+          },
+        },
+      }),
+      this.prisma.colateral.count({ where }),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
   // ----------------- precio/preview -----------------
   async getPrecio(organizacionId: string, afiliadoId: IdLike, fecha?: string) {
     const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
@@ -107,46 +176,90 @@ export class ColateralesService {
     return { coseguro: j22, colaterales: j38, total: j22 + j38 };
   }
 
-  // ----------------- util novedades post-mutate -----------------
+  /**
+   * Detecta el delta de J38 vs el total previo y encola una NovedadPendiente:
+   *   - 0  → >0  : ALTA J38 (valor = total nuevo)
+   *   - >0 → 0   : BAJA J38
+   *   - >0 → >0  : MODIFICACION J38 (valor = total nuevo) sólo si cambió el monto
+   *   - 0  → 0   : no-op
+   * Requiere que el afiliado tenga `imputacionPadronIdColaterales` seteado.
+   * Si no hay padrón imputado se loggea y se omite (Cómputos no lo conoce).
+   */
   private async afterChangeRecalcularYNotificar(
     organizacionId: string,
     afiliadoId: bigint,
     fecha: Date,
-    totalAntes: any, // Decimal-like (de Prisma)
+    totalAntes: unknown,
     observacionAlta: string,
     observacionBaja: string,
     observacionModif: string,
-  ) {
-    const totalDespues = await this.calc.calcularTotalJ38(organizacionId, afiliadoId, fecha);
-    if (!totalAntes.equals(totalDespues)) {
-      const padronId = await this.calc.getPadronDestino(organizacionId, afiliadoId);
-      if (totalAntes.isZero() && !totalDespues.isZero()) {
-        await this.novedades.registrarAltaColaterales({
+  ): Promise<void> {
+    try {
+      const antes = Number(totalAntes ?? 0) || 0;
+      const despues = Number(
+        await this.calc.calcularTotalJ38(organizacionId, afiliadoId, fecha),
+      ) || 0;
+
+      const subio = antes === 0 && despues > 0;
+      const bajo = antes > 0 && despues === 0;
+      const modif = antes > 0 && despues > 0 && Math.abs(antes - despues) > 0.001;
+
+      if (!subio && !bajo && !modif) return;
+
+      const cos = await this.prisma.coseguroAfiliado.findFirst({
+        where: { organizacionId, afiliadoId },
+        select: { imputacionPadronIdColaterales: true },
+      });
+      const padronId = cos?.imputacionPadronIdColaterales ?? null;
+      if (!padronId) {
+        this.logger.warn(
+          `J38 cambió (${antes}→${despues}) para afiliado ${afiliadoId} pero no tiene imputacionPadronIdColaterales; novedad omitida.`,
+        );
+        return;
+      }
+
+      if (subio) {
+        await this.novedadesPendientes.crear({
           organizacionId,
+          padronId,
           afiliadoId,
-          padronId: padronId ?? 0n,
-          ocurridoEn: fecha,
+          concepto: 'J38',
+          tipoMovimiento: 'alta',
+          destino: 'COMPUTOS',
+          valor: despues,
+          origenEvento: 'hook_colaterales_alta',
           observacion: observacionAlta,
-          total: totalDespues,
         });
-      } else if (!totalAntes.isZero() && totalDespues.isZero()) {
-        await this.novedades.registrarBajaColaterales({
+      } else if (bajo) {
+        await this.novedadesPendientes.crear({
           organizacionId,
+          padronId,
           afiliadoId,
-          padronId: padronId ?? 0n,
-          ocurridoEn: fecha,
+          concepto: 'J38',
+          tipoMovimiento: 'baja',
+          destino: 'COMPUTOS',
+          origenEvento: 'hook_colaterales_baja',
           observacion: observacionBaja,
         });
-      } else {
-        await this.novedades.registrarModifColaterales({
+      } else if (modif) {
+        await this.novedadesPendientes.crear({
           organizacionId,
+          padronId,
           afiliadoId,
-          padronId: padronId ?? 0n,
-          ocurridoEn: fecha,
+          concepto: 'J38',
+          tipoMovimiento: 'modificacion',
+          destino: 'COMPUTOS',
+          valor: despues,
+          origenEvento: 'hook_colaterales_alta',
           observacion: observacionModif,
-          nuevoTotal: totalDespues,
         });
       }
+    } catch (err) {
+      this.logger.error(
+        `Fallo emitiendo NovedadPendiente J38 para afiliado ${afiliadoId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -383,55 +496,13 @@ export class ColateralesService {
       },
     );
 
-    // 4) Novedades por CAMBIO de imputación J38
-    // Regla pedida:
-    // - Si cambió el padrón y hay J38 (>0) y el coseguro está ACTIVO:
-    //     * Baja en padrón anterior (si existía)
-    //     * Alta en padrón nuevo con el total vigente
-    // - Si cambió el padrón pero total J38 == 0 o coseguro en baja:
-    //     * Registramos una modificación "informativa" (sin cargo) sobre el nuevo padrón
-    const cambioPadron =
-      (previoPadronId ?? null) !== (nuevoPadronId ?? null) &&
-      (previoPadronId != null || nuevoPadronId != null);
-
-    if (cambioPadron) {
-      const hayCargo = !totalJ38.isZero();
-      const coseguroActivo = estadoFinal === 'activo';
-
-      if (hayCargo && coseguroActivo) {
-        // Baja en el padrón anterior (si existía)
-        if (previoPadronId != null) {
-          await this.novedades.registrarBajaColaterales({
-            organizacionId,
-            afiliadoId: afId,
-            padronId: previoPadronId,
-            ocurridoEn: ahora,
-            observacion: 'Cambio imputación J38: baja en padrón anterior',
-          });
-        }
-        // Alta en el padrón nuevo con el total vigente
-        if (nuevoPadronId != null) {
-          await this.novedades.registrarAltaColaterales({
-            organizacionId,
-            afiliadoId: afId,
-            padronId: nuevoPadronId,
-            ocurridoEn: ahora,
-            observacion: 'Cambio imputación J38: alta en padrón nuevo',
-            total: totalJ38,
-          });
-        }
-      } else {
-        // Sin cargo (total 0) o coseguro inactivo: dejamos traza de modificación
-        await this.novedades.registrarModifColaterales({
-          organizacionId,
-          afiliadoId: afId,
-          padronId: nuevoPadronId ?? (await this.calc.getPadronDestino(organizacionId, afId)) ?? 0n,
-          ocurridoEn: ahora,
-          observacion: 'Cambio imputación J38 sin cargo (total=0 o coseguro inactivo)',
-          nuevoTotal: totalJ38, // probablemente 0
-        });
-      }
-    }
+    // Las novedades de cambio de imputación J38 se detectan como delta vs el
+    // último envío al generar el lote (módulo nuevo TODO).
+    void previoPadronId;
+    void nuevoPadronId;
+    void estadoFinal;
+    void totalJ38;
+    void ahora;
 
     return { ok: true, padronColatId: pId.toString() };
   }

@@ -65,8 +65,6 @@ function useDebounced<T>(value: T, delay = 300) {
 
 /* ===== Page ===== */
 export default function NuevoComprobantePage() {
-  const API = process.env.NEXT_PUBLIC_API_URL;
-
   // Cabecera
   const [organizacionId, setOrg] = useState(ORG);
   const [rol, setRol] = useState<RolTercero>("PROVEEDOR");
@@ -295,17 +293,10 @@ export default function NuevoComprobantePage() {
         })),
       };
 
-      const res = await fetch(`${API}/terceros/comprobantes`, {
+      const r = await api<{ id: string; total?: number }>("/terceros/comprobantes", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Organizacion-ID": ORG,
-        },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) throw new Error(await res.text());
-      const r = await res.json();
       setMsg(
         `Comprobante creado exitosamente (ID: ${r.id}). Total: $${fmt(
           Number(r.total ?? 0)

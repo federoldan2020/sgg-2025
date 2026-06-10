@@ -48,6 +48,26 @@ export class ColateralesController {
     return this.service.listParentescos(organizacionId);
   }
 
+  // GET /colaterales/paged?q=...&estado=activos|baja|todos&esColateral=true|false|todos&page=1&limit=20
+  @Get('paged')
+  async listPaged(
+    @Headers() headers: Record<string, any>,
+    @Query('q') q?: string,
+    @Query('estado') estado?: 'activos' | 'baja' | 'todos',
+    @Query('esColateral') esColateral?: 'true' | 'false' | 'todos',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const organizacionId = requireOrgId(headers);
+    return this.service.listColateralesPaged(organizacionId, {
+      q,
+      estado,
+      esColateral,
+      page,
+      limit,
+    });
+  }
+
   // GET /colaterales/padrones?afiliadoId=123
   @Get('padrones')
   async getPadronesQuery(

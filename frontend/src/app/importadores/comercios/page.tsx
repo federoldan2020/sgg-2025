@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getErrorMessage, ORG } from "@/servicios/api";
+import { apiFetch, getErrorMessage } from "@/servicios/api";
 import Link from "next/link";
 
 // === Respuesta del backend /comercios/import ===
@@ -15,7 +15,6 @@ type ImportResultado = {
 };
 
 export default function ImportarComerciosPage() {
-  const API = process.env.NEXT_PUBLIC_API_URL!;
   const [file, setFile] = useState<File | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -32,13 +31,11 @@ export default function ImportarComerciosPage() {
       const fd = new FormData();
       fd.append("file", file);
 
-      const url = `${API}/comercios/import?dry=${dryRun ? "true" : "false"}`;
-      const r = await fetch(url, {
+      const r = await apiFetch(`/comercios/import?dry=${dryRun ? "true" : "false"}`, {
         method: "POST",
         body: fd, // NO setear Content-Type
-        headers: { "X-Organizacion-ID": ORG },
         cache: "no-store",
-      });
+      }, { includeJsonContentType: false });
 
       const text = await r.text();
       if (!r.ok) throw new Error(text || r.statusText);

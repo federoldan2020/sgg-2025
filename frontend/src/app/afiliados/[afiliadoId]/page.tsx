@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
 import { api } from "@/servicios/api";
 import { formatearFechaArgentina } from "@/utiles/formatos";
+import { useAfiliadoDetalle } from "@/contexts/afiliadoDetalle";
+
 const badgeBase =
   "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold";
 const badgeActive = "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -14,7 +15,7 @@ type Afiliado = {
   dni: string | number;
   apellido: string;
   nombre: string;
-  estado: "activo" | "baja";
+  estado: string;
   cuit?: string | null;
   sexo?: string | null;
   tipo?: string | null;
@@ -81,6 +82,7 @@ type Movimiento = {
   origen: string;
   concepto: string;
   importe: string | number;
+  padronId?: string | number | null;
   saldoPosterior?: string | number | null;
 };
 
@@ -130,8 +132,8 @@ function buildDireccion(a: Afiliado | null) {
   return parts.length ? parts.join(", ") : "—";
 }
 
-export default function AfiliadoDetallePage() {
-  const { afiliadoId } = useParams<{ afiliadoId: string }>();
+export default function AfiliadoDatosPage() {
+  const { afiliadoId } = useAfiliadoDetalle();
   const [afiliado, setAfiliado] = useState<Afiliado | null>(null);
   const [padrones, setPadrones] = useState<PadronLite[]>([]);
   const [coseguro, setCoseguro] = useState<CoseguroPanel | null>(null);
@@ -182,400 +184,295 @@ export default function AfiliadoDetallePage() {
   }, [afiliadoId]);
 
   const padronesActivos = padrones.filter((p) => p.activo);
+  const padronesMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of padrones) m.set(String(p.id), p.padron);
+    return m;
+  }, [padrones]);
   const saldoTotal = useMemo(
     () => padrones.reduce((acc, p) => acc + Number(p.saldo || 0), 0),
     [padrones]
   );
   const deudaTotal = useMemo(
-    () => padrones.reduce((acc, p) => acc + (Number(p.saldo || 0) > 0 ? Number(p.saldo || 0) : 0), 0),
+    () =>
+      padrones.reduce(
+        (acc, p) => acc + (Number(p.saldo || 0) > 0 ? Number(p.saldo || 0) : 0),
+        0
+      ),
     [padrones]
   );
   const aFavor = useMemo(
-    () => padrones.reduce((acc, p) => acc + (Number(p.saldo || 0) < 0 ? Math.abs(Number(p.saldo || 0)) : 0), 0),
+    () =>
+      padrones.reduce(
+        (acc, p) =>
+          acc + (Number(p.saldo || 0) < 0 ? Math.abs(Number(p.saldo || 0)) : 0),
+        0
+      ),
     [padrones]
   );
 
   if (loading) {
     return (
-      <section className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="text-sm text-slate-500">Cargando afiliado...</div>
-        </div>
-      </section>
+      <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm text-sm text-neutral-500">
+        Cargando datos del afiliado…
+      </div>
     );
   }
 
   if (error || !afiliado) {
     return (
-      <section className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">
-          {error || "No se encontró el afiliado."}
-        </div>
-      </section>
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+        {error || "No se encontró el afiliado."}
+      </div>
     );
   }
 
   const nombreCompleto = displayNombre(afiliado.apellido, afiliado.nombre);
-  const estadoActivo = afiliado.estado === "activo";
   const coseguroEstado = coseguro?.coseguro?.estado ?? "baja";
   const coseguroPadron = coseguro?.padrones?.find(
     (p) => String(p.id) === String(coseguro?.coseguro?.padronCoseguroId ?? "")
   );
 
   return (
-    <section className="min-h-dvh bg-gradient-to-b from-slate-50 via-white to-white">
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-6 rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Afiliado #{afiliado.id}
-              </div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                {nombreCompleto}
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                <span>DNI {formatDni(afiliado.dni)}</span>
-                <span className="text-slate-300">•</span>
-                <span>{afiliado.tipo || "Sin tipo"}</span>
-                <span className="text-slate-300">•</span>
-                <span
-                  className={`${badgeBase} ${
-                    estadoActivo ? badgeActive : badgeInactive
-                  }`}
-                >
-                  {estadoActivo ? "Activo" : "Baja"}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <a
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                href={`/afiliados/nuevo?afiliadoId=${afiliado.id}`}
-              >
-                Editar afiliado
-              </a>
-              <a
-                className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
-                href={`/movimientos?afiliadoId=${afiliado.id}`}
-              >
-                Ver movimientos
-              </a>
-              <a
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                href="/caja"
-              >
-                Registrar pago
-              </a>
-              <a
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                href={`/coseguro/${afiliado.id}`}
-              >
-                Coseguro y colaterales
-              </a>
+    <div className="space-y-6">
+      {/* Resumen financiero */}
+      <section>
+        <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          Resumen financiero
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase text-neutral-500">Saldo total</div>
+            <div className="mt-2 text-xl font-semibold text-neutral-900 tabular-nums">
+              {money(saldoTotal)}
             </div>
           </div>
-        </header>
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase text-neutral-500">Deuda total</div>
+            <div className="mt-2 text-xl font-semibold text-rose-700 tabular-nums">
+              {money(deudaTotal)}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase text-neutral-500">A favor</div>
+            <div className="mt-2 text-xl font-semibold text-emerald-700 tabular-nums">
+              {money(aFavor)}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase text-neutral-500">Padrones activos</div>
+            <div className="mt-2 text-xl font-semibold text-neutral-900 tabular-nums">
+              {padronesActivos.length}
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <section className="mb-6">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Resumen financiero
+      {/* Datos personales + contacto */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="text-base font-semibold text-neutral-900">Datos personales</div>
+          <div className="mt-4 space-y-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Nombre" value={nombreCompleto} />
+              <Field label="DNI" value={formatDni(afiliado.dni)} />
+              <Field label="CUIT/CUIL" value={afiliado.cuit || "—"} />
+              <Field label="N° socio" value={afiliado.numeroSocio || "—"} />
+              <Field label="Sexo" value={afiliado.sexo || "—"} />
+              <Field label="Fecha nacimiento" value={formatDate(afiliado.fechaNacimiento)} />
+            </div>
+            <div className="h-px w-full bg-neutral-100" />
+            <Field label="Domicilio" value={buildDireccion(afiliado)} />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Saldo total
-              </div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {money(saldoTotal)}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Deuda total
-              </div>
-              <div className="mt-2 text-xl font-semibold text-rose-700">
-                {money(deudaTotal)}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                A favor
-              </div>
-              <div className="mt-2 text-xl font-semibold text-emerald-700">
-                {money(aFavor)}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Padrones activos
-              </div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {padronesActivos.length}
-              </div>
-            </div>
-          </div>
-        </section>
+        </div>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-semibold text-slate-900">
-              Datos personales
-            </div>
-            <div className="mt-4 space-y-4 text-sm">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <div className="text-xs text-muted-foreground">Nombre</div>
-                  <div className="font-semibold text-slate-900">{nombreCompleto}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">DNI</div>
-                  <div className="font-semibold text-slate-900">{formatDni(afiliado.dni)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">CUIT/CUIL</div>
-                  <div className="font-semibold text-slate-900">
-                    {afiliado.cuit || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">N° socio</div>
-                  <div className="font-semibold text-slate-900">
-                    {afiliado.numeroSocio || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Sexo</div>
-                  <div className="font-semibold text-slate-900">
-                    {afiliado.sexo || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Fecha nacimiento</div>
-                  <div className="font-semibold text-slate-900">
-                    {formatDate(afiliado.fechaNacimiento)}
-                  </div>
-                </div>
-              </div>
-              <div className="h-px w-full bg-slate-100" />
-              <div>
-                <div className="text-xs text-muted-foreground">Domicilio</div>
-                <div className="font-medium text-slate-900">{buildDireccion(afiliado)}</div>
-              </div>
-            </div>
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="text-base font-semibold text-neutral-900">Contacto</div>
+          <div className="mt-4 space-y-3 text-sm">
+            <Field label="Teléfono" value={afiliado.telefono || "—"} />
+            <Field label="Celular" value={afiliado.celular || "—"} />
+            <Field label="Cupo general" value={money(afiliado.cupo)} />
+            <Field label="Saldo general" value={money(afiliado.saldo)} />
           </div>
+        </div>
+      </section>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-semibold text-slate-900">Contacto</div>
-            <div className="mt-4 space-y-3 text-sm">
-              <div>
-                <div className="text-xs text-muted-foreground">Teléfono</div>
-                <div className="font-semibold text-slate-900">
-                  {afiliado.telefono || "—"}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Celular</div>
-                <div className="font-semibold text-slate-900">
-                  {afiliado.celular || "—"}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Cupo general</div>
-                <div className="font-semibold text-slate-900">
-                  {money(afiliado.cupo)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Saldo general</div>
-                <div className="font-semibold text-slate-900">
-                  {money(afiliado.saldo)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-semibold text-slate-900">Padrones</div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 text-left">Padrón</th>
-                    <th className="py-2 text-left">Sistema</th>
-                    <th className="py-2 text-left">Centro</th>
-                    <th className="py-2 text-left">Estado</th>
-                    <th className="py-2 text-right">Saldo</th>
-                    <th className="py-2 text-right">Cupo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+      {/* Padrones + coseguro */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="text-base font-semibold text-neutral-900">Padrones</div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-xs uppercase text-neutral-500">
+                <tr>
+                  <th className="py-2 text-left">Padrón</th>
+                  <th className="py-2 text-left">Sistema</th>
+                  <th className="py-2 text-left">Centro</th>
+                  <th className="py-2 text-left">Estado</th>
+                  <th className="py-2 text-right">Saldo</th>
+                  <th className="py-2 text-right">Cupo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
                 {padrones.map((p) => (
-                    <tr key={String(p.id)} className="hover:bg-slate-50">
-                      <td className="py-2 font-semibold">{p.padron}</td>
-                      <td className="py-2">{p.sistema || "—"}</td>
-                      <td className="py-2">{p.centro ?? "—"}</td>
-                      <td className="py-2">
-                        <span
-                          className={`${badgeBase} ${
-                            p.activo ? badgeActive : badgeInactive
-                          }`}
-                        >
-                          {p.activo ? "Activo" : "Baja"}
-                        </span>
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {money(p.saldo)}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {money(p.cupo)}
-                      </td>
-                    </tr>
+                  <tr key={String(p.id)} className="hover:bg-neutral-50">
+                    <td className="py-2 font-semibold">{p.padron}</td>
+                    <td className="py-2">{p.sistema || "—"}</td>
+                    <td className="py-2">{p.centro ?? "—"}</td>
+                    <td className="py-2">
+                      <span
+                        className={`${badgeBase} ${
+                          p.activo ? badgeActive : badgeInactive
+                        }`}
+                      >
+                        {p.activo ? "Activo" : "Baja"}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right tabular-nums">{money(p.saldo)}</td>
+                    <td className="py-2 text-right tabular-nums">{money(p.cupo)}</td>
+                  </tr>
                 ))}
                 {padrones.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="py-6 text-center text-sm text-slate-500"
-                      >
-                        No hay padrones asociados
-                      </td>
-                    </tr>
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-sm text-neutral-500">
+                      No hay padrones asociados
+                    </td>
+                  </tr>
                 )}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-semibold text-slate-900">Coseguro</div>
-            <div className="mt-4 space-y-3 text-sm">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="text-base font-semibold text-neutral-900">Coseguro</div>
+          <div className="mt-4 space-y-3 text-sm">
             <div className="flex items-center justify-between">
-                <span className="text-slate-500">Estado</span>
-                <span
-                  className={`${badgeBase} ${
-                    coseguroEstado === "activo" ? badgeActive : badgeInactive
-                  }`}
-                >
-                  {coseguroEstado === "activo" ? "Activo" : "Baja"}
-                </span>
+              <span className="text-neutral-500">Estado</span>
+              <span
+                className={`${badgeBase} ${
+                  coseguroEstado === "activo" ? badgeActive : badgeInactive
+                }`}
+              >
+                {coseguroEstado === "activo" ? "Activo" : "Baja"}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-                <span className="text-slate-500">J22 base</span>
-                <span className="font-semibold">{money(coseguro?.precioBase ?? 0)}</span>
+              <span className="text-neutral-500">J22 base</span>
+              <span className="font-semibold">{money(coseguro?.precioBase ?? 0)}</span>
             </div>
             <div className="flex items-center justify-between">
-                <span className="text-slate-500">Padrón imputación</span>
-                <span className="font-semibold">{coseguroPadron?.padron || "—"}</span>
+              <span className="text-neutral-500">Padrón imputación</span>
+              <span className="font-semibold">{coseguroPadron?.padron || "—"}</span>
             </div>
-              <div className="h-px w-full bg-slate-100" />
-              <div className="text-xs text-slate-500">
-                Este panel refleja la configuración vigente del coseguro J22.
-              </div>
+            <div className="h-px w-full bg-neutral-100" />
+            <div className="text-xs text-neutral-500">
+              Este panel refleja la configuración vigente del coseguro J22.
             </div>
           </div>
+        </div>
       </section>
 
-        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-semibold text-slate-900">Grupo familiar</div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 text-left">Nombre</th>
-                    <th className="py-2 text-left">Parentesco</th>
-                    <th className="py-2 text-left">DNI</th>
-                    <th className="py-2 text-left">Fecha nac.</th>
-                    <th className="py-2 text-left">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+      {/* Grupo familiar + observaciones */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="text-base font-semibold text-neutral-900">Grupo familiar</div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-xs uppercase text-neutral-500">
+                <tr>
+                  <th className="py-2 text-left">Nombre</th>
+                  <th className="py-2 text-left">Parentesco</th>
+                  <th className="py-2 text-left">DNI</th>
+                  <th className="py-2 text-left">Fecha nac.</th>
+                  <th className="py-2 text-left">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
                 {familia.map((f) => (
-                    <tr key={String(f.id)} className="hover:bg-slate-50">
-                      <td className="py-2 font-semibold">
-                        {f.nombre || "—"}
-                      </td>
-                      <td className="py-2">
-                        {f.parentesco?.descripcion || f.parentesco?.codigo || "—"}
-                      </td>
-                      <td className="py-2">{formatDni(f.dni)}</td>
-                      <td className="py-2">{formatDate(f.fechaNacimiento)}</td>
-                      <td className="py-2">
-                        <span
-                          className={`${badgeBase} ${
-                            f.activo ? badgeActive : badgeInactive
-                          }`}
-                        >
-                          {f.activo ? "Activo" : "Baja"}
-                        </span>
-                      </td>
-                    </tr>
+                  <tr key={String(f.id)} className="hover:bg-neutral-50">
+                    <td className="py-2 font-semibold">{f.nombre || "—"}</td>
+                    <td className="py-2">
+                      {f.parentesco?.descripcion || f.parentesco?.codigo || "—"}
+                    </td>
+                    <td className="py-2">{formatDni(f.dni)}</td>
+                    <td className="py-2">{formatDate(f.fechaNacimiento)}</td>
+                    <td className="py-2">
+                      <span
+                        className={`${badgeBase} ${
+                          f.activo ? badgeActive : badgeInactive
+                        }`}
+                      >
+                        {f.activo ? "Activo" : "Baja"}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
                 {familia.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="py-6 text-center text-sm text-slate-500"
-                      >
-                        Sin integrantes cargados
-                      </td>
-                    </tr>
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-sm text-neutral-500">
+                      Sin integrantes cargados
+                    </td>
+                  </tr>
                 )}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-base font-semibold text-slate-900">Observaciones</div>
-            <div className="mt-4 text-sm text-slate-700">
-              {afiliado.observaciones ? (
-                <p className="whitespace-pre-line">{afiliado.observaciones}</p>
-              ) : (
-                <span className="text-slate-500">Sin observaciones</span>
-              )}
-            </div>
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="text-base font-semibold text-neutral-900">Observaciones</div>
+          <div className="mt-4 text-sm text-neutral-700">
+            {afiliado.observaciones ? (
+              <p className="whitespace-pre-line">{afiliado.observaciones}</p>
+            ) : (
+              <span className="text-neutral-500">Sin observaciones</span>
+            )}
           </div>
+        </div>
       </section>
 
-        <section className="mt-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-base font-semibold text-slate-900">
-                Últimos movimientos
-              </div>
-              <a
-                className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
-                href={`/movimientos?afiliadoId=${afiliado.id}`}
-              >
-                Ver cuenta completa
-              </a>
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 text-left">Fecha</th>
-                    <th className="py-2 text-left">Concepto</th>
-                    <th className="py-2 text-right">Debe</th>
-                    <th className="py-2 text-right">Haber</th>
-                    <th className="py-2 text-right">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+      {/* Últimos movimientos */}
+      <section>
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-base font-semibold text-neutral-900">Últimos movimientos</div>
+            <a
+              className="inline-flex items-center rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800"
+              href={`/afiliados/${afiliado.id}/cuenta-corriente`}
+            >
+              Ver cuenta corriente
+            </a>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-xs uppercase text-neutral-500">
+                <tr>
+                  <th className="py-2 text-left">Fecha</th>
+                  <th className="py-2 text-left">Padrón</th>
+                  <th className="py-2 text-left">Concepto</th>
+                  <th className="py-2 text-right">Debe</th>
+                  <th className="py-2 text-right">Haber</th>
+                  <th className="py-2 text-right">Saldo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
                 {movs.map((m) => {
                   const isDeb = m.naturaleza === "debito";
+                  const padronStr = m.padronId
+                    ? padronesMap.get(String(m.padronId))
+                    : null;
                   return (
-                    <tr key={m.id} className="hover:bg-slate-50">
+                    <tr key={m.id} className="hover:bg-neutral-50">
                       <td className="py-2">{formatDate(m.fecha)}</td>
+                      <td className="py-2 font-mono text-xs text-neutral-600">
+                        {padronStr ?? "—"}
+                      </td>
                       <td className="py-2">
                         <div className="font-semibold" title={m.concepto}>
                           {m.concepto}
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-neutral-500">
                           {m.origen.replace(/_/g, " ")}
                         </div>
                       </td>
@@ -593,20 +490,25 @@ export default function AfiliadoDetallePage() {
                 })}
                 {movs.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="py-6 text-center text-sm text-slate-500"
-                    >
+                    <td colSpan={6} className="py-6 text-center text-sm text-neutral-500">
                       Sin movimientos registrados
                     </td>
                   </tr>
                 )}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </table>
           </div>
-        </section>
-      </div>
-    </section>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs text-neutral-500">{label}</div>
+      <div className="font-semibold text-neutral-900">{value}</div>
+    </div>
   );
 }

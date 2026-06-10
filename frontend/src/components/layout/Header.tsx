@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect } from "react";
-import { Menu, PanelLeftClose, PanelLeft, Search } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeft, Search, Building2 } from "lucide-react";
 import Breadcrumbs from "./Breadcrumbs";
 import CommandPalette from "./CommandPalette";
 import UserMenu from "../auth/UserMenu";
@@ -37,10 +37,12 @@ export default function Header({
   }, [onToggleSidebar]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-neutral-200/90 bg-white shadow-sm backdrop-blur-sm">
-      <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-5">
-        {/* Izquierda: menú móvil + logo + badge + toggle sidebar */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-3">
+    <header
+      className={`fixed top-0 right-0 z-50 h-14 border-b border-neutral-200/80 bg-white/85 backdrop-blur-md transition-[left] duration-300 ease-in-out left-0 ${sidebarCollapsed ? "lg:left-[72px]" : "lg:left-64"}`}
+    >
+      <div className="flex h-full items-center justify-between gap-3 px-4 lg:px-6">
+        {/* Izquierda: toggle móvil + toggle desktop + breadcrumbs */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -51,67 +53,10 @@ export default function Header({
             <Menu className="size-5" />
           </Button>
 
-          <Link
-            href="/"
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 transition-colors hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2"
-          >
-            <span className="text-sm font-semibold tracking-tight text-white">
-              PGG 2025
-            </span>
-          </Link>
-
-          <span className="hidden shrink-0 items-center rounded-full bg-medical-100 px-2.5 py-0.5 text-xs font-medium text-medical-800 lg:inline-flex">
-            Sistema Interno
-          </span>
-
-          <div className="hidden h-5 w-px shrink-0 bg-neutral-200 lg:block" />
-
-          {/* Breadcrumbs centrados en desktop */}
-          <div className="hidden min-w-0 flex-1 justify-center pl-2 lg:flex">
-            <Breadcrumbs />
-          </div>
-        </div>
-
-        {/* Derecha: org selector, búsqueda, usuario */}
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          {isSuperadmin && organizaciones && organizaciones.length > 0 && (
-            <select
-              value={selectedOrgId ?? usuario?.organizacionId ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                const mine = usuario?.organizacionId ?? "";
-                setSelectedOrgId?.(v === mine || !v ? null : v);
-              }}
-              className="hidden max-w-[180px] rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-medical-500 lg:block"
-              title="Actuar como organización"
-            >
-              <option value={usuario?.organizacionId ?? ""}>Mi org</option>
-              {organizaciones
-                .filter((o) => o.id !== usuario?.organizacionId)
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.nombre}
-                  </option>
-                ))}
-            </select>
-          )}
-
           <Button
             variant="ghost"
             size="icon"
-            className="hidden size-9 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 lg:flex"
-            onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
-            aria-label="Buscar (Ctrl+K)"
-          >
-            <Search className="size-4" />
-          </Button>
-
-          <CommandPalette />
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden size-9 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 lg:flex"
+            className="hidden shrink-0 size-9 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 lg:flex"
             onClick={onToggleSidebar}
             aria-label={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
             title="Colapsar menú (Ctrl+B)"
@@ -122,6 +67,70 @@ export default function Header({
               <PanelLeftClose className="size-4" />
             )}
           </Button>
+
+          <div className="hidden h-5 w-px shrink-0 bg-neutral-200 lg:block" />
+
+          <div className="min-w-0 flex-1 pl-1">
+            <Breadcrumbs />
+          </div>
+        </div>
+
+        {/* Derecha: org selector, búsqueda, usuario */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {isSuperadmin && organizaciones && organizaciones.length > 0 && (
+            <div className="hidden lg:flex items-center">
+              <div className="relative">
+                <Building2 className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                <select
+                  value={selectedOrgId ?? usuario?.organizacionId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const mine = usuario?.organizacionId ?? "";
+                    setSelectedOrgId?.(v === mine || !v ? null : v);
+                  }}
+                  className="max-w-[200px] cursor-pointer rounded-lg border border-neutral-200 bg-neutral-50/80 py-1.5 pl-8 pr-3 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 focus:border-medical-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-medical-500/30"
+                  title="Actuar como organización"
+                >
+                  <option value={usuario?.organizacionId ?? ""}>Mi organización</option>
+                  {organizaciones
+                    .filter((o) => o.id !== usuario?.organizacionId)
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.nombre}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden h-9 gap-2 rounded-lg border border-neutral-200/80 bg-neutral-50/80 px-3 text-xs font-medium text-neutral-500 hover:border-neutral-300 hover:bg-white hover:text-neutral-700 lg:flex"
+            onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
+            aria-label="Buscar (Ctrl+K)"
+          >
+            <Search className="size-4" />
+            <span>Buscar…</span>
+            <kbd className="ml-2 hidden items-center gap-1 rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500 xl:inline-flex">
+              Ctrl K
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 lg:hidden"
+            onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
+            aria-label="Buscar (Ctrl+K)"
+          >
+            <Search className="size-4" />
+          </Button>
+
+          <CommandPalette />
+
+          <div className="hidden h-5 w-px shrink-0 bg-neutral-200 lg:block" />
 
           <UserMenu />
         </div>

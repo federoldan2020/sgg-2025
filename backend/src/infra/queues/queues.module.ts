@@ -7,7 +7,6 @@ import { PublicacionesProcessor } from './procesadores/publicaciones.processor';
 import { PadronesProcessor } from './procesadores/padrones.processor';
 import { QueuesHealthIndicator } from './observabilidad/queues.health';
 import { PrismaService } from '../../common/prisma.service'; // ⬅️ Agregar
-import { NovedadesModule } from 'src/modulos/novedades/novedades.module';
 
 @Module({
   imports: [
@@ -30,8 +29,6 @@ import { NovedadesModule } from 'src/modulos/novedades/novedades.module';
         backoff: { type: 'exponential', delay: 1500 },
       },
     }),
-    // ⬇️ NUEVO: habilita DI de NovedadesService SIN tocar su implementación
-    NovedadesModule,
   ],
   providers: [
     PrismaService, // ⬅️ Necesario para inyección en processors
