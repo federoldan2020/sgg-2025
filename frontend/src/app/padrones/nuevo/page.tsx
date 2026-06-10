@@ -30,7 +30,6 @@ import {
   CreditCard,
 } from "lucide-react";
 import { usePadronMask } from "@/hooks/usePadronMask";
-import { PageHeader } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -506,15 +505,13 @@ export default function NuevoPadronPage() {
   const padronEnabled = !!(afiliado || sinResultadosDniExacto);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
-        title="Alta de Afiliado / Padrón"
-        subtitle="Busque un afiliado existente o cree uno nuevo junto con su padrón"
-      >
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold text-neutral-900">Nuevo padrón</h1>
         <Button variant="outline" size="sm" asChild>
           <Link href="/afiliados">Volver al listado</Link>
         </Button>
-      </PageHeader>
+      </div>
 
       {messageInfo && (
         <div
@@ -547,13 +544,13 @@ export default function NuevoPadronPage() {
           <CardDescription className="text-sm text-neutral-500">Ingrese DNI, apellido o nombre. Si no existe, podrá crear uno nuevo.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative max-w-md">
+          <div className="relative w-full">
             <Label htmlFor="buscador">Búsqueda</Label>
             <div className="relative mt-1.5">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
               <Input
                 id="buscador"
-                className={`${fc} pl-9`}
+                className={`${fc} w-full pl-9`}
                 placeholder="Ej: 30123456 o Gomez Juan"
                 value={buscador}
                 onChange={(e) => setBuscador(e.target.value)}
