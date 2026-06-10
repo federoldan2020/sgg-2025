@@ -1,11 +1,12 @@
 import { Controller, Post, Get, Body, Query, Req } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { Public } from '../auth/decorators/public.decorator';
-const prisma = new PrismaClient();
+import { PrismaService } from '../../common/prisma.service';
 
 @Controller('obligaciones')
 @Public() // Temporalmente público para testing
 export class ObligacionesController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Post()
   async crear(
     @Req() req,
@@ -21,11 +22,11 @@ export class ObligacionesController {
   ) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
-    const concepto = await prisma.concepto.findFirst({
+    const concepto = await this.prisma.concepto.findFirst({
       where: { organizacionId: org, codigo: dto.conceptoCodigo },
     });
     if (!concepto) throw new Error('Concepto no encontrado');
-    return prisma.obligacion.create({
+    return this.prisma.obligacion.create({
       data: {
         organizacionId: org,
         afiliadoId: BigInt(dto.afiliadoId),
@@ -43,7 +44,7 @@ export class ObligacionesController {
   async porAfiliado(@Req() req, @Query('afiliadoId') afiliadoId: string) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
-    return prisma.obligacion.findMany({
+    return this.prisma.obligacion.findMany({
       where: { organizacionId: org, afiliadoId: BigInt(afiliadoId) },
       include: { concepto: true, padron: true },
     });
@@ -72,7 +73,7 @@ export class ObligacionesController {
       whereObl.padronId = BigInt(padronId);
     }
 
-    const obligaciones = await prisma.obligacion.findMany({
+    const obligaciones = await this.prisma.obligacion.findMany({
       where: whereObl,
       include: {
         concepto: { select: { codigo: true, nombre: true } },
@@ -98,7 +99,7 @@ export class ObligacionesController {
       whereOrden.padronId = BigInt(padronId);
     }
 
-    const ordenes = await prisma.ordenCredito.findMany({
+    const ordenes = await this.prisma.ordenCredito.findMany({
       where: whereOrden,
       include: {
         padron: { select: { id: true, padron: true, sistema: true, centro: true } },

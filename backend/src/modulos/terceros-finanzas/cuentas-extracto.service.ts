@@ -1,8 +1,7 @@
 // src/modulos/terceros-finanzas/cuentas-extracto.service.ts
 import { Injectable } from '@nestjs/common';
-import { Prisma, PrismaClient, RolTercero } from '@prisma/client';
-
-const prisma = new PrismaClient(); // (ideal: singleton compartido)
+import { Prisma, RolTercero } from '@prisma/client';
+import { PrismaService } from '../../common/prisma.service';
 
 type ExtractoOpts = {
   organizacionId: string;
@@ -13,6 +12,8 @@ type ExtractoOpts = {
 
 @Injectable()
 export class CuentasExtractoService {
+  constructor(private readonly prisma: PrismaService) {}
+
   private toNum(v?: Prisma.Decimal | null) {
     return v ? Number(v.toString()) : 0;
   }
@@ -30,7 +31,7 @@ export class CuentasExtractoService {
     const hasta = opts.hasta ?? new Date();
 
     // Header (incluye tercero)
-    const cta = await prisma.cuentaTercero.findUnique({
+    const cta = await this.prisma.cuentaTercero.findUnique({
       where: { id: cuentaId },
       select: {
         id: true,
@@ -49,7 +50,7 @@ export class CuentasExtractoService {
 
     // Saldo inicial del período = último saldoPosterior anterior (si existe),
     // si no, tomo saldoInicial de la cuenta.
-    const movPrevio = await prisma.movimientoCuentaTercero.findFirst({
+    const movPrevio = await this.prisma.movimientoCuentaTercero.findFirst({
       where: { cuentaId, fecha: { lt: desde } },
       orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
       select: { saldoPosterior: true },
@@ -61,7 +62,7 @@ export class CuentasExtractoService {
         : this.toNum(cta.saldoInicial);
 
     // Movimientos del rango (en orden)
-    const movsDb = await prisma.movimientoCuentaTercero.findMany({
+    const movsDb = await this.prisma.movimientoCuentaTercero.findMany({
       where: { cuentaId, fecha: { gte: desde, lte: hasta } },
       orderBy: [{ fecha: 'asc' }, { id: 'asc' }],
       select: {
@@ -117,7 +118,7 @@ export class CuentasExtractoService {
   }
 
   async listarCuentasDeTercero(organizacionId: string, terceroId: bigint, rol: RolTercero | null) {
-    const cuentas = await prisma.cuentaTercero.findMany({
+    const cuentas = await this.prisma.cuentaTercero.findMany({
       where: { organizacionId, terceroId, ...(rol ? { rol } : {}) },
       orderBy: [{ rol: 'asc' }],
       select: {
@@ -129,7 +130,7 @@ export class CuentasExtractoService {
       },
     });
 
-    const ter = await prisma.tercero.findUnique({
+    const ter = await this.prisma.tercero.findUnique({
       where: { id: terceroId },
       select: { id: true, nombre: true, cuit: true },
     });

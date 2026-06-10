@@ -1,9 +1,8 @@
 // src/modulos/contabilidad/contabilidad.service.ts
 import { Injectable } from '@nestjs/common';
-import { Prisma, PrismaClient, type Asiento } from '@prisma/client';
+import { Prisma, type Asiento } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
-
-const prisma = new PrismaClient();
+import { PrismaService } from '../../common/prisma.service';
 
 type LineaAsientoInput = { cuenta: string; debe: number; haber: number };
 
@@ -54,9 +53,11 @@ const whereOrgCodigo = (
 
 @Injectable()
 export class ContabilidadService {
+  constructor(private readonly prisma: PrismaService) {}
+
   // === Plan de Cuentas ===
   async listarPlan(organizacionId: string) {
-    return prisma.cuentaContable.findMany({
+    return this.prisma.cuentaContable.findMany({
       where: { organizacionId },
       orderBy: [{ codigo: 'asc' }],
       select: {
@@ -75,7 +76,7 @@ export class ContabilidadService {
     organizacionId: string,
     data: { codigo: string; nombre: string; tipo: string; padreId?: bigint | null },
   ) {
-    return prisma.cuentaContable.create({
+    return this.prisma.cuentaContable.create({
       data: {
         organizacionId,
         codigo: data.codigo,
@@ -88,7 +89,7 @@ export class ContabilidadService {
 
   // === Mapeos (MVP: los que ya usaba caja) ===
   async listarMapeos(organizacionId: string) {
-    return prisma.cuentaMapeo.findMany({
+    return this.prisma.cuentaMapeo.findMany({
       where: { organizacionId, activo: true },
       orderBy: [{ origen: 'asc' }, { conceptoCodigo: 'asc' }, { metodoPago: 'asc' }],
       select: {
@@ -115,7 +116,7 @@ export class ContabilidadService {
       descripcion?: string | null;
     },
   ) {
-    const existente = await prisma.cuentaMapeo.findFirst({
+    const existente = await this.prisma.cuentaMapeo.findFirst({
       where: {
         organizacionId,
         origen: data.origen,
@@ -126,7 +127,7 @@ export class ContabilidadService {
     });
 
     if (existente) {
-      return prisma.cuentaMapeo.update({
+      return this.prisma.cuentaMapeo.update({
         where: { id: existente.id },
         data: {
           debeCodigo: data.debeCodigo,
@@ -137,7 +138,7 @@ export class ContabilidadService {
       });
     }
 
-    return prisma.cuentaMapeo.create({
+    return this.prisma.cuentaMapeo.create({
       data: {
         organizacionId,
         origen: data.origen,
@@ -152,9 +153,9 @@ export class ContabilidadService {
   }
 
   async toggleMapeo(organizacionId: string, id: bigint, activo: boolean) {
-    const m = await prisma.cuentaMapeo.findUnique({ where: { id } });
+    const m = await this.prisma.cuentaMapeo.findUnique({ where: { id } });
     if (!m || m.organizacionId !== organizacionId) throw new Error('Mapeo inexistente');
-    return prisma.cuentaMapeo.update({ where: { id }, data: { activo } });
+    return this.prisma.cuentaMapeo.update({ where: { id }, data: { activo } });
   }
 
   // === Asientos (firma compatible con CajaController) ===
@@ -196,7 +197,7 @@ export class ContabilidadService {
       conceptoCodigo?: string | null;
       metodoPago?: string | null;
     }) =>
-      prisma.cuentaMapeo.findFirst({
+      this.prisma.cuentaMapeo.findFirst({
         where: {
           organizacionId,
           origen: 'pago_caja',
@@ -259,7 +260,7 @@ export class ContabilidadService {
 
     const porCodigo = new Map<string, bigint>();
 
-    return prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       // padres
       const padres = entradas.filter((e) => e.subcta === '000');
       for (const e of padres) {
@@ -337,7 +338,7 @@ export class ContabilidadService {
 
   // === Plan en árbol (para el front) ===
   async planComoArbol(organizacionId: string): Promise<CuentaNodo[]> {
-    const flat = await prisma.cuentaContable.findMany({
+    const flat = await this.prisma.cuentaContable.findMany({
       where: { organizacionId },
       orderBy: [{ codigo: 'asc' }],
       select: { id: true, codigo: true, nombre: true, tipo: true, imputable: true, padreId: true },
@@ -374,7 +375,7 @@ export class ContabilidadService {
 
     // mapeo específico por cierre_caja + concepto (sobrante/faltante) + método (opcional)
     const tryFind = async (conceptoCodigo: 'sobrante' | 'faltante') =>
-      prisma.cuentaMapeo.findFirst({
+      this.prisma.cuentaMapeo.findFirst({
         where: {
           organizacionId,
           origen: 'cierre_caja',
@@ -434,7 +435,7 @@ export class ContabilidadService {
 
   // === Helpers de cuentas para mapeos (autocompletado/validación) ===
   async findCuentaPorCodigo(organizacionId: string, codigo: string) {
-    return prisma.cuentaContable.findUnique({
+    return this.prisma.cuentaContable.findUnique({
       where: { org_codigo_cuenta: { organizacionId, codigo } },
       select: { id: true, codigo: true, nombre: true, imputable: true },
     });
@@ -459,7 +460,7 @@ export class ContabilidadService {
       ...(imputableOnly ? { imputable: true } : {}),
     };
 
-    return prisma.cuentaContable.findMany({
+    return this.prisma.cuentaContable.findMany({
       where,
       orderBy: [{ codigo: 'asc' }],
       take: limit,
@@ -503,20 +504,20 @@ export class ContabilidadService {
     };
 
     const [items, total] = await Promise.all([
-      prisma.cuentaMapeo.findMany({
+      this.prisma.cuentaMapeo.findMany({
         where,
         orderBy: [{ origen: 'asc' }, { conceptoCodigo: 'asc' }, { metodoPago: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.cuentaMapeo.count({ where }),
+      this.prisma.cuentaMapeo.count({ where }),
     ]);
 
     return { items, total, page, pageSize, pages: Math.ceil(total / pageSize) };
   }
 
   async obtenerMapeo(organizacionId: string, id: bigint) {
-    const m = await prisma.cuentaMapeo.findUnique({ where: { id } });
+    const m = await this.prisma.cuentaMapeo.findUnique({ where: { id } });
     if (!m || m.organizacionId !== organizacionId) throw new Error('Mapeo inexistente');
     return m;
   }
@@ -556,7 +557,7 @@ export class ContabilidadService {
 
     await this.validarCuentas(organizacionId, payload.debeCodigo, payload.haberCodigo);
 
-    return prisma.cuentaMapeo.create({
+    return this.prisma.cuentaMapeo.create({
       data: { organizacionId, ...payload, activo: true },
     });
   }
@@ -589,19 +590,19 @@ export class ContabilidadService {
 
     await this.validarCuentas(organizacionId, payload.debeCodigo, payload.haberCodigo);
 
-    return prisma.cuentaMapeo.update({ where: { id }, data: payload });
+    return this.prisma.cuentaMapeo.update({ where: { id }, data: payload });
   }
 
   async eliminarMapeo(organizacionId: string, id: bigint) {
     await this.obtenerMapeo(organizacionId, id);
-    await prisma.cuentaMapeo.delete({ where: { id } });
+    await this.prisma.cuentaMapeo.delete({ where: { id } });
     return { ok: true };
   }
 
   // ASIENTOS CONTABLES LISTADOS EN FRONT
   // === Asientos: detalle ===
   async obtenerAsientoDetalle(organizacionId: string, id: bigint) {
-    const a = await prisma.asiento.findUnique({
+    const a = await this.prisma.asiento.findUnique({
       where: { id },
       select: {
         id: true,
@@ -673,7 +674,7 @@ export class ContabilidadService {
     };
 
     const [items, total] = await Promise.all([
-      prisma.asiento.findMany({
+      this.prisma.asiento.findMany({
         where,
         orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
@@ -687,7 +688,7 @@ export class ContabilidadService {
           lineas: { select: { debe: true, haber: true } },
         },
       }),
-      prisma.asiento.count({ where }),
+      this.prisma.asiento.count({ where }),
     ]);
 
     const rows = items.map((a) => {
@@ -735,7 +736,7 @@ export class ContabilidadService {
   }
 
   async obtenerAsiento(organizacionId: string, id: bigint) {
-    const a = await prisma.asiento.findUnique({
+    const a = await this.prisma.asiento.findUnique({
       where: { id },
       include: { lineas: { select: { id: true, cuenta: true, debe: true, haber: true } } },
     });
@@ -789,7 +790,7 @@ export class ContabilidadService {
     params: { conceptoCodigo: string; monto: number },
   ): Promise<LineaAsientoInput[] | null> {
     const { conceptoCodigo, monto } = params;
-    const db = tx ?? prisma;
+    const db = tx ?? this.prisma;
 
     // Buscar mapeo específico por código
     let mapeo = await db.cuentaMapeo.findFirst({
@@ -946,7 +947,7 @@ export class ContabilidadService {
     rol?: string | null,
   ) {
     const tryFind = async (conceptoCodigo: string | null) =>
-      prisma.cuentaMapeo.findFirst({
+      this.prisma.cuentaMapeo.findFirst({
         where: { organizacionId, origen, activo: true, conceptoCodigo },
         select: { debeCodigo: true, haberCodigo: true },
       });

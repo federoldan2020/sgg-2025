@@ -29,6 +29,7 @@ import { HealthModule } from './health/health.module';
 import { DashboardController } from './modulos/dashboard/dashboard.controller';
 import { SuspensionesModule } from './modulos/suspensiones/suspensiones.module';
 import { CupoModule } from './modulos/cupo/cupo.module';
+import { PrismaService } from './common/prisma.service';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { CupoModule } from './modulos/cupo/cupo.module';
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    PrismaService,
   ],
 })
 export class AppModule implements NestModule {

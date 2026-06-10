@@ -1,19 +1,20 @@
 // src/modulos/impresion/comprobantes-impresos.service.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { ImpresionService, ImprimirComprobanteDto } from './impresion.service';
+import { PrismaService } from '../../common/prisma.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-const prisma = new PrismaClient();
-
 @Injectable()
 export class ComprobantesImpresosService {
-  constructor(private impresion: ImpresionService) {}
+  constructor(
+    private impresion: ImpresionService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async resolveOrgFor(comprobanteId: string): Promise<string | null> {
-    const r = await prisma.comprobante.findUnique({
+    const r = await this.prisma.comprobante.findUnique({
       where: { id: comprobanteId },
       select: { organizacionId: true },
     });
@@ -50,7 +51,7 @@ export class ComprobantesImpresosService {
   }
 
   async getPdf(organizacionId: string, id: string) {
-    const comp = await prisma.comprobante.findFirst({
+    const comp = await this.prisma.comprobante.findFirst({
       where: { id, organizacionId },
       select: {
         id: true,
@@ -148,7 +149,7 @@ export class ComprobantesImpresosService {
     const { buffer, filename } = await this.impresion.render(comp.organizacionId, dto);
     const saved = await this.savePdf(buffer as unknown as Buffer, filename);
 
-    await prisma.comprobante.update({
+    await this.prisma.comprobante.update({
       where: { id: comp.id },
       data: { pdfStorageKey: saved.storageKey, pdfHash: saved.hash },
     });

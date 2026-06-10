@@ -9,6 +9,7 @@ import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { CuentasExtractoController } from './cuentas-extracto.controller';
 import { CuentasExtractoService } from './cuentas-extracto.service';
 import { ImpresionService } from '../impresion/impresion.service';
+import { PrismaService } from '../../common/prisma.service';
 
 @Module({
   providers: [
@@ -18,6 +19,7 @@ import { ImpresionService } from '../impresion/impresion.service';
     ContabilidadService,
     CuentasExtractoService,
     ImpresionService,
+    PrismaService,
   ],
   controllers: [ComprobantesController, OrdenesPagoController, CuentasExtractoController],
   exports: [CuentasService, ComprobantesService, OrdenesPagoService, CuentasExtractoService],

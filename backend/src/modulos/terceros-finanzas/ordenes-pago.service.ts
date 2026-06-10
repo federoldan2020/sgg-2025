@@ -2,7 +2,6 @@
 // src/modulos/terceros-finanzas/ordenes-pago.service.ts
 import { Injectable } from '@nestjs/common';
 import {
-  PrismaClient,
   Prisma,
   RolTercero,
   MetodoPagoOP,
@@ -18,12 +17,11 @@ import { CuentasService } from './cuentas.service';
 import { D } from './money';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { ImpresionService, ImprimirComprobanteDto } from '../impresion/impresion.service';
+import { PrismaService } from '../../common/prisma.service';
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 // Numeración pública/visible para OP (misma para cabecera y comprobante)
 const SERIE_OP = 'OP';
@@ -43,6 +41,7 @@ export class OrdenesPagoService {
     private cuentas: CuentasService,
     private contab: ContabilidadService,
     private impresion: ImpresionService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /* ===================== Helpers ===================== */
@@ -264,7 +263,7 @@ export class OrdenesPagoService {
       throw new Error('El total de métodos debe igualar el total aplicado.');
     }
 
-    return prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const terceroId = BigInt(String(dto.terceroId));
       const cuentaId = await this.cuentas.ensureCuenta(tx, dto.organizacionId, terceroId, dto.rol);
 
@@ -650,7 +649,7 @@ export class OrdenesPagoService {
     };
 
     const [items, total] = await Promise.all([
-      prisma.ordenPagoTercero.findMany({
+      this.prisma.ordenPagoTercero.findMany({
         where,
         orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
@@ -667,7 +666,7 @@ export class OrdenesPagoService {
           tercero: { select: { id: true, nombre: true, cuit: true } },
         },
       }),
-      prisma.ordenPagoTercero.count({ where }),
+      this.prisma.ordenPagoTercero.count({ where }),
     ]);
 
     return { items, total, page, pageSize, pages: Math.ceil(total / pageSize) };
@@ -676,7 +675,7 @@ export class OrdenesPagoService {
   /* ===================== Anular ===================== */
 
   async anular(organizacionId: string, ordenId: bigint) {
-    return prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const op = await tx.ordenPagoTercero.findFirst({
         where: { id: ordenId, organizacionId, estado: { in: [EstadoOrdenPago.confirmado] } },
         include: {

@@ -1,9 +1,6 @@
 // src/modulos/nomina/nomina.service.ts
 import { Injectable } from '@nestjs/common';
-// Recomendado: usar un singleton compartido
-// import { prisma } from '../../prisma';
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { PrismaService } from '../../common/prisma.service';
 
 type PreviewDto = {
   periodo: string;
@@ -20,9 +17,11 @@ type PreviewDto = {
 
 @Injectable()
 export class NominaService {
+  constructor(private readonly prisma: PrismaService) {}
+
   async preview(orgId: string, dto: PreviewDto) {
     if (dto.hash) {
-      const yaExiste = await prisma.loteNomina.findFirst({
+      const yaExiste = await this.prisma.loteNomina.findFirst({
         where: { organizacionId: orgId, periodo: dto.periodo, hashContenido: dto.hash },
         select: { id: true, estado: true },
       });
@@ -49,7 +48,7 @@ export class NominaService {
       if (typeof it.afiliadoId === 'number' && !Number.isNaN(it.afiliadoId)) {
         afiliadoIdBig = BigInt(it.afiliadoId);
       } else if (typeof it.dni === 'number' && !Number.isNaN(it.dni)) {
-        const af = await prisma.afiliado.findFirst({
+        const af = await this.prisma.afiliado.findFirst({
           where: { organizacionId: orgId, dni: BigInt(it.dni) },
           select: { id: true },
         });
@@ -66,7 +65,7 @@ export class NominaService {
       });
     }
 
-    const lote = await prisma.loteNomina.create({
+    const lote = await this.prisma.loteNomina.create({
       data: {
         organizacionId: orgId,
         periodo: dto.periodo,
@@ -99,7 +98,7 @@ export class NominaService {
 
   async confirmar(orgId: string, loteIdNum: number) {
     const loteId = BigInt(loteIdNum);
-    const lote = await prisma.loteNomina.findFirstOrThrow({
+    const lote = await this.prisma.loteNomina.findFirstOrThrow({
       where: { id: loteId, organizacionId: orgId },
       include: { detalles: true },
     });
@@ -108,7 +107,7 @@ export class NominaService {
       return { ok: true, mensaje: 'Lote ya confirmado', loteId: lote.id.toString() };
     }
 
-    await prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       await tx.loteNomina.update({
         where: { id: lote.id },
         data: { estado: 'confirmado' },

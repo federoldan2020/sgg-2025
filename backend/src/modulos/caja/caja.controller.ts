@@ -1,6 +1,7 @@
 // src/modulos/caja/caja.controller.ts
 import { Controller, Post, Body, Req, Get, BadRequestException, Param, Logger } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../common/prisma.service';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { MovimientosService } from '../movimientos/movimientos.service';
 import { CoberturaService } from '../suspensiones/cobertura.service';
@@ -10,8 +11,6 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuditService } from '../../common/audit.service';
 import type { Usuario } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 type MetodoDto = { metodo: string; monto: number; ref?: string };
 type AplicacionDto = { 
@@ -32,6 +31,7 @@ export class CajaController {
     private readonly cobertura: CoberturaService,
     private readonly suspensiones: SuspensionesService,
     private readonly coseguro: CoseguroService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -72,14 +72,14 @@ export class CajaController {
     const org = req.organizacionId;
     if (!org) throw new BadRequestException('Falta organización');
 
-    const last = await prisma.caja.findFirst({
+    const last = await this.prisma.caja.findFirst({
       where: { organizacionId: org },
       orderBy: { id: 'desc' },
       select: { id: true, sede: true },
     });
     if (!last) return { abierta: false, cajaId: null, sede: null };
 
-    const cierre = await prisma.asiento.findFirst({
+    const cierre = await this.prisma.asiento.findFirst({
       where: {
         organizacionId: org,
         origen: 'cierre_caja',
@@ -100,7 +100,7 @@ export class CajaController {
   ) {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
-    const caja = await prisma.caja.create({ data: { organizacionId: org, sede: dto.sede ?? null } });
+    const caja = await this.prisma.caja.create({ data: { organizacionId: org, sede: dto.sede ?? null } });
     if (user) {
       await this.audit.log({
         usuarioId: user.id.toString(),
@@ -137,7 +137,7 @@ export class CajaController {
       throw new Error('La suma de métodos debe igualar la suma aplicada');
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const pago = await tx.pago.create({
         data: {
           organizacionId: org,
@@ -590,7 +590,7 @@ export class CajaController {
     orgId: string,
     afiliadoId: bigint,
   ): Promise<void> {
-    const cos = await prisma.coseguroAfiliado.findFirst({
+    const cos = await this.prisma.coseguroAfiliado.findFirst({
       where: { organizacionId: orgId, afiliadoId },
       select: {
         id: true,
@@ -604,13 +604,13 @@ export class CajaController {
     if (cos.origenBaja !== 'auto_3m_sin_j22') return;
     if (!cos.imputacionPadronIdCoseguro) return;
 
-    const conceptoJ22 = await prisma.concepto.findFirst({
+    const conceptoJ22 = await this.prisma.concepto.findFirst({
       where: { organizacionId: orgId, codigo: 'COSEGURO' },
       select: { id: true },
     });
     if (!conceptoJ22) return;
 
-    const tieneJ22Abiertas = await prisma.obligacion.findFirst({
+    const tieneJ22Abiertas = await this.prisma.obligacion.findFirst({
       where: {
         organizacionId: orgId,
         afiliadoId,
@@ -654,7 +654,7 @@ export class CajaController {
       .filter((a) => a.obligacionId)
       .map((a) => BigInt(a.obligacionId!));
     if (oblIds.length > 0) {
-      const obls = await prisma.obligacion.findMany({
+      const obls = await this.prisma.obligacion.findMany({
         where: { id: { in: oblIds }, organizacionId: orgId },
         select: { periodo: true },
       });
@@ -664,7 +664,7 @@ export class CajaController {
       .filter((a) => a.cuotaId)
       .map((a) => BigInt(a.cuotaId!));
     if (cuotaIds.length > 0) {
-      const cuotas = await prisma.ordenCreditoCuota.findMany({
+      const cuotas = await this.prisma.ordenCreditoCuota.findMany({
         where: { id: { in: cuotaIds } },
         select: { periodoVenc: true },
       });
@@ -682,7 +682,7 @@ export class CajaController {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
-    const pago = await prisma.pago.findUnique({
+    const pago = await this.prisma.pago.findUnique({
       where: {
         id: BigInt(pagoId),
         organizacionId: org,
@@ -722,7 +722,7 @@ export class CajaController {
     const itemsAgregados = new Set<string>(); // Para evitar duplicados
 
     // Obtener TODOS los movimientos relacionados con este pago (fuente de verdad)
-    const movimientos = await prisma.movimientoAfiliado.findMany({
+    const movimientos = await this.prisma.movimientoAfiliado.findMany({
       where: {
         organizacionId: org,
         pagoId: BigInt(pagoId),
@@ -743,7 +743,7 @@ export class CajaController {
 
     // Obtener cuotas con sus órdenes
     const cuotas = cuotaIds.length > 0
-      ? await prisma.ordenCreditoCuota.findMany({
+      ? await this.prisma.ordenCreditoCuota.findMany({
           where: { id: { in: cuotaIds } },
           include: {
             orden: {
@@ -760,7 +760,7 @@ export class CajaController {
 
     // Obtener obligaciones con sus conceptos
     const obligaciones = obligacionIds.length > 0
-      ? await prisma.obligacion.findMany({
+      ? await this.prisma.obligacion.findMany({
           where: { id: { in: obligacionIds } },
           include: {
             concepto: true,
@@ -871,7 +871,7 @@ export class CajaController {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
-    const pago = await prisma.pago.findUnique({
+    const pago = await this.prisma.pago.findUnique({
       where: {
         id: BigInt(pagoId),
         organizacionId: org,
@@ -933,7 +933,7 @@ export class CajaController {
     const org = req.organizacionId;
     if (!org) throw new Error('Falta organización');
 
-    return prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       // --- MODO 2: lote por método
       if ('items' in body && Array.isArray(body.items) && body.items.length > 0) {
         const itemsValidos = (body.items ?? [])

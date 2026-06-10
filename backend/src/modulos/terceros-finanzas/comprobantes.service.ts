@@ -1,14 +1,13 @@
 // src/modulos/terceros-finanzas/comprobantes.service.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaClient, Prisma, EstadoComprobanteTercero, RolTercero, ReintegroEstado, TipoComprobanteTercero } from '@prisma/client';
+import { Prisma, EstadoComprobanteTercero, RolTercero, ReintegroEstado, TipoComprobanteTercero } from '@prisma/client';
 import { CuentasService } from './cuentas.service';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
+import { PrismaService } from '../../common/prisma.service';
 import { D, add } from './money';
 import { CrearComprobanteDTO } from './comprobantes.dto';
 import { movimientoPorComprobante } from './tipos';
 import { BadRequestException, ConflictException } from '@nestjs/common';
-
-const prisma = new PrismaClient();
 
 // helper para formatear PV/Nro
 function fmtAfip(pv?: number | null, nro?: number | null) {
@@ -24,6 +23,7 @@ export class ComprobantesService {
   constructor(
     private cuentas: CuentasService,
     private contab: ContabilidadService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private toDec(v?: number | string | null) {
@@ -183,7 +183,7 @@ export class ComprobantesService {
       }
     }
 
-    return prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       // asegurar cuenta
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       const terceroId = BigInt(dto.terceroId as any);
@@ -331,7 +331,7 @@ export class ComprobantesService {
 
   /** Anula comprobante: valida que no tenga pagos aplicados, revierte saldo, marca estado y genera reversa contable */
   async anular(organizacionId: string, comprobanteId: bigint) {
-    return prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       // 1) Comprobante válido
       const comp = await tx.comprobanteTercero.findFirst({
         where: { id: comprobanteId, organizacionId, estado: { in: ['emitido', 'contabilizado'] } },
@@ -400,7 +400,7 @@ export class ComprobantesService {
     };
 
     const [items, total] = await Promise.all([
-      prisma.comprobanteTercero.findMany({
+      this.prisma.comprobanteTercero.findMany({
         where,
         orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
@@ -419,7 +419,7 @@ export class ComprobantesService {
           total: true,
         },
       }),
-      prisma.comprobanteTercero.count({ where }),
+      this.prisma.comprobanteTercero.count({ where }),
     ]);
 
     return { items, total, page, pageSize, pages: Math.ceil(total / pageSize) };
@@ -433,7 +433,7 @@ export class ComprobantesService {
     const limit = Math.min(500, Math.max(1, Number(opts.limit ?? 200)));
 
     // 1) Traemos solo los que generan deuda
-    const comps = await prisma.comprobanteTercero.findMany({
+    const comps = await this.prisma.comprobanteTercero.findMany({
       where: {
         organizacionId,
         terceroId: opts.terceroId,
@@ -482,7 +482,7 @@ export class ComprobantesService {
     // 4) Si el rol es AFILIADO, agregar reintegros aprobados como comprobantes pendientes
     if (opts.rol === RolTercero.AFILIADO) {
       // Obtener el tercero para extraer el código y obtener el afiliadoId
-      const tercero = await prisma.tercero.findUnique({
+      const tercero = await this.prisma.tercero.findUnique({
         where: { id: opts.terceroId },
         select: { codigo: true },
       });
@@ -494,7 +494,7 @@ export class ComprobantesService {
 
           // Buscar reintegros aprobados que aún no tienen un comprobante tercero asociado
           // Un reintegro tiene comprobante tercero si tiene un pago con ordenPagoId (que crea el comprobante)
-          const reintegrosAprobados = await prisma.reintegroSolicitud.findMany({
+          const reintegrosAprobados = await this.prisma.reintegroSolicitud.findMany({
             where: {
               organizacionId,
               afiliadoId,

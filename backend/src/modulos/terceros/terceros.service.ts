@@ -3,7 +3,7 @@
 import { Injectable } from '@nestjs/common';
 import { RolTercero, TipoPersona, CondIva, Prisma } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
-import prisma from '../../prisma';
+import { PrismaService } from '../../common/prisma.service';
 
 import type { Prisma as P } from '@prisma/client';
 
@@ -154,6 +154,8 @@ type TerceroFull = P.TerceroGetPayload<{
 /* =================== Service =================== */
 @Injectable()
 export class TercerosService {
+  constructor(private readonly prisma: PrismaService) {}
+
   /* ===== Listar paginado con filtros ===== */
   async listar(
     organizacionId: string,
@@ -185,7 +187,7 @@ export class TercerosService {
     };
 
     const [items, total] = await Promise.all([
-      prisma.tercero.findMany({
+      this.prisma.tercero.findMany({
         where,
         orderBy: [{ nombre: 'asc' }],
         skip: (page - 1) * pageSize,
@@ -202,14 +204,14 @@ export class TercerosService {
           roles: true,
         },
       }),
-      prisma.tercero.count({ where }),
+      this.prisma.tercero.count({ where }),
     ]);
 
     return { items, total, page, pageSize, pages: Math.ceil(total / pageSize) };
   }
 
   async obtener(organizacionId: string, id: bigint): Promise<TerceroFull> {
-    const t = await prisma.tercero.findUnique({
+    const t = await this.prisma.tercero.findUnique({
       where: { id },
       include: { roles: true, direcciones: true, contactos: true, bancos: true, impositivo: true },
     });
@@ -400,7 +402,7 @@ export class TercerosService {
     const payload = this.normalizeUpsert(body);
     if (!payload.nombre) throw new Error('Nombre requerido');
 
-    const id = await prisma.$transaction(async (tx) =>
+    const id = await this.prisma.$transaction(async (tx) =>
       this.crearConTx(tx, organizacionId, payload),
     );
     return this.obtener(organizacionId, id);
@@ -408,21 +410,21 @@ export class TercerosService {
 
   async actualizar(organizacionId: string, id: bigint, body: TerceroUpsert): Promise<TerceroFull> {
     await this.obtener(organizacionId, id);
-    const actual = await prisma.tercero.findUnique({ where: { id } });
+    const actual = await this.prisma.tercero.findUnique({ where: { id } });
     const payload = this.normalizeUpsert(body, actual);
-    await prisma.$transaction(async (tx) => this.actualizarConTx(tx, id, payload));
+    await this.prisma.$transaction(async (tx) => this.actualizarConTx(tx, id, payload));
     return this.obtener(organizacionId, id);
   }
 
   async toggleActivo(organizacionId: string, id: bigint, activo: boolean) {
     await this.obtener(organizacionId, id);
-    await prisma.tercero.update({ where: { id }, data: { activo } });
+    await this.prisma.tercero.update({ where: { id }, data: { activo } });
     return { ok: true };
   }
 
   async eliminar(organizacionId: string, id: bigint) {
     await this.obtener(organizacionId, id);
-    await prisma.tercero.delete({ where: { id } });
+    await this.prisma.tercero.delete({ where: { id } });
     return { ok: true };
   }
 
@@ -453,7 +455,7 @@ export class TercerosService {
         };
       }
 
-      const rows = await prisma.tercero.findMany({
+      const rows = await this.prisma.tercero.findMany({
         where,
         orderBy: [{ nombre: 'asc' }],
         take: limit,
@@ -484,7 +486,7 @@ export class TercerosService {
         const afiliadoIdStr = q.trim().replace('AFI-', '');
         try {
           const afiliadoId = BigInt(afiliadoIdStr);
-          const afiliado = await prisma.afiliado.findFirst({
+          const afiliado = await this.prisma.afiliado.findFirst({
             where: { id: afiliadoId, organizacionId },
             select: {
               id: true,
@@ -500,7 +502,7 @@ export class TercerosService {
             const nombre = `${afiliado.apellido || ''} ${afiliado.nombre || ''}`.trim() || `Afiliado ${afiliado.id.toString()}`;
 
             // Crear el tercero
-            const nuevoTercero = await prisma.$transaction(async (tx) => {
+            const nuevoTercero = await this.prisma.$transaction(async (tx) => {
               const tercero = await tx.tercero.create({
                 data: {
                   organizacionId,
@@ -554,7 +556,7 @@ export class TercerosService {
             : [{ apellido: { contains: q, mode: 'insensitive' } }, { nombre: { contains: q, mode: 'insensitive' } }],
         };
 
-        const afiliados = await prisma.afiliado.findMany({
+        const afiliados = await this.prisma.afiliado.findMany({
           where: afiliadosWhere,
           orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
           take: limit,
@@ -573,7 +575,7 @@ export class TercerosService {
           const nombre = `${afiliado.apellido || ''} ${afiliado.nombre || ''}`.trim() || `Afiliado ${afiliado.id.toString()}`;
 
           // Buscar si ya existe el tercero
-          const terceroExistente = await prisma.tercero.findFirst({
+          const terceroExistente = await this.prisma.tercero.findFirst({
             where: {
               organizacionId,
               codigo,
@@ -604,7 +606,7 @@ export class TercerosService {
             }
           } else {
             // No existe, crearlo
-            const nuevoTercero = await prisma.$transaction(async (tx) => {
+            const nuevoTercero = await this.prisma.$transaction(async (tx) => {
               const tercero = await tx.tercero.create({
                 data: {
                   organizacionId,
@@ -913,7 +915,7 @@ export class TercerosService {
     for (let i = 0; i < rows.length; i += BATCH) {
       const slice = rows.slice(i, i + BATCH);
 
-      await prisma.$transaction(
+      await this.prisma.$transaction(
         async (tx) => {
           for (let j = 0; j < slice.length; j++) {
             const idx = i + j + 2;

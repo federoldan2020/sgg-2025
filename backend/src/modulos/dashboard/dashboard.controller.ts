@@ -1,14 +1,14 @@
 // src/modulos/dashboard/dashboard.controller.ts
 import { BadRequestException, Controller, Get, Req } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { Public } from '../auth/decorators/public.decorator';
-
-const prisma = new PrismaClient();
+import { PrismaService } from '../../common/prisma.service';
 
 type ReqOrg = { organizacionId?: string };
 
 @Controller('dashboard')
 export class DashboardController {
+  constructor(private readonly prisma: PrismaService) {}
+
   /**
    * KPIs agregados para la home, filtrados por organización.
    * Todas las consultas corren en paralelo y devuelven valores serializables.
@@ -44,12 +44,12 @@ export class DashboardController {
       reintegrosPendientes,
       afiliadosNuevosMes,
     ] = await Promise.all([
-      prisma.afiliado.count({ where: { organizacionId: org } }),
-      prisma.afiliado.count({
+      this.prisma.afiliado.count({ where: { organizacionId: org } }),
+      this.prisma.afiliado.count({
         where: { organizacionId: org, estado: 'activo' },
       }),
-      prisma.padron.count({ where: { organizacionId: org } }),
-      prisma.caja.findFirst({
+      this.prisma.padron.count({ where: { organizacionId: org } }),
+      this.prisma.caja.findFirst({
         where: { organizacionId: org },
         orderBy: { id: 'desc' },
         select: {
@@ -60,7 +60,7 @@ export class DashboardController {
           fechaCierre: true,
         },
       }),
-      prisma.pago.aggregate({
+      this.prisma.pago.aggregate({
         where: {
           organizacionId: org,
           fecha: { gte: startOfDay, lte: endOfDay },
@@ -68,24 +68,24 @@ export class DashboardController {
         _sum: { total: true },
         _count: { _all: true },
       }),
-      prisma.ordenCredito.count({
+      this.prisma.ordenCredito.count({
         where: { organizacionId: org, estado: 'pendiente' },
       }),
-      prisma.ordenCredito.count({
+      this.prisma.ordenCredito.count({
         where: { organizacionId: org, estado: 'en_curso' },
       }),
-      prisma.comprobanteTercero.count({
+      this.prisma.comprobanteTercero.count({
         where: {
           organizacionId: org,
           estado: { in: ['borrador', 'emitido', 'contabilizado'] },
         },
       }),
-      prisma.ordenPagoTercero.count({
+      this.prisma.ordenPagoTercero.count({
         where: { organizacionId: org, estado: 'borrador' },
       }),
       // TODO: reemplazar por count de NovedadLote en estado 'borrador' cuando se codée el nuevo módulo.
       Promise.resolve(0),
-      prisma.reintegroSolicitud.count({
+      this.prisma.reintegroSolicitud.count({
         where: {
           organizacionId: org,
           estado: {
@@ -93,7 +93,7 @@ export class DashboardController {
           },
         },
       }),
-      prisma.afiliado.count({
+      this.prisma.afiliado.count({
         where: { organizacionId: org, creadoEn: { gte: startOfMonth } },
       }),
     ]);
@@ -101,7 +101,7 @@ export class DashboardController {
     // Verificar si la última caja está realmente abierta (sin asiento de cierre)
     let cajaAbierta = false;
     if (ultimaCaja) {
-      const cierre = await prisma.asiento.findFirst({
+      const cierre = await this.prisma.asiento.findFirst({
         where: {
           organizacionId: org,
           origen: 'cierre_caja',

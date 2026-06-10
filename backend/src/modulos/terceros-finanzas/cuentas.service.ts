@@ -1,14 +1,15 @@
 // src/modulos/terceros-finanzas/cuentas.service.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaClient, Prisma, RolTercero } from '@prisma/client';
+import { Prisma, RolTercero } from '@prisma/client';
+import { PrismaService } from '../../common/prisma.service';
 
 // helper Decimal seguro
 const D = (v: Prisma.Decimal | number | string | null | undefined) => new Prisma.Decimal(v ?? 0);
 
-const prisma = new PrismaClient();
-
 @Injectable()
 export class CuentasService {
+  constructor(private readonly prisma: PrismaService) {}
+
   async ensureCuenta(
     tx: Prisma.TransactionClient,
     organizacionId: string,
@@ -71,7 +72,7 @@ export class CuentasService {
   }
 
   async getSaldoActual(cuentaId: bigint) {
-    const c = await prisma.cuentaTercero.findUnique({
+    const c = await this.prisma.cuentaTercero.findUnique({
       where: { id: cuentaId },
       select: { saldoActual: true },
     });
