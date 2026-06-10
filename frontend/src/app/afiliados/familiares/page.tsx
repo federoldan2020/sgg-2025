@@ -122,10 +122,13 @@ const formatDni = (dni: string | number | null | undefined) => {
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
-const titularLabel = (a?: AfiliadoLite | null) => {
+const titularLabel = (a?: AfiliadoLite | AfiliadoSuggest | null) => {
   if (!a) return "—";
-  const ap = (a.apellido ?? "").trim();
-  const no = (a.nombre ?? "").trim();
+  // AfiliadoSuggest trae el label armado en `display`.
+  if ("display" in a && a.display) return a.display;
+  const lite = a as AfiliadoLite;
+  const ap = (lite.apellido ?? "").trim();
+  const no = (lite.nombre ?? "").trim();
   if (ap && no) return `${ap}, ${no}`;
   return ap || no || "(sin nombre)";
 };
