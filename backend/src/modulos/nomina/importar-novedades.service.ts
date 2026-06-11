@@ -59,6 +59,14 @@ export type NovedadesConfirmacion = {
   obligacionesCreadas: number;
   obligacionesOmitidas: number; // ya existían (idempotencia)
   padronesFaltantes: number;
+  movimientosCreados: number; // débitos en cuenta corriente (incluye backfill)
+};
+
+/** Etiqueta del concepto para el movimiento de cuenta corriente. */
+const CONCEPTO_LABEL: Record<string, string> = {
+  ORDEN_CREDITO: 'K16 - Orden de crédito',
+  COSEGURO: 'J22 - Coseguro',
+  ADIC_COL: 'J38 - Colaterales',
 };
 
 @Injectable()
@@ -305,6 +313,14 @@ export class ImportarNovedadesService {
       }
     }
 
+    // Asegurar el débito en cuenta corriente por cada obligación sembrada
+    // (idempotente: backfillea las que no lo tengan).
+    const movimientosCreados = await this.sincronizarMovimientos(
+      organizacionId,
+      periodo,
+      conceptoIdPorCodigo,
+    );
+
     await this.audit.log({
       organizacionId,
       usuarioId: opts.usuarioId,
@@ -325,6 +341,83 @@ export class ImportarNovedadesService {
       obligacionesCreadas: creadas,
       obligacionesOmitidas: existentes.length,
       padronesFaltantes,
+      movimientosCreados,
     };
+  }
+
+  /**
+   * Crea el movimiento de DÉBITO en la cuenta corriente del afiliado por cada
+   * obligación sembrada que aún no lo tenga. Sin esto, la cobranza (crédito)
+   * quedaría sin su contrapartida y la cuenta corriente no cuadraría.
+   *
+   * Idempotente: sólo crea débitos para obligaciones que no tengan ya uno.
+   * Fecha = primer día del período (queda cronológicamente antes que la
+   * cobranza, que se imputa al último día del período).
+   */
+  private async sincronizarMovimientos(
+    organizacionId: string,
+    periodo: string,
+    conceptoIdPorCodigo: Map<string, bigint>,
+  ): Promise<number> {
+    const obls = await this.prisma.obligacion.findMany({
+      where: { organizacionId, periodo, origen: ORIGEN },
+      select: {
+        id: true,
+        afiliadoId: true,
+        padronId: true,
+        conceptoId: true,
+        monto: true,
+      },
+    });
+    if (obls.length === 0) return 0;
+
+    const yaConDebito = await this.prisma.movimientoAfiliado.findMany({
+      where: {
+        organizacionId,
+        naturaleza: 'debito',
+        obligacionId: { in: obls.map((o) => o.id) },
+      },
+      select: { obligacionId: true },
+    });
+    const setYa = new Set(
+      yaConDebito.map((m) => m.obligacionId?.toString()).filter(Boolean),
+    );
+
+    // conceptoId → código BD (para etiquetar el movimiento)
+    const codigoBDPorId = new Map<string, string>();
+    for (const [codigo, id] of conceptoIdPorCodigo.entries()) {
+      codigoBDPorId.set(id.toString(), codigo);
+    }
+
+    const fecha = new Date(`${periodo}-01T00:00:00.000Z`);
+    const data: Array<Record<string, unknown>> = [];
+    for (const o of obls) {
+      if (o.padronId == null) continue;
+      if (setYa.has(o.id.toString())) continue;
+      const codigoBD = codigoBDPorId.get(o.conceptoId.toString()) ?? '';
+      data.push({
+        organizacionId,
+        afiliadoId: o.afiliadoId,
+        padronId: o.padronId,
+        fecha,
+        naturaleza: 'debito',
+        origen: 'ajuste', // saldo migrado del legacy (apertura)
+        concepto: CONCEPTO_LABEL[codigoBD] ?? codigoBD ?? 'Obligación',
+        importe: Number(o.monto),
+        obligacionId: o.id,
+        referenciaTipo: 'OBLIGACION',
+        periodoContable: periodo,
+      });
+    }
+
+    let creados = 0;
+    const CHUNK = 500;
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const r = await this.prisma.movimientoAfiliado.createMany({
+        data: data.slice(i, i + CHUNK) as never,
+      });
+      creados += r.count;
+    }
+    return creados;
   }
 }
