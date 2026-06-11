@@ -298,6 +298,9 @@ export class MovimientosService {
     // Obtener IDs para enriquecer con saldos actuales
     const cuotaIds = [...new Set(rows.filter((m) => m.cuotaId).map((m) => m.cuotaId!))];
     const ordenIds = [...new Set(rows.filter((m) => m.ordenId).map((m) => m.ordenId!))];
+    const obligacionIds = [
+      ...new Set(rows.filter((m) => m.obligacionId).map((m) => m.obligacionId!)),
+    ];
 
     // Consultar saldos actuales
     const cuotas = cuotaIds.length > 0
@@ -314,8 +317,17 @@ export class MovimientosService {
         })
       : [];
 
+    const obligaciones =
+      obligacionIds.length > 0
+        ? await this.prisma.obligacion.findMany({
+            where: { id: { in: obligacionIds } },
+            select: { id: true, saldo: true },
+          })
+        : [];
+
     const mapaCuotas = new Map(cuotas.map((c) => [c.id.toString(), c]));
     const mapaOrdenes = new Map(ordenes.map((o) => [o.id.toString(), o]));
+    const mapaObligaciones = new Map(obligaciones.map((o) => [o.id.toString(), o]));
 
     // Enriquecer movimientos con saldo pendiente actual
     const movimientos = rows.map((mov) => {
@@ -329,23 +341,31 @@ export class MovimientosService {
         } else if (mov.ordenId) {
           const orden = mapaOrdenes.get(mov.ordenId.toString());
           if (orden) saldoPendiente = Number(orden.saldoTotal || 0);
+        } else if (mov.obligacionId) {
+          const ob = mapaObligaciones.get(mov.obligacionId.toString());
+          if (ob) saldoPendiente = Number(ob.saldo || 0);
         }
       }
 
       return { ...mov, saldoPendiente };
     });
 
-    // SALDO FINAL: último saldoPosterior de los movimientos del padrón seleccionado
-    // Esto refleja la deuda total real del padrón
-    const ultimoMovimiento = await this.prisma.movimientoAfiliado.findFirst({
+    // SALDO FINAL = deuda total acumulada del padrón = suma(débito) − suma(crédito).
+    // Robusto: no depende de saldoPosterior (que no todos los orígenes setean,
+    // p. ej. cobranza por nómina u obligaciones sembradas).
+    const sumas = await this.prisma.movimientoAfiliado.groupBy({
+      by: ['naturaleza'],
       where: baseWhere,
-      orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
-      select: { saldoPosterior: true },
+      _sum: { importe: true },
     });
-
-    const saldoFinal = ultimoMovimiento?.saldoPosterior != null
-      ? Number(ultimoMovimiento.saldoPosterior)
-      : 0;
+    let totalDebito = 0;
+    let totalCredito = 0;
+    for (const s of sumas) {
+      const v = Number(s._sum.importe || 0);
+      if (s.naturaleza === 'debito') totalDebito = v;
+      else totalCredito = v;
+    }
+    const saldoFinal = totalDebito - totalCredito;
 
     return { movimientos, saldoFinal };
   }

@@ -389,7 +389,10 @@ export class ImportarNovedadesService {
       codigoBDPorId.set(id.toString(), codigo);
     }
 
-    const fecha = new Date(`${periodo}-01T00:00:00.000Z`);
+    // Mediodía UTC del 1er día: evita que en zona horaria local (UTC-3) la
+    // fecha se corra al último día del mes anterior.
+    const [pyy, pmm] = periodo.split('-').map(Number);
+    const fecha = new Date(Date.UTC(pyy, pmm - 1, 1, 12, 0, 0));
     const data: Array<Record<string, unknown>> = [];
     for (const o of obls) {
       if (o.padronId == null) continue;
