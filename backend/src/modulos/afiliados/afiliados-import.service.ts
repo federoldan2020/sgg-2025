@@ -3,6 +3,9 @@ import { PrismaService } from '../../common/prisma.service';
 import * as Papa from 'papaparse';
 import * as ExcelJS from 'exceljs';
 import { randomUUID } from 'crypto';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   ImportMode,
   MergeStrategy,
@@ -17,9 +20,57 @@ import {
 
 @Injectable()
 export class AfiliadosImportService {
-  private previews = new Map<string, { rows: AfiliadoCsvRow[]; options: ImportOptionsDto }>();
+  // Preview persistido en disco: el backend corre en cluster (varias instancias
+  // PM2 en el mismo host) y el preview/confirm pueden caer en procesos distintos.
+  // Un Map en memoria no se comparte entre instancias → "Preview no encontrado".
+  // El filesystem del host sí es compartido.
+  private readonly previewDir = path.join(os.tmpdir(), 'sgg-afiliados-previews');
+  private readonly previewTtlMs = 2 * 60 * 60 * 1000; // 2h
 
   constructor(private prisma: PrismaService) {}
+
+  private previewPath(id: string): string {
+    return path.join(this.previewDir, `${id}.json`);
+  }
+
+  private savePreview(
+    id: string,
+    data: { rows: AfiliadoCsvRow[]; options: ImportOptionsDto },
+  ): void {
+    fs.mkdirSync(this.previewDir, { recursive: true });
+    fs.writeFileSync(
+      this.previewPath(id),
+      JSON.stringify({ ts: Date.now(), ...data }),
+      'utf8',
+    );
+  }
+
+  private loadPreview(
+    id: string,
+  ): { rows: AfiliadoCsvRow[]; options: ImportOptionsDto } | null {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.previewPath(id), 'utf8')) as {
+        ts: number;
+        rows: AfiliadoCsvRow[];
+        options: ImportOptionsDto;
+      };
+      if (Date.now() - (parsed.ts ?? 0) > this.previewTtlMs) {
+        this.deletePreview(id);
+        return null;
+      }
+      return { rows: parsed.rows, options: parsed.options };
+    } catch {
+      return null;
+    }
+  }
+
+  private deletePreview(id: string): void {
+    try {
+      fs.unlinkSync(this.previewPath(id));
+    } catch {
+      /* ya no existe */
+    }
+  }
 
   private static HEADER_ALIASES: Record<string, keyof AfiliadoCsvRow> = {
     // Afiliado
@@ -657,8 +708,8 @@ export class AfiliadosImportService {
       this.normalizarFila(r),
     );
 
-    // Guardar para confirm posterior
-    this.previews.set(previewId, { rows, options });
+    // Guardar para confirm posterior (en disco, compartido entre instancias)
+    this.savePreview(previewId, { rows, options });
 
     // Obtener afiliados existentes por DNI
     const dnis = rows.map((r) => BigInt(r.dni)).filter((d) => !isNaN(Number(d)));
@@ -810,7 +861,7 @@ export class AfiliadosImportService {
     previewId: string,
     ignoreWarnings: boolean,
   ): Promise<ImportResultResponse> {
-    const cached = this.previews.get(previewId);
+    const cached = this.loadPreview(previewId);
     if (!cached) {
       throw new Error('Preview no encontrado o expirado');
     }
@@ -909,7 +960,7 @@ export class AfiliadosImportService {
     }
 
     // Limpiar preview
-    this.previews.delete(previewId);
+    this.deletePreview(previewId);
 
     return {
       exitoso: errores.length === 0,
