@@ -148,10 +148,12 @@ export class ImportarNovedadesService {
         origen: ORIGEN,
         conceptoId: { in: conceptoIds },
       },
-      select: { afiliadoId: true, conceptoId: true },
+      select: { padronId: true, conceptoId: true },
     });
+    // Clave por PADRÓN (no por afiliado): un afiliado puede tener varios padrones,
+    // cada uno con su propia obligación; cómputos concilia a nivel padrón.
     const setExistentes = new Set(
-      existentes.map((o) => `${o.afiliadoId}-${o.conceptoId}`),
+      existentes.map((o) => `${o.padronId}-${o.conceptoId}`),
     );
 
     const padronesFaltantes: NovedadesPreview['padronesFaltantes'] = [];
@@ -185,7 +187,7 @@ export class ImportarNovedadesService {
         if (monto == null || monto <= 0) continue;
         const conceptoId = conceptoIdPorCodigo.get(CODIGO_CONCEPTO[cod])!;
         montoPorConcepto[cod] = (montoPorConcepto[cod] ?? 0) + monto;
-        if (setExistentes.has(`${padronDb.afiliadoId}-${conceptoId}`)) {
+        if (setExistentes.has(`${padronDb.id}-${conceptoId}`)) {
           obligacionesYaExistentes++;
         } else {
           obligacionesACrear++;
@@ -243,10 +245,12 @@ export class ImportarNovedadesService {
         origen: ORIGEN,
         conceptoId: { in: conceptoIds },
       },
-      select: { afiliadoId: true, conceptoId: true },
+      select: { padronId: true, conceptoId: true },
     });
+    // Clave por PADRÓN (no por afiliado): un afiliado puede tener varios padrones,
+    // cada uno con su propia obligación; cómputos concilia a nivel padrón.
     const setExistentes = new Set(
-      existentes.map((o) => `${o.afiliadoId}-${o.conceptoId}`),
+      existentes.map((o) => `${o.padronId}-${o.conceptoId}`),
     );
 
     const aCrear: Array<{
@@ -273,7 +277,7 @@ export class ImportarNovedadesService {
         const monto = f.conceptos[cod];
         if (monto == null || monto <= 0) continue;
         const conceptoId = conceptoIdPorCodigo.get(CODIGO_CONCEPTO[cod])!;
-        if (setExistentes.has(`${padronDb.afiliadoId}-${conceptoId}`)) continue;
+        if (setExistentes.has(`${padronDb.id}-${conceptoId}`)) continue;
         aCrear.push({
           organizacionId,
           afiliadoId: padronDb.afiliadoId,
@@ -287,7 +291,7 @@ export class ImportarNovedadesService {
           bloqueada: false,
         });
         // evitar duplicar si el mismo padrón apareciera dos veces tras el merge
-        setExistentes.add(`${padronDb.afiliadoId}-${conceptoId}`);
+        setExistentes.add(`${padronDb.id}-${conceptoId}`);
       }
     }
 
