@@ -38,6 +38,20 @@ export type ConfirmacionResult = {
   padronesActualizados: number;
   afiliadosTocados: number;
   rehabilitados: Array<{ afiliadoId: string; dni: string; apellidoNombre: string }>;
+  /** Aplicación de lo cobrado a las obligaciones (por padrón+concepto, FIFO). */
+  conciliacion: {
+    obligacionesAplicadas: number;
+    pagadas: number;
+    parciales: number;
+    excedentes: number; // padrones donde se cobró más que la deuda registrada
+  };
+};
+
+/** Código de cobranza → código de Concepto en la BD (J17 va por % aparte). */
+const CODIGO_CONCEPTO_COBRANZA: Record<'K16' | 'J22' | 'J38', string> = {
+  K16: 'ORDEN_CREDITO',
+  J22: 'COSEGURO',
+  J38: 'ADIC_COL',
 };
 
 @Injectable()
@@ -337,6 +351,29 @@ export class ImportarCobranzaService {
       Array.from(afiliadosTocadosSet),
     );
 
+    // Conciliación GRANULAR: aplicar lo cobrado a las obligaciones por padrón.
+    const cobranzaPorPadron: Array<{
+      padronId: bigint;
+      K16: number;
+      J22: number;
+      J38: number;
+    }> = [];
+    for (const [padronStr, totales] of porPadron.entries()) {
+      const padronDb = mapaPadron.get(padronStr);
+      if (!padronDb) continue;
+      cobranzaPorPadron.push({
+        padronId: padronDb.id,
+        K16: totales.K16,
+        J22: totales.J22,
+        J38: totales.J38,
+      });
+    }
+    const conciliacion = await this.aplicarCobranzaGranular(
+      organizacionId,
+      prev.periodo,
+      cobranzaPorPadron,
+    );
+
     // Recalcular cobertura + intentar rehabilitar fuera de la transacción.
     // Paralelizado por chunks para no tardar minutos con miles de afiliados.
     const rehabilitados: ConfirmacionResult['rehabilitados'] = [];
@@ -393,6 +430,7 @@ export class ImportarCobranzaService {
         rehabilitados: rehabilitados.length,
         hash: prev.hash,
         archivo: opts.archivoNombre,
+        conciliacion,
       },
     });
 
@@ -402,6 +440,7 @@ export class ImportarCobranzaService {
       padronesActualizados: porPadron.size,
       afiliadosTocados: afiliadosTocados.length,
       rehabilitados,
+      conciliacion,
     };
   }
 
@@ -487,5 +526,115 @@ export class ImportarCobranzaService {
     }
 
     void periodo;
+  }
+
+  /**
+   * Conciliación GRANULAR: aplica lo efectivamente cobrado a las obligaciones,
+   * por (padrón, concepto), bajando el saldo. Es el cierre real del circuito:
+   * la novedad sembró las obligaciones (K16/J22/J38) y acá la devolución las
+   * cancela/parcializa.
+   *
+   * - Sólo K16/J22/J38 (montos fijos). J17 es el 2 % que liquida Cómputos: se
+   *   registra como ingreso (MovimientoAfiliado) pero no tiene saldo que bajar.
+   * - FIFO: aplica a las obligaciones abiertas del padrón más viejas primero
+   *   (periodo asc), cubriendo arrastre antes que la cuota del mes.
+   * - Idempotencia: la confirmación está protegida por hash del lote, así que
+   *   este método corre una sola vez por archivo.
+   */
+  private async aplicarCobranzaGranular(
+    organizacionId: string,
+    periodo: string,
+    cobranzaPorPadron: Array<{
+      padronId: bigint;
+      K16: number;
+      J22: number;
+      J38: number;
+    }>,
+  ): Promise<ConfirmacionResult['conciliacion']> {
+    const stats = { obligacionesAplicadas: 0, pagadas: 0, parciales: 0, excedentes: 0 };
+    if (cobranzaPorPadron.length === 0) return stats;
+
+    const conceptos = await this.prisma.concepto.findMany({
+      where: { organizacionId },
+      select: { id: true, codigo: true },
+    });
+    const idByCodigo = new Map(conceptos.map((c) => [c.codigo, c.id]));
+    const ahora = new Date();
+
+    // Procesar padrones en chunks concurrentes (cada padrón es independiente;
+    // dentro de un padrón las obligaciones se aplican en orden FIFO).
+    const CHUNK = 10;
+    for (let i = 0; i < cobranzaPorPadron.length; i += CHUNK) {
+      const slice = cobranzaPorPadron.slice(i, i + CHUNK);
+      const resultados = await Promise.all(
+        slice.map((cob) => this.aplicarPadron(organizacionId, periodo, cob, idByCodigo, ahora)),
+      );
+      for (const r of resultados) {
+        stats.obligacionesAplicadas += r.obligacionesAplicadas;
+        stats.pagadas += r.pagadas;
+        stats.parciales += r.parciales;
+        stats.excedentes += r.excedentes;
+      }
+    }
+    return stats;
+  }
+
+  private async aplicarPadron(
+    organizacionId: string,
+    periodo: string,
+    cob: { padronId: bigint; K16: number; J22: number; J38: number },
+    idByCodigo: Map<string, bigint>,
+    ahora: Date,
+  ): Promise<ConfirmacionResult['conciliacion']> {
+    const stats = { obligacionesAplicadas: 0, pagadas: 0, parciales: 0, excedentes: 0 };
+
+    for (const codigo of ['K16', 'J22', 'J38'] as const) {
+      let restante = Number(cob[codigo] ?? 0);
+      if (restante <= 0) continue;
+      const conceptoId = idByCodigo.get(CODIGO_CONCEPTO_COBRANZA[codigo]);
+      if (!conceptoId) continue;
+
+      const obls = await this.prisma.obligacion.findMany({
+        where: {
+          organizacionId,
+          padronId: cob.padronId,
+          conceptoId,
+          periodo: { lte: periodo },
+          saldo: { gt: 0 },
+          estado: { in: ['pendiente', 'parcialmente_pagada'] },
+        },
+        orderBy: [{ periodo: 'asc' }, { creadoEn: 'asc' }],
+        select: { id: true, saldo: true, conciliacionImporte: true },
+      });
+
+      for (const o of obls) {
+        if (restante <= 0.009) break;
+        const saldo = Number(o.saldo);
+        const aplica = Math.min(saldo, restante);
+        const nuevoSaldo = Math.round((saldo - aplica) * 100) / 100;
+        restante = Math.round((restante - aplica) * 100) / 100;
+        const pagada = nuevoSaldo <= 0.009;
+        const concImp = Math.round((Number(o.conciliacionImporte ?? 0) + aplica) * 100) / 100;
+
+        await this.prisma.obligacion.update({
+          where: { id: o.id },
+          data: {
+            saldo: nuevoSaldo,
+            estado: pagada ? 'pagada' : 'parcialmente_pagada',
+            conciliacionEstado: pagada ? 'descontado' : 'parcial',
+            conciliacionImporte: concImp,
+            conciliacionFecha: ahora,
+          },
+        });
+        stats.obligacionesAplicadas++;
+        if (pagada) stats.pagadas++;
+        else stats.parciales++;
+      }
+
+      // Si quedó cobranza sin obligación que la absorba (cobró más que la deuda).
+      if (restante > 0.01) stats.excedentes++;
+    }
+
+    return stats;
   }
 }
