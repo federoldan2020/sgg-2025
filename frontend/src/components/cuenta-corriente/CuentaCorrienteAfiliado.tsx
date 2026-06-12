@@ -160,8 +160,17 @@ export function CuentaCorrienteAfiliado({
 
                     <span className="text-muted-foreground">
                       Saldo:{" "}
-                      <span className="font-semibold text-foreground tabular-nums">
-                        {money(padronSel.saldo)}
+                      <span
+                        className={cn(
+                          "font-semibold tabular-nums",
+                          saldoFinal > 0
+                            ? "text-rose-700"
+                            : saldoFinal < 0
+                              ? "text-emerald-700"
+                              : "text-foreground",
+                        )}
+                      >
+                        {money(saldoFinal)}
                       </span>
                     </span>
 
