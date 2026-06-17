@@ -613,7 +613,14 @@ function CajaCobrosInner() {
         <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-6 h-fit">
           {/* Buscar afiliado */}
           <Card className="rounded-2xl border-border/60 shadow-sm">
-            
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Buscar afiliado
+                <KeyBadge keys="Ctrl+K" />
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Por DNI o nombre</p>
+            </CardHeader>
 
             <CardContent className="space-y-3">
               <div className="relative">
@@ -652,7 +659,7 @@ function CajaCobrosInner() {
               )}
 
               {afi && (
-                <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-xl border border-border/60">
+                <div className="flex items-center gap-3 p-4 bg-medical-50 rounded-xl border border-medical-200">
                   <div className="p-2.5 bg-primary rounded-2xl shadow-sm">
                     <User className="h-4 w-4 text-primary-foreground" />
                   </div>
@@ -660,6 +667,23 @@ function CajaCobrosInner() {
                     <div className="font-semibold text-sm truncate">{afi.display}</div>
                     <div className="text-xs text-muted-foreground">DNI: {afi.dni}</div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-xl text-xs shrink-0"
+                    onClick={() => {
+                      setAfi(null);
+                      setAfQuery("");
+                      setAfOpts([]);
+                      setPadrones([]);
+                      setPadronId("");
+                      setPend([]);
+                      setAplic([]);
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }}
+                  >
+                    Cambiar
+                  </Button>
                 </div>
               )}
             </CardContent>
