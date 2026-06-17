@@ -33,11 +33,8 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["COSEGURO", "ADMIN"],
     items: [
       { href: "/coseguro/", label: "Coseguro" },
-      { href: "/coseguro/colaterales", label: "Colaterales" },
       { href: "/coseguro/reintegros", label: "Reintegros" },
       { href: "/coseguro/reintegros/politicas", label: "Políticas de reintegro" },
-      { href: "/coseguro/resumen", label: "Resumen" },
-      { href: "/coseguro/configurar", label: "Configuración" },
     ],
   },
 
