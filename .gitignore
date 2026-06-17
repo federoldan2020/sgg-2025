@@ -46,3 +46,7 @@ docker-compose.override.yml
 .temp
 *.bak
 *.tmp
+
+# Local data dumps y planillas operativas (no van al repo)
+/backend/migration/
+/computos/
