@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/servicios/api";
 import { formatearFechaArgentina } from "@/utiles/formatos";
 import { useAfiliadoDetalle } from "@/contexts/afiliadoDetalle";
+import { GrupoFamiliarSection } from "@/components/coseguro/GrupoFamiliarSection";
+import { CoseguroResumenSection } from "@/components/coseguro/CoseguroResumenSection";
 
 const badgeBase =
   "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold";
@@ -88,6 +90,12 @@ type Movimiento = {
 
 type MovimientosResp = { movimientos: Movimiento[]; saldoFinal: number };
 
+type PrecioCoseguro = {
+  coseguro?: number | string | null;
+  colaterales?: number | string | null;
+  total?: number | string | null;
+};
+
 const money = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -139,6 +147,7 @@ export default function AfiliadoDatosPage() {
   const [coseguro, setCoseguro] = useState<CoseguroPanel | null>(null);
   const [familia, setFamilia] = useState<Colateral[]>([]);
   const [movs, setMovs] = useState<Movimiento[]>([]);
+  const [precio, setPrecio] = useState<PrecioCoseguro | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -149,7 +158,7 @@ export default function AfiliadoDatosPage() {
       setLoading(true);
       setError(null);
       try {
-        const [afiRes, padRes, cosRes, famRes, movRes] = await Promise.allSettled([
+        const [afiRes, padRes, cosRes, famRes, movRes, prRes] = await Promise.allSettled([
           api<Afiliado>(`/afiliados/${afiliadoId}`),
           api<PadronLite[]>(`/padrones?afiliadoId=${encodeURIComponent(afiliadoId)}`),
           api<CoseguroPanel>(`/coseguro/afiliados/${afiliadoId}`),
@@ -158,6 +167,9 @@ export default function AfiliadoDatosPage() {
           ),
           api<MovimientosResp>(
             `/movimientos?afiliadoId=${encodeURIComponent(afiliadoId)}&take=200`
+          ),
+          api<PrecioCoseguro>(
+            `/colaterales/precio?afiliadoId=${encodeURIComponent(afiliadoId)}`
           ),
         ]);
 
@@ -172,6 +184,7 @@ export default function AfiliadoDatosPage() {
         setFamilia(famRes.status === "fulfilled" ? famRes.value : []);
         const allMovs = movRes.status === "fulfilled" ? movRes.value.movimientos : [];
         setMovs(allMovs.slice(-8));
+        setPrecio(prRes.status === "fulfilled" ? prRes.value : null);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Error cargando el afiliado");
       } finally {
@@ -344,80 +357,20 @@ export default function AfiliadoDatosPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <div className="text-base font-semibold text-neutral-900">Coseguro</div>
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Estado</span>
-              <span
-                className={`${badgeBase} ${
-                  coseguroEstado === "activo" ? badgeActive : badgeInactive
-                }`}
-              >
-                {coseguroEstado === "activo" ? "Activo" : "Baja"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-500">J22 base</span>
-              <span className="font-semibold">{money(coseguro?.precioBase ?? 0)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Padrón imputación</span>
-              <span className="font-semibold">{coseguroPadron?.padron || "—"}</span>
-            </div>
-            <div className="h-px w-full bg-neutral-100" />
-            <div className="text-xs text-neutral-500">
-              Este panel refleja la configuración vigente del coseguro J22.
-            </div>
-          </div>
-        </div>
+        <CoseguroResumenSection
+          afiliadoId={afiliado.id}
+          estado={coseguroEstado === "activo" ? "activo" : coseguro?.coseguro ? "baja" : "ninguno"}
+          precioJ22={precio?.coseguro ?? coseguro?.precioBase ?? 0}
+          precioJ38={precio?.colaterales ?? 0}
+          padronImputacion={coseguroPadron?.padron ?? null}
+          fechaAlta={coseguro?.coseguro?.fechaAlta ?? null}
+        />
       </section>
 
       {/* Grupo familiar + observaciones */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <div className="text-base font-semibold text-neutral-900">Grupo familiar</div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b text-xs uppercase text-neutral-500">
-                <tr>
-                  <th className="py-2 text-left">Nombre</th>
-                  <th className="py-2 text-left">Parentesco</th>
-                  <th className="py-2 text-left">DNI</th>
-                  <th className="py-2 text-left">Fecha nac.</th>
-                  <th className="py-2 text-left">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {familia.map((f) => (
-                  <tr key={String(f.id)} className="hover:bg-neutral-50">
-                    <td className="py-2 font-semibold">{f.nombre || "—"}</td>
-                    <td className="py-2">
-                      {f.parentesco?.descripcion || f.parentesco?.codigo || "—"}
-                    </td>
-                    <td className="py-2">{formatDni(f.dni)}</td>
-                    <td className="py-2">{formatDate(f.fechaNacimiento)}</td>
-                    <td className="py-2">
-                      <span
-                        className={`${badgeBase} ${
-                          f.activo ? badgeActive : badgeInactive
-                        }`}
-                      >
-                        {f.activo ? "Activo" : "Baja"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {familia.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-sm text-neutral-500">
-                      Sin integrantes cargados
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="lg:col-span-2">
+          <GrupoFamiliarSection afiliadoId={afiliado.id} integrantes={familia} />
         </div>
 
         <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">

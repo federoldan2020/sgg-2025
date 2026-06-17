@@ -1,14 +1,16 @@
-/* eslint-disable @next/next/no-html-link-for-pages */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api, getErrorMessage } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PageHeader } from "@/components/ui-kit/PageHeader";
 
-/** ======================= Tipos del backend (listado) ======================= */
 type AfiliadoListItem = {
   id: string | number;
   dni: string | number | null;
@@ -27,33 +29,6 @@ type AfiliadosPagedResp = {
   limit: number;
 };
 
-/** ======================= Tipos (modal configurar) ======================= */
-type EstadoCoseguro = "activo" | "baja" | "ninguno";
-
-type AfiliadoLite = {
-  id: string | number;
-  dni?: string | number | null;
-  apellido?: string | null;
-  nombre?: string | null;
-};
-
-type PadronLite = { id: string | number; padron: string; activo?: boolean };
-
-type CoseguroCfg = {
-  estado: EstadoCoseguro;
-  fechaAlta?: string | null;
-  fechaBaja?: string | null;
-  padronCoseguroId?: string | number | null; // J22
-  padronColatId?: string | number | null; // J38
-};
-
-type CoseguroInitResp = {
-  afiliado: AfiliadoLite;
-  padrones: PadronLite[];
-  coseguro: CoseguroCfg | null;
-};
-
-/** ======================= Helpers UI ======================= */
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -78,58 +53,21 @@ function displayNombre(apellido: string | null, nombre: string | null) {
   return "(sin nombre)";
 }
 
-function mapRow(it: AfiliadoListItem) {
-  return {
-    id: it.id,
-    apellidoNombre: displayNombre(it.apellido, it.nombre),
-    dni: formatDni(it.dni),
-    estadoAfiliado: it.estado, // activo | baja
-    coseguro: !!it.coseguro,
-    colaterales: !!it.colaterales,
-    padrones: (it.padronesActivos ?? []).map((p) => ({
-      id: p.id,
-      nro: p.padron,
-      vigente: "",
-    })),
-  };
-}
-
-/** ======================= Page ======================= */
 export default function CosegurosListadoPage() {
-  /** ===== Filtros/paginación ===== */
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 350);
-  const [estadoAf, setEstadoAf] = useState<"todos" | "activos" | "baja">(
-    "todos"
-  );
+  const [estadoAf, setEstadoAf] = useState<"todos" | "activos" | "baja">("todos");
   const [soloCoseguro, setSoloCoseguro] = useState(true);
   const [soloColaterales, setSoloColaterales] = useState(false);
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  /** ===== Datos ===== */
-  type RowUi = ReturnType<typeof mapRow>;
-  const [rows, setRows] = useState<RowUi[]>([]);
+  const [items, setItems] = useState<AfiliadoListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  /** ===== Modal Configurar ===== */
-  const [cfgOpen, setCfgOpen] = useState<{ open: boolean; row?: RowUi }>({
-    open: false,
-  });
-  const [cfgBusy, setCfgBusy] = useState(false);
-  const [cfgAfiliado, setCfgAfiliado] = useState<AfiliadoLite | null>(null);
-  const [cfgPadrones, setCfgPadrones] = useState<PadronLite[]>([]);
-  const [cfgData, setCfgData] = useState<CoseguroCfg>({
-    estado: "ninguno",
-    padronCoseguroId: null,
-    padronColatId: null,
-  });
-  const [cfgHasColaterales, setCfgHasColaterales] = useState<boolean>(false);
-
-  /** ===== Parámetros de fetch ===== */
   const params = useMemo(() => {
     const p = new URLSearchParams();
     if (debouncedQ.trim()) p.set("q", debouncedQ.trim());
@@ -142,25 +80,21 @@ export default function CosegurosListadoPage() {
     return p.toString();
   }, [debouncedQ, estadoAf, soloCoseguro, soloColaterales, page, limit]);
 
-  /** ===== Fetch listado ===== */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      setMsg(null);
+      setError(null);
       try {
-        const resp = await api<AfiliadosPagedResp>(
-          `/afiliados/paged?${params}`,
-          { method: "GET" }
-        );
+        const resp = await api<AfiliadosPagedResp>(`/afiliados/paged?${params}`);
         if (cancelled) return;
         setTotal(resp.total ?? 0);
-        setRows((resp.items ?? []).map(mapRow));
-      } catch (e: unknown) {
+        setItems(resp.items ?? []);
+      } catch (e) {
         if (!cancelled) {
-          setRows([]);
+          setItems([]);
           setTotal(0);
-          setMsg(`ERROR:${getErrorMessage(e)}`);
+          setError(getErrorMessage(e));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -175,318 +109,82 @@ export default function CosegurosListadoPage() {
   const canPrev = page > 1 && !loading;
   const canNext = page < totalPages && !loading;
 
-  const onChangeLimit = (val: number) => {
-    setLimit(val);
-    setPage(1);
-  };
+  const hasActiveFilters =
+    q.trim().length > 0 ||
+    estadoAf !== "todos" ||
+    !soloCoseguro || // por defecto está en true; cualquier cambio cuenta
+    soloColaterales;
 
-  const handleClearFilters = () => {
+  const limpiarFiltros = () => {
     setQ("");
     setEstadoAf("todos");
-    setSoloCoseguro(false);
+    setSoloCoseguro(true);
     setSoloColaterales(false);
     setPage(1);
   };
 
-  const hasActiveFilters =
-    q.trim() || estadoAf !== "todos" || soloCoseguro || soloColaterales;
+  const kpiConCoseguro = items.filter((i) => i.coseguro).length;
+  const kpiConColaterales = items.filter((i) => i.colaterales).length;
 
-  /** ===== Abrir modal configurar (trae detalle + colaterales activos) ===== */
-  const abrirConfigurar = async (row: RowUi) => {
-    setCfgOpen({ open: true, row });
-    setCfgBusy(true);
-    setMsg(null);
-    try {
-      const info = await api<CoseguroInitResp>(`/coseguro/${row.id}`, {
-        method: "GET",
-      });
-
-      setCfgAfiliado(info.afiliado ?? { id: row.id });
-      setCfgPadrones(info.padrones ?? []);
-
-      const padronCoseguroId =
-        info.coseguro?.padronCoseguroId ??
-        (info.coseguro as any)?.padronCoseguro?.id ??
-        null;
-
-      const padronColatId =
-        info.coseguro?.padronColatId ??
-        (info.coseguro as any)?.padronColat?.id ??
-        null;
-
-      const baseCfg: CoseguroCfg = {
-        estado: info.coseguro?.estado ?? "ninguno",
-        padronCoseguroId,
-        padronColatId,
-      };
-      setCfgData(baseCfg);
-
-      // colaterales activos del afiliado (para habilitar J38)
-      try {
-        const cols = await api<any[]>(
-          `/colaterales/afiliados/${row.id}/colaterales?soloActivos=true`,
-          { method: "GET" }
-        );
-        setCfgHasColaterales(Array.isArray(cols) && cols.length > 0);
-      } catch {
-        setCfgHasColaterales(false);
-      }
-    } catch (e) {
-      setMsg(`ERROR:${getErrorMessage(e)}`);
-      setCfgOpen({ open: false });
-    } finally {
-      setCfgBusy(false);
-    }
-  };
-
-  /** ===== Guardar configuración =====
-   * - J22 (coseguro): /coseguro/upsert
-   * - J38 (colaterales): /colaterales/afiliados/:id/imputacion (sólo si hay colaterales)
-   */
-  const guardarCfg = async () => {
-    if (!cfgOpen.row || !cfgAfiliado) return;
-    setMsg(null);
-
-    const afiliadoIdNum = Number(cfgAfiliado.id);
-    const estadoActivo = cfgData.estado === "activo";
-
-    try {
-      setCfgBusy(true);
-
-      // --- Validaciones UI previas ---
-      if (estadoActivo && !cfgData.padronCoseguroId) {
-        throw new Error("Seleccioná padrón de imputación para J22.");
-      }
-      if (estadoActivo && cfgData.padronColatId && !cfgHasColaterales) {
-        // No aborta todo: avisamos y no imputamos J38
-        setMsg(
-          "ERROR:No podés imputar J38 porque el afiliado no tiene colaterales activos."
-        );
-      }
-
-      // --- 1) J22: upsert coseguro ---
-      try {
-        await api(`/coseguro/upsert`, {
-          method: "POST",
-          body: JSON.stringify({
-            afiliadoId: afiliadoIdNum,
-            estado: cfgData.estado,
-            padronCoseguroId: estadoActivo
-              ? cfgData.padronCoseguroId
-                ? Number(cfgData.padronCoseguroId)
-                : null
-              : null, // en baja, limpiamos imputación
-          }),
-        });
-      } catch (e: any) {
-        // ¿conflicto por reasignación?
-        const msg = getErrorMessage(e);
-        if (
-          (e?.status === 409 || /REQUIERE_REASIGNACION_J22/.test(msg)) &&
-          typeof window !== "undefined"
-        ) {
-          const confirmar = window.confirm(
-            "El afiliado ya tiene J22 activo en otro padrón.\n¿Querés reasignarlo a este padrón? Se generarán las novedades correspondientes."
-          );
-          if (!confirmar) throw e;
-
-          await api(`/coseguro/upsert`, {
-            method: "POST",
-            body: JSON.stringify({
-              afiliadoId: afiliadoIdNum,
-              estado: cfgData.estado,
-              padronCoseguroId: estadoActivo
-                ? cfgData.padronCoseguroId
-                  ? Number(cfgData.padronCoseguroId)
-                  : null
-                : null,
-              reasignar: true,
-            }),
-          });
-        } else {
-          throw e;
-        }
-      }
-
-      // --- 2) J38: imputación sólo si corresponde ---
-      if (estadoActivo && cfgData.padronColatId && cfgHasColaterales) {
-        try {
-          await api(`/colaterales/afiliados/${afiliadoIdNum}/imputacion`, {
-            method: "POST",
-            body: JSON.stringify({
-              padronId: Number(cfgData.padronColatId),
-            }),
-          });
-        } catch (e) {
-          // No abortamos todo: dejamos mensaje informativo
-          setMsg(
-            `ERROR:No se pudo guardar la imputación J38. ${getErrorMessage(e)}`
-          );
-        }
-      }
-
-      // Mensaje y refresco del listado
-      setMsg("SUCCESS:Configuración guardada");
-      setCfgOpen({ open: false });
-
-      // Refrescar fila: recargamos listado con los mismos filtros
-      const resp = await api<AfiliadosPagedResp>(`/afiliados/paged?${params}`, {
-        method: "GET",
-      });
-      setTotal(resp.total ?? 0);
-      setRows((resp.items ?? []).map(mapRow));
-    } catch (e) {
-      setMsg(`ERROR:${getErrorMessage(e)}`);
-    } finally {
-      setCfgBusy(false);
-    }
-  };
-
-  /** ======================= Render ======================= */
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Coseguros</h1>
-          <p className="page-subtitle">
-            ABM de coseguro y colaterales por afiliado
-          </p>
-        </div>
-        <div className="page-actions">
-          <Button asChild>
-            <a href="/padrones/nuevo">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <line x1="19" y1="8" x2="19" y2="14" />
-              <line x1="22" y1="11" x2="16" y2="11" />
-            </svg>
-            Nuevo Afiliado
-            </a>
-          </Button>
-        </div>
+    <div className="px-4 py-6 sm:px-6 lg:px-8">
+      <PageHeader
+        title="Coseguros"
+        subtitle="Listado de afiliados con cobertura J22/J38 — alta, baja y configuración desde el detalle."
+      >
+        <Link href="/padrones/nuevo">
+          <Button variant="outline">+ Nuevo afiliado</Button>
+        </Link>
+      </PageHeader>
+
+      {/* KPIs */}
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <KpiCard label="Resultados" value={total.toLocaleString("es-AR")} loading={loading} />
+        <KpiCard
+          label="Página actual"
+          value={`${items.length}`}
+          hint={`${page} de ${totalPages}`}
+          loading={loading}
+        />
+        <KpiCard
+          label="Con coseguro (página)"
+          value={kpiConCoseguro.toLocaleString("es-AR")}
+          loading={loading}
+        />
+        <KpiCard
+          label="Con colaterales (página)"
+          value={kpiConColaterales.toLocaleString("es-AR")}
+          loading={loading}
+        />
       </div>
 
-      {/* Mensajes globales */}
-      {msg && (
-        <div
-          className={`alert ${
-            msg.startsWith("SUCCESS:")
-              ? "alert-success"
-              : msg.startsWith("ERROR:")
-              ? "alert-error"
-              : "alert-warning"
-          }`}
-        >
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                {msg.startsWith("SUCCESS:") ? (
-                  <polyline points="16 12 11 17 8 14" />
-                ) : msg.startsWith("ERROR:") ? (
-                  <>
-                    <line x1="15" y1="9" x2="9" y2="15" />
-                    <line x1="9" y1="9" x2="15" y2="15" />
-                  </>
-                ) : (
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                )}
-              </svg>
-            </div>
-            <div className="alert-text">
-              {msg.replace(/^(SUCCESS:|ERROR:)/, "")}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Controles / filtros */}
-      <div className="page-content">
-        <div className="afiliados-controls">
-          <div className="search-section">
-            <div className="search-input-container">
-              <svg
-                className="search-icon"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
+      {/* Filtros */}
+      <Card className="mb-4 py-4">
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <label className="text-xs font-medium text-neutral-600">
+                Buscar (apellido / DNI / padrón)
+              </label>
               <Input
-                className="search-input"
-                placeholder="Buscar por DNI o apellido..."
-                aria-label="Buscar afiliados"
                 value={q}
                 onChange={(e) => {
                   setQ(e.target.value);
                   setPage(1);
                 }}
+                placeholder="Empezar a escribir…"
               />
-              {q && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setQ("");
-                    setPage(1);
-                  }}
-                  className="search-clear"
-                  title="Limpiar búsqueda"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </Button>
-              )}
             </div>
-          </div>
 
-          <div className="filters-section">
-            <div className="filter-group">
-              <label className="filter-label">Estado del afiliado</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-neutral-600">
+                Estado afiliado
+              </label>
               <select
-                className="filter-select"
-                aria-label="Filtro de estado afiliado"
+                className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                 value={estadoAf}
                 onChange={(e) => {
-                  setEstadoAf(e.target.value as any);
+                  setEstadoAf(e.target.value as typeof estadoAf);
                   setPage(1);
                 }}
               >
@@ -496,636 +194,271 @@ export default function CosegurosListadoPage() {
               </select>
             </div>
 
-            <div className="checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  className="checkbox-input"
+            <div className="flex flex-col gap-2">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <Checkbox
                   checked={soloCoseguro}
-                  onChange={(e) => {
-                    setSoloCoseguro(e.target.checked);
+                  onCheckedChange={(v) => {
+                    setSoloCoseguro(!!v);
                     setPage(1);
                   }}
                 />
-                <span className="checkbox-text">Con coseguro</span>
+                <span>Con coseguro</span>
               </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  className="checkbox-input"
+              <label className="inline-flex items-center gap-2 text-sm">
+                <Checkbox
                   checked={soloColaterales}
-                  onChange={(e) => {
-                    setSoloColaterales(e.target.checked);
+                  onCheckedChange={(v) => {
+                    setSoloColaterales(!!v);
                     setPage(1);
                   }}
                 />
-                <span className="checkbox-text">Con colaterales</span>
+                <span>Con colaterales</span>
               </label>
             </div>
 
             {hasActiveFilters && (
-              <Button
-                variant="secondary"
-                onClick={handleClearFilters}
-                title="Limpiar todos los filtros"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  <line x1="10" y1="11" x2="10" y2="17" />
-                  <line x1="14" y1="11" x2="14" y2="17" />
-                </svg>
+              <Button variant="ghost" size="sm" onClick={limpiarFiltros}>
                 Limpiar filtros
               </Button>
             )}
-          </div>
 
-          <div className="pagination-controls">
-            <div className="results-info">
-              {loading ? (
-                <div className="loading-indicator">
-                  <svg
-                    className="spinner"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                  Cargando...
-                </div>
-              ) : (
-                <span className="results-text">
-                  {total === 0
-                    ? "0 resultados"
-                    : `${(page - 1) * limit + 1}-${Math.min(
-                        page * limit,
-                        total
-                      )} de ${total}`}
-                </span>
-              )}
+            <div className="ml-auto space-y-1.5">
+              <label className="text-xs font-medium text-neutral-600">
+                Por página
+              </label>
+              <select
+                className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm"
+                value={String(limit)}
+                onChange={(e) => {
+                  setLimit(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                {[10, 20, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              className="pagination-select"
-              aria-label="Filas por página"
-              value={String(limit)}
-              onChange={(e) => onChangeLimit(Number(e.target.value))}
-            >
-              {[10, 20, 50, 100].map((n) => (
-                <option key={n} value={n}>
-                  {n} por página
-                </option>
-              ))}
-            </select>
           </div>
+        </CardContent>
+      </Card>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
         </div>
+      )}
 
-        {/* Tabla */}
-        <div className="afiliados-table-container">
-          {loading ? (
-            <div className="loading-state">
-              <div className="loading-icon">
-                <svg
-                  className="spinner"
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-              </div>
-              <div className="loading-text">Cargando coseguros...</div>
+      {/* Tabla */}
+      <Card className="py-0">
+        <CardContent className="px-0 py-0">
+          {loading && items.length === 0 ? (
+            <div className="space-y-3 p-6">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
             </div>
-          ) : rows.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">
-                {hasActiveFilters ? "🔍" : "🩺"}
+          ) : items.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-12 text-center">
+              <div className="text-base font-semibold text-neutral-700">
+                {hasActiveFilters ? "Sin resultados" : "No hay afiliados con coseguro"}
               </div>
-              <div className="empty-state-title">
+              <div className="mt-1 text-sm text-neutral-500">
                 {hasActiveFilters
-                  ? "Sin resultados"
-                  : "No hay datos de coseguro"}
-              </div>
-              <div className="empty-state-text">
-                {hasActiveFilters
-                  ? "No se encontraron afiliados que coincidan con los filtros aplicados"
-                  : "Activá coseguro desde el detalle del afiliado o desde este listado"}
+                  ? "Probá limpiar filtros o cambiar la búsqueda."
+                  : "Activá un coseguro desde el detalle de un afiliado."}
               </div>
               {hasActiveFilters && (
-                <Button variant="secondary" onClick={handleClearFilters}>
+                <Button variant="outline" className="mt-4" onClick={limpiarFiltros}>
                   Limpiar filtros
                 </Button>
               )}
             </div>
           ) : (
-            <div className="table-container">
-              <Table className="data-table">
-                <thead>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase text-neutral-600">
                   <tr>
-                    <th>Afiliado</th>
-                    <th>DNI</th>
-                    <th>Estado Af.</th>
-                    <th>Padrones Activos</th>
-                    <th className="table-col-center">Coseguro</th>
-                    <th className="table-col-center">Colaterales</th>
-                    <th className="table-col-center">Acciones</th>
+                    <th className="px-4 py-3 text-left">Afiliado</th>
+                    <th className="px-4 py-3 text-left">DNI</th>
+                    <th className="px-4 py-3 text-left">Padrones activos</th>
+                    <th className="px-4 py-3 text-center">Estado</th>
+                    <th className="px-4 py-3 text-center">Coseguro</th>
+                    <th className="px-4 py-3 text-center">Colaterales</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={String(r.id)}>
-                      <td>
-                        <div className="afiliado-info">
-                          <div className="afiliado-avatar">
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                              <circle cx="12" cy="7" r="4" />
-                            </svg>
-                          </div>
-                          <div className="afiliado-name">
-                            {r.apellidoNombre}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="dni-badge">{r.dni || "—"}</span>
-                      </td>
-                      <td>
-                        <span
-                          className={`status-badge ${
-                            r.estadoAfiliado === "activo"
-                              ? "status-active"
-                              : "status-inactive"
-                          }`}
-                        >
-                          {r.estadoAfiliado === "activo" ? "Activo" : "Baja"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="padrones-container">
-                          {r.padrones.length > 0 ? (
-                            r.padrones.map((p) => (
-                              <span
-                                key={String(p.id)}
-                                className="padron-chip"
-                                title={p.vigente || ""}
+                <tbody className="divide-y divide-neutral-200">
+                  {items.map((it) => {
+                    const nombre = displayNombre(it.apellido, it.nombre);
+                    const dni = formatDni(it.dni);
+                    return (
+                      <tr key={String(it.id)} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-9 items-center justify-center rounded-full bg-medical-100 text-medical-700">
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden
                               >
-                                {p.nro}
-                              </span>
-                            ))
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                              </svg>
+                            </div>
+                            <div className="font-semibold text-neutral-900">{nombre}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-600 tabular-nums">{dni || "—"}</td>
+                        <td className="px-4 py-3">
+                          {it.padronesActivos && it.padronesActivos.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {it.padronesActivos.map((p) => (
+                                <Badge key={String(p.id)} variant="outline">
+                                  {p.padron}
+                                </Badge>
+                              ))}
+                            </div>
                           ) : (
-                            <span className="no-data">Sin padrones</span>
+                            <span className="text-neutral-400">Sin padrones</span>
                           )}
-                        </div>
-                      </td>
-                      <td className="table-col-center">
-                        <span
-                          className={`feature-badge ${
-                            r.coseguro ? "feature-yes" : "feature-no"
-                          }`}
-                        >
-                          {r.coseguro ? "Sí" : "No"}
-                        </span>
-                      </td>
-                      <td className="table-col-center">
-                        <span
-                          className={`feature-badge ${
-                            r.colaterales ? "feature-yes" : "feature-no"
-                          }`}
-                        >
-                          {r.colaterales ? "Sí" : "No"}
-                        </span>
-                      </td>
-                      <td className="table-col-center">
-                        <div
-                          className="btn-group"
-                          style={{ display: "inline-flex", gap: 8 }}
-                        >
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            title="Configurar coseguro (activar / padrones J22/J38)"
-                            onClick={() => void abrirConfigurar(r)}
-                            disabled={r.padrones.length === 0}
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M12 1v4" />
-                              <path d="M12 19v4" />
-                              <path d="m4.22 4.22 2.83 2.83" />
-                              <path d="m16.95 16.95 2.83 2.83" />
-                              <path d="M1 12h4" />
-                              <path d="M19 12h4" />
-                              <path d="m4.22 19.78 2.83-2.83" />
-                              <path d="m16.95 7.05 2.83-2.83" />
-                            </svg>
-                            Configurar
-                          </Button>
-                          <Button asChild variant="secondary" size="sm" title="Gestionar coseguro y colaterales">
-                            <a href={`/coseguro/${r.id}`}>
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                            Gestionar
-                            </a>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge variant={it.estado === "activo" ? "success" : "secondary"}>
+                            {it.estado === "activo" ? "Activo" : "Baja"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {it.coseguro ? (
+                            <Badge variant="medical">Sí</Badge>
+                          ) : (
+                            <span className="text-neutral-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {it.colaterales ? (
+                            <Badge variant="medical">Sí</Badge>
+                          ) : (
+                            <span className="text-neutral-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Link href={`/afiliados/${it.id}`}>
+                              <Button variant="ghost" size="sm">
+                                Ficha
+                              </Button>
+                            </Link>
+                            <Link href={`/coseguro/${it.id}`}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!it.padronesActivos || it.padronesActivos.length === 0}
+                                title={
+                                  !it.padronesActivos || it.padronesActivos.length === 0
+                                    ? "Necesita un padrón activo"
+                                    : undefined
+                                }
+                              >
+                                Gestionar →
+                              </Button>
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
-              </Table>
+              </table>
             </div>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Paginación */}
-        {!loading && rows.length > 0 && (
-          <div className="pagination-container">
-            <div className="pagination-info">
-              <span className="pagination-text">
-                Página {page} de {totalPages} ({total} resultados)
-              </span>
-            </div>
-            <div className="pagination-controls">
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage(1)}
-                disabled={!canPrev}
-                title="Primera página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="11,17 6,12 11,7" />
-                  <polyline points="18,17 13,12 18,7" />
-                </svg>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={!canPrev}
-                title="Página anterior"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="15,18 9,12 15,6" />
-                </svg>
-              </Button>
-              <span className="pagination-current">{page}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={!canNext}
-                title="Página siguiente"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="9,18 15,12 9,6" />
-                </svg>
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="pagination-btn"
-                onClick={() => setPage(totalPages)}
-                disabled={!canNext}
-                title="Última página"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="13,17 18,12 13,7" />
-                  <polyline points="6,17 11,12 6,7" />
-                </svg>
-              </Button>
-            </div>
+      {/* Paginación */}
+      {!loading && items.length > 0 && (
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-xs text-neutral-500">
+            Mostrando {(page - 1) * limit + 1}-
+            {Math.min(page * limit, total)} de {total.toLocaleString("es-AR")}
           </div>
-        )}
-      </div>
-
-      {/* ======================= Modal Configurar Coseguro ======================= */}
-      {cfgOpen.open && cfgOpen.row && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="modal-backdrop"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => !cfgBusy && setCfgOpen({ open: false })}
-        >
-          <div
-            className="modal"
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              minWidth: 460,
-              maxWidth: 640,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: 0, marginBottom: 8 }}>Configurar coseguro</h3>
-            <p style={{ marginTop: 0, color: "#555" }}>
-              {cfgOpen.row.apellidoNombre} — DNI {cfgOpen.row.dni || "—"}
-            </p>
-
-            {/* Warning moderno */}
-            <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-              <div className="alert-content">
-                <div className="alert-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <circle cx="12" cy="16" r="1" />
-                  </svg>
-                </div>
-                <div className="alert-text">
-                  Activar o desactivar coseguro puede generar novedades{" "}
-                  <b>J22</b> y/o <b>J38</b> según día de corte.
-                </div>
-              </div>
-            </div>
-
-            {/* Estado + toggles */}
-            <div style={{ display: "grid", gap: 12 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span className="filter-label" style={{ color: "#666" }}>
-                    Estado
-                  </span>
-                  <span
-                    className={`status-badge ${
-                      cfgData.estado === "activo"
-                        ? "status-active"
-                        : cfgData.estado === "baja"
-                        ? "status-inactive"
-                        : ""
-                    }`}
-                  >
-                    {cfgData.estado.toUpperCase()}
-                  </span>
-                </div>
-
-                <label
-                  className="checkbox-label"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={cfgData.estado === "activo"}
-                    onChange={(e) =>
-                      setCfgData((d) => ({
-                        ...d,
-                        estado: e.target.checked ? "activo" : "baja",
-                      }))
-                    }
-                    disabled={cfgBusy}
-                  />
-                  <span>Activo</span>
-                </label>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-                  gap: 12,
-                }}
-              >
-                {/* J22 */}
-                <div>
-                  <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
-                  >
-                    Imputación J22 (coseguro)
-                  </label>
-                  <select
-                    className="filter-select"
-                    value={String(cfgData.padronCoseguroId ?? "")}
-                    onChange={(e) =>
-                      setCfgData((d) => ({
-                        ...d,
-                        padronCoseguroId: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      }))
-                    }
-                    disabled={cfgBusy || cfgData.estado !== "activo"}
-                    title={
-                      cfgData.estado !== "activo"
-                        ? "Activá el coseguro para imputar J22"
-                        : undefined
-                    }
-                  >
-                    <option value="">— Seleccionar padrón —</option>
-                    {(cfgPadrones.length
-                      ? cfgPadrones
-                      : cfgOpen.row.padrones
-                    ).map((p: any) => (
-                      <option key={String(p.id)} value={String(p.id)}>
-                        {p.padron ?? p.nro}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* J38 */}
-                <div>
-                  <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
-                  >
-                    Imputación J38 (colaterales)
-                  </label>
-                  <select
-                    className="filter-select"
-                    value={String(cfgData.padronColatId ?? "")}
-                    onChange={(e) =>
-                      setCfgData((d) => ({
-                        ...d,
-                        padronColatId: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      }))
-                    }
-                    disabled={
-                      cfgBusy ||
-                      cfgData.estado !== "activo" ||
-                      !cfgHasColaterales
-                    }
-                    title={
-                      cfgData.estado !== "activo"
-                        ? "Activá el coseguro para imputar J38"
-                        : !cfgHasColaterales
-                        ? "No hay colaterales activos para imputar J38"
-                        : undefined
-                    }
-                  >
-                    <option value="">— Seleccionar padrón —</option>
-                    {(cfgPadrones.length
-                      ? cfgPadrones
-                      : cfgOpen.row.padrones
-                    ).map((p: any) => (
-                      <option key={String(p.id)} value={String(p.id)}>
-                        {p.padron ?? p.nro}
-                      </option>
-                    ))}
-                  </select>
-                  {cfgData.estado === "activo" && !cfgHasColaterales && (
-                    <div style={{ fontSize: 12, color: "#a00", marginTop: 6 }}>
-                      Para imputar J38, primero agregá colaterales activos.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: 6,
-                }}
-              >
-                <Button
-                  asChild
-                  variant="secondary"
-                  title="Abrir gestión completa de coseguro y colaterales"
-                >
-                  <a href={`/coseguro/${cfgOpen.row.id}`}>
-                    Abrir gestión completa
-                  </a>
-                </Button>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setCfgOpen({ open: false })}
-                    disabled={cfgBusy}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={() => void guardarCfg()}
-                    disabled={cfgBusy}
-                  >
-                    {cfgBusy ? "Guardando..." : "Guardar"}
-                  </Button>
-                </div>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!canPrev}
+              onClick={() => setPage(1)}
+            >
+              «
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!canPrev}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ‹
+            </Button>
+            <span className="px-2 text-sm tabular-nums">
+              {page} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!canNext}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              ›
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!canNext}
+              onClick={() => setPage(totalPages)}
+            >
+              »
+            </Button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  hint,
+  loading,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+}) {
+  return (
+    <Card className="py-4">
+      <CardContent>
+        <div className="text-xs text-neutral-500">{label}</div>
+        {loading ? (
+          <Skeleton className="mt-1 h-7 w-20" />
+        ) : (
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-neutral-900">
+            {value}
+          </div>
+        )}
+        {hint && <div className="mt-1 text-xs text-neutral-500">{hint}</div>}
+      </CardContent>
+    </Card>
   );
 }
