@@ -49,15 +49,28 @@ export class ColateralesReglasService {
 
   async create(organizacionId: string, dto: CreateReglaColateralDto) {
     const { desde, hasta } = this.ensureDates(dto);
+
+    // Exactamente uno de precioPorColateral / precioTotal.
+    const tienePorCol = dto.precioPorColateral != null;
+    const tieneTotal = dto.precioTotal != null;
+    if (tienePorCol === tieneTotal) {
+      throw new BadRequestException(
+        'Debe enviar exactamente uno de precioPorColateral o precioTotal',
+      );
+    }
+
     const created = await this.prisma.reglaPrecioColateral.create({
       data: {
         organizacionId,
-        parentescoId: toBig(dto.parentescoId),
+        // parentescoId puede ser null (comodín)
+        parentescoId: dto.parentescoId == null ? null : toBig(dto.parentescoId),
         cantidadDesde: Number(dto.cantidadDesde),
         cantidadHasta: dto.cantidadHasta == null ? null : Number(dto.cantidadHasta),
         vigenteDesde: desde,
         vigenteHasta: hasta,
-        precioTotal: Number(dto.precioTotal),
+        precioPorColateral:
+          dto.precioPorColateral != null ? Number(dto.precioPorColateral) : null,
+        precioTotal: dto.precioTotal != null ? Number(dto.precioTotal) : null,
         activo: dto.activo ?? true,
       },
       select: { id: true, parentescoId: true },
@@ -94,12 +107,23 @@ export class ColateralesReglasService {
     const updated = await this.prisma.reglaPrecioColateral.update({
       where: { id: toBig(id) },
       data: {
-        ...(dto.parentescoId != null ? { parentescoId: toBig(dto.parentescoId) } : {}),
+        // parentescoId: null explícito = pasar a comodín; undefined = no tocar.
+        ...(dto.parentescoId !== undefined
+          ? { parentescoId: dto.parentescoId === null ? null : toBig(dto.parentescoId) }
+          : {}),
         ...(dto.cantidadDesde != null ? { cantidadDesde: Number(dto.cantidadDesde) } : {}),
         ...(dto.cantidadHasta !== undefined
           ? { cantidadHasta: dto.cantidadHasta == null ? null : Number(dto.cantidadHasta) }
           : {}),
-        ...(dto.precioTotal != null ? { precioTotal: Number(dto.precioTotal) } : {}),
+        ...(dto.precioPorColateral !== undefined
+          ? {
+              precioPorColateral:
+                dto.precioPorColateral === null ? null : Number(dto.precioPorColateral),
+            }
+          : {}),
+        ...(dto.precioTotal !== undefined
+          ? { precioTotal: dto.precioTotal === null ? null : Number(dto.precioTotal) }
+          : {}),
         ...(dto.vigenteDesde != null ? { vigenteDesde: fechas.desde } : {}),
         ...(dto.vigenteHasta !== undefined ? { vigenteHasta: fechas.hasta ?? null } : {}),
         ...(dto.activo != null ? { activo: !!dto.activo } : {}),
@@ -107,8 +131,14 @@ export class ColateralesReglasService {
       select: { parentescoId: true },
     });
 
-    // Recalcular por el parentesco final de la regla
-    const parId = dto.parentescoId != null ? toBig(dto.parentescoId) : updated.parentescoId;
+    // Recalcular por el parentesco final de la regla.
+    // Si el dto cambió el parentescoId, prevalece ese (incluido null=comodín).
+    const parId =
+      dto.parentescoId !== undefined
+        ? dto.parentescoId === null
+          ? null
+          : toBig(dto.parentescoId)
+        : updated.parentescoId;
     await this.recalcularAfectadosYNotificar(organizacionId, parId);
     return { ok: true as const };
   }
@@ -131,25 +161,38 @@ export class ColateralesReglasService {
   }
 
   /**
-   * Afiliados con coseguro ACTIVO y colaterales activos del parentesco dado.
-   * Para cada uno: recalcular total J38 y registrar **MODIF** con nuevoTotal (incluye 0).
+   * Afiliados con coseguro ACTIVO afectados por el cambio de regla.
+   * Si `parentescoId === null` → regla comodín → afecta a todos los afiliados
+   * con coseguro activo. Si es un bigint → solo los que tienen colaterales
+   * activos de ese parentesco.
+   *
+   * Para cada uno: recalcular total J38. El módulo nuevo de novedades detectará
+   * el delta J38 al generar el lote.
    */
-  private async recalcularAfectadosYNotificar(organizacionId: string, parentescoId: bigint) {
+  private async recalcularAfectadosYNotificar(
+    organizacionId: string,
+    parentescoId: bigint | null,
+  ) {
     const ahora = new Date();
 
-    const afiliados = await this.prisma.colateral.findMany({
-      where: {
-        parentescoId,
-        activo: true,
-        afiliado: { organizacionId, coseguro: { estado: 'activo' } },
-      },
-      select: { afiliadoId: true },
-      distinct: ['afiliadoId'],
-    });
+    const afiliados =
+      parentescoId === null
+        ? await this.prisma.coseguroAfiliado.findMany({
+            where: { organizacionId, estado: 'activo' },
+            select: { afiliadoId: true },
+            distinct: ['afiliadoId'],
+          })
+        : await this.prisma.colateral.findMany({
+            where: {
+              parentescoId,
+              activo: true,
+              afiliado: { organizacionId, coseguro: { estado: 'activo' } },
+            },
+            select: { afiliadoId: true },
+            distinct: ['afiliadoId'],
+          });
 
     for (const row of afiliados) {
-      // Mantenemos el recálculo para invalidar caches/uso futuro; el módulo
-      // nuevo de novedades detectará el delta J38 al generar el lote.
       await this.calc.calcularTotalJ38(organizacionId, row.afiliadoId, ahora);
     }
 

@@ -87,15 +87,28 @@ export class PublicacionesService {
     });
     if (!pub) throw new BadRequestException('Publicación inexistente o no-draft');
 
-    if (body.op !== 'delete' && !body.parentescoId) {
-      throw new BadRequestException('parentescoId requerido');
-    }
     if (body.op !== 'delete' && !body.vigenteDesde) {
       throw new BadRequestException('vigenteDesde requerido');
     }
+    // En create se exige al menos un precio (uno solo: por cabeza o total).
+    if (body.op === 'create') {
+      const tienePorCol = body.precioPorColateral != null;
+      const tieneTotal = body.precioTotal != null;
+      if (tienePorCol === tieneTotal) {
+        throw new BadRequestException(
+          'Debe enviar exactamente uno de precioPorColateral o precioTotal',
+        );
+      }
+    }
 
     // 🔧 Normalizaciones de tipo
-    const parentescoId = body.parentescoId != null ? BigInt(body.parentescoId as any) : undefined;
+    // parentescoId: null explícito = comodín; undefined = no tocar (en update).
+    const parentescoId =
+      body.parentescoId === undefined
+        ? undefined
+        : body.parentescoId === null || (body.parentescoId as any) === ''
+          ? null
+          : BigInt(body.parentescoId as any);
 
     const cantidadDesde =
       body.cantidadDesde != null ? Number(body.cantidadDesde as any) : undefined;
@@ -116,6 +129,10 @@ export class PublicacionesService {
           ? null
           : new Date(body.vigenteHasta as any);
 
+    const precioPorColateral =
+      body.precioPorColateral != null
+        ? new Prisma.Decimal(String(body.precioPorColateral))
+        : undefined;
     const precioTotal =
       body.precioTotal != null ? new Prisma.Decimal(String(body.precioTotal)) : undefined;
 
@@ -127,9 +144,10 @@ export class PublicacionesService {
         targetId: body.targetId ? BigInt(body.targetId as any) : undefined,
         parentescoId,
         cantidadDesde,
-        cantidadHasta, // ✅ ahora es number | null | undefined
+        cantidadHasta,
         vigenteDesde,
         vigenteHasta,
+        precioPorColateral,
         precioTotal,
         activo: body.activo ?? undefined,
       },

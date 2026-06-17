@@ -67,6 +67,14 @@ model Organizacion {
   novedadLotes        NovedadLote[]
   bajasInformables    BajaInformable[]
   novedadesPendientes NovedadPendiente[]
+
+  // Coseguro: clasificación y cobertura
+  reglasClasificacionIntegrante ReglaClasificacionIntegrante[]
+  reglasCoberturaCoseguro       ReglaCoberturaCoseguro[]
+
+  // Farmacias y consumos de órdenes
+  farmacias              Farmacia[]
+  ordenesFarmaciaConsumo OrdenFarmaciaConsumo[]
 }
 
 /**
@@ -205,6 +213,11 @@ enum Sistema {
   JUV
   SGR
   SG
+  /// Jubilados. Restaurado para mantener el schema alineado con producción,
+  /// donde la migración `20260604224527_sistema_04_pp_jub` agregó este valor
+  /// al enum. La UI puede o no exponerlo según contexto (ver
+  /// `frontend/src/app/padrones/nuevo/page.tsx` para el subset visible al alta).
+  JUB
   /// Planta Permanente (empleados de UDAP)
   PP
   /// "04": pagador por caja / débito automático. No genera novedades a Cómputos.
@@ -273,6 +286,9 @@ model Afiliado {
   novedadLoteItems    NovedadLoteItem[]
   novedadesPendientes NovedadPendiente[]
 
+  // Consumos de órdenes de farmacia (el titular es dueño del cupo mensual)
+  ordenesFarmaciaConsumo OrdenFarmaciaConsumo[]
+
   // ---- Índices / Uniques
   @@unique([organizacionId, dni], name: "organizacionId_dni")
   @@unique([organizacionId, cuit], name: "organizacionId_cuit")
@@ -338,10 +354,10 @@ model Padron {
   NominaDetalle           NominaDetalle[]
 
   // Generación de novedades
-  novedadLoteItems     NovedadLoteItem[]
-  bajasInformables     BajaInformable[]
-  novedadesPendientes  NovedadPendiente[]
-  MovimientoAfiliado   MovimientoAfiliado[]
+  novedadLoteItems    NovedadLoteItem[]
+  bajasInformables    BajaInformable[]
+  novedadesPendientes NovedadPendiente[]
+  MovimientoAfiliado  MovimientoAfiliado[]
 
   // ---- Índices / Uniques
   @@unique([organizacionId, padron])
@@ -535,9 +551,10 @@ model Parentesco {
   descripcion    String
   activo         Boolean @default(true)
 
-  organizacion Organizacion           @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  reglas       ReglaPrecioColateral[]
-  Colateral    Colateral[]
+  organizacion        Organizacion                   @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  reglas              ReglaPrecioColateral[]
+  Colateral           Colateral[]
+  reglasClasificacion ReglaClasificacionIntegrante[]
 
   @@unique([organizacionId, codigo], name: "organizacionId_codigo_parentesco")
   @@index([organizacionId])
@@ -581,12 +598,27 @@ model Colateral {
   dni             String?   @db.VarChar(20)
   fechaNacimiento DateTime? @db.Date
   activo          Boolean   @default(true)
+  /// Decisión del operario: si este integrante paga J38 como colateral o no.
+  /// Las reglas (ReglaClasificacionIntegrante) sólo SUGIEREN — nunca escriben
+  /// este flag automáticamente. El operario acepta/rechaza la sugerencia
+  /// desde la ficha del afiliado.
   esColateral     Boolean   @default(true)
+
+  // ----- Flags que alimentan las sugerencias de clasificación
+  esEstudiante            Boolean   @default(false)
+  esDiscapacitado         Boolean   @default(false)
+  tieneAportes            Boolean   @default(false)
+  /// Vencimiento del certificado de aportes (cert negativa ANSES, validez 30d).
+  /// Informativo: cuando vence se avisa, no cambia el flag automáticamente.
+  aportesCertificadoVence DateTime? @db.Date
 
   afiliado   Afiliado             @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
   coseguro   CoseguroAfiliado?    @relation(fields: [coseguroId], references: [id], onDelete: Cascade) // 👈 AQUÍ EL CAMBIO
   parentesco Parentesco           @relation(fields: [parentescoId], references: [id])
   reintegros ReintegroSolicitud[]
+
+  // Consumos de órdenes de farmacia donde este integrante fue quien consumió
+  ordenesFarmaciaConsumo OrdenFarmaciaConsumo[]
 
   @@unique([afiliadoId, dni])
   @@index([afiliadoId, esColateral])
@@ -608,21 +640,159 @@ model ReglaPrecioCoseguro {
   @@index([organizacionId, vigenteDesde])
 }
 
+/// Regla de precio J38. Aplica al cómputo del total para un afiliado según
+/// la cantidad de colaterales por parentesco y la fecha.
+///
+/// Resolución:
+///   1. Se buscan reglas vigentes a la fecha, activas.
+///   2. Para cada parentesco con colaterales activos del afiliado, se filtran
+///      reglas cuyo parentescoId matchee (o sea null = comodín).
+///   3. De esas, se eligen las que cumplen el tramo [cantidadDesde, cantidadHasta].
+///   4. Gana la más específica: parentesco match > comodín; mayor cantidadDesde;
+///      vigenteDesde más reciente; mayor id.
+///   5. Si la regla trae `precioPorColateral`, total = precio × cantidad.
+///      Si trae `precioTotal`, se usa ese monto fijo del tramo.
+///
+/// Constraint app: exactamente uno de (precioPorColateral, precioTotal) está
+/// seteado por regla.
 model ReglaPrecioColateral {
+  id                 BigInt    @id @default(autoincrement())
+  organizacionId     String
+  /// null = comodín: aplica a cualquier parentesco. La regla con parentesco
+  /// match pisa al comodín.
+  parentescoId       BigInt?
+  cantidadDesde      Int // tramo inferior (incl.)
+  cantidadHasta      Int? // tramo superior (incl.) null = ∞
+  vigenteDesde       DateTime  @db.Date
+  vigenteHasta       DateTime? @db.Date
+  /// Precio por cada colateral en el tramo. Multiplica por la cantidad.
+  precioPorColateral Decimal?  @db.Decimal(12, 2)
+  /// Precio total fijo del grupo en el tramo (semántica histórica).
+  precioTotal        Decimal?  @db.Decimal(12, 2)
+  activo             Boolean   @default(true)
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  parentesco   Parentesco?  @relation(fields: [parentescoId], references: [id])
+
+  @@index([organizacionId, parentescoId, vigenteDesde])
+}
+
+/// Clasificación derivada de un integrante del grupo familiar.
+/// Determina si paga J38 (colateral), entra al GF sin recargo, o queda sin cobertura.
+enum ClasifResultado {
+  GF
+  J38
+  SIN_COBERTURA
+}
+
+/// Reglas modificables de clasificación de integrantes. Se evalúan ordenadas
+/// por `prioridad ASC`; la primera cuyas condiciones matcheen define el
+/// resultado. Si ninguna matchea → SIN_COBERTURA (fail-closed).
+///
+/// Condiciones:
+///   - parentescoId null  = cualquier parentesco.
+///   - sexoTitular null   = cualquier sexo del titular.
+///   - edadDesde/Hasta    = inclusive; null = sin tope.
+///   - requiere{Estudiante,Aportes,Discapacidad}:
+///       null  = no importa.
+///       true  = el flag del integrante debe ser true.
+///       false = el flag debe ser false.
+model ReglaClasificacionIntegrante {
+  id                   BigInt          @id @default(autoincrement())
+  organizacionId       String
+  parentescoId         BigInt?
+  sexoTitular          Sexo?
+  edadDesde            Int?
+  edadHasta            Int?
+  requiereEstudiante   Boolean?
+  requiereAportes      Boolean?
+  requiereDiscapacidad Boolean?
+  resultado            ClasifResultado
+  prioridad            Int
+  vigenteDesde         DateTime        @db.Date
+  vigenteHasta         DateTime?       @db.Date
+  activo               Boolean         @default(true)
+  descripcion          String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  parentesco   Parentesco?  @relation(fields: [parentescoId], references: [id])
+
+  @@index([organizacionId, activo, prioridad])
+}
+
+/// Parametriza la cantidad de órdenes de farmacia por mes por titular.
+/// Vigencias permiten cambiar el cupo en el tiempo (ej. de 4 a 5).
+model ReglaCoberturaCoseguro {
   id             BigInt    @id @default(autoincrement())
   organizacionId String
-  parentescoId   BigInt
-  cantidadDesde  Int // tramo inferior (incl.)
-  cantidadHasta  Int? // tramo superior (incl.) null = ∞
+  ordenesPorMes  Int
   vigenteDesde   DateTime  @db.Date
   vigenteHasta   DateTime? @db.Date
-  precioTotal    Decimal   @db.Decimal(12, 2) // total para el grupo (según cantidad)
   activo         Boolean   @default(true)
 
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  parentesco   Parentesco   @relation(fields: [parentescoId], references: [id])
 
-  @@index([organizacionId, parentescoId, vigenteDesde])
+  @@index([organizacionId, vigenteDesde])
+}
+
+/// Farmacias (internas del gremio + externas adheridas).
+/// Las externas usan `usuario` + `passwordHash` para loguearse en la vista web.
+model Farmacia {
+  id             BigInt   @id @default(autoincrement())
+  organizacionId String
+  codigo         String
+  nombre         String
+  cuit           String?
+  direccion      String?
+  localidad      String?
+  telefono       String?
+  email          String?
+  /// true = farmacia del propio gremio (no necesita auth web).
+  esInterna      Boolean  @default(false)
+  /// Credenciales para la vista web de farmacia externa.
+  /// Solo se setean si !esInterna.
+  usuario        String?  @unique
+  passwordHash   String?
+  activo         Boolean  @default(true)
+  creadoEn       DateTime @default(now())
+
+  organizacion Organizacion           @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  consumos     OrdenFarmaciaConsumo[]
+
+  @@unique([organizacionId, codigo])
+  @@index([organizacionId, activo])
+}
+
+/// Consumo de una orden de farmacia.
+/// El cupo es del titular (afiliadoTitularId); cualquier integrante del grupo
+/// con cobertura activa puede consumir.
+/// `periodo` = 'YYYYMM' → el reset el día 1 es implícito (cambia el periodo).
+/// `numeroOrdenEnMes` = 1..N (correlativo dentro del mes, asignado al insertar).
+model OrdenFarmaciaConsumo {
+  id                    BigInt    @id @default(autoincrement())
+  organizacionId        String
+  afiliadoTitularId     BigInt
+  /// null = consumió el propio titular; sino el integrante (GF o colateral).
+  integranteColateralId BigInt?
+  periodo               String    @db.VarChar(6)
+  numeroOrdenEnMes      Int
+  farmaciaId            BigInt
+  consumidaEn           DateTime  @default(now())
+  monto                 Decimal?  @db.Decimal(12, 2)
+  observacion           String?
+  anuladaEn             DateTime?
+  anuladaPor            String?
+  anuladaMotivo         String?
+
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado     Afiliado     @relation(fields: [afiliadoTitularId], references: [id], onDelete: Cascade)
+  integrante   Colateral?   @relation(fields: [integranteColateralId], references: [id])
+  farmacia     Farmacia     @relation(fields: [farmaciaId], references: [id])
+
+  @@unique([organizacionId, afiliadoTitularId, periodo, numeroOrdenEnMes])
+  @@index([organizacionId, periodo])
+  @@index([afiliadoTitularId, periodo])
+  @@index([farmaciaId, consumidaEn])
 }
 
 // MODIFICACIONES DE PRECIO CON WORKER Y borrador
@@ -904,18 +1074,22 @@ model ReintegroPago {
 }
 
 model ReglaPrecioColateralDraft {
-  id             BigInt    @id @default(autoincrement())
-  publicacionId  BigInt
-  organizacionId String
-  op             DraftOp
-  targetId       BigInt? // cuando op=update/delete, referencia regla real
-  parentescoId   BigInt?
-  cantidadDesde  Int?
-  cantidadHasta  Int?
-  vigenteDesde   DateTime? @db.Date
-  vigenteHasta   DateTime? @db.Date
-  precioTotal    Decimal?  @db.Decimal(12, 2)
-  activo         Boolean?
+  id                 BigInt    @id @default(autoincrement())
+  publicacionId      BigInt
+  organizacionId     String
+  op                 DraftOp
+  targetId           BigInt? // cuando op=update/delete, referencia regla real
+  /// null en draft = se quiere persistir como comodín (todo parentesco)
+  parentescoId       BigInt?
+  cantidadDesde      Int?
+  cantidadHasta      Int?
+  vigenteDesde       DateTime? @db.Date
+  vigenteHasta       DateTime? @db.Date
+  /// Precio por cada colateral en el tramo (nuevo modelo).
+  precioPorColateral Decimal?  @db.Decimal(12, 2)
+  /// Precio total fijo del grupo en el tramo (modelo legacy/coexiste).
+  precioTotal        Decimal?  @db.Decimal(12, 2)
+  activo             Boolean?
 
   publicacion PublicacionReglas @relation(fields: [publicacionId], references: [id], onDelete: Cascade)
 
@@ -2109,13 +2283,13 @@ model NovedadPendiente {
   afiliadoId     BigInt
 
   /// "J17" | "J22" | "J38"
-  concepto       String
+  concepto        String
   /// "alta" | "baja" | "modificacion"
-  tipoMovimiento String
+  tipoMovimiento  String
   /// "COMPUTOS" | "ANSES"
-  destino        String
+  destino         String
   /// Para alta/modificacion: valor a informar. Null para baja.
-  valor          Decimal? @db.Decimal(12, 2)
+  valor           Decimal? @db.Decimal(12, 2)
   /// Período del lote donde debe salir (YYYY-MM)
   periodoObjetivo String
 

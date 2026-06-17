@@ -68,33 +68,74 @@ export class ReglasService {
   }
 
   async crearColateral(orgId: string, dto: CrearReglaColateralDto) {
-    const par = await this.prisma.parentesco.findUnique({
-      where: {
-        organizacionId_codigo_parentesco: { organizacionId: orgId, codigo: dto.parentescoCodigo },
-      },
-      select: { id: true },
-    });
-    if (!par) throw new Error('Parentesco inexistente');
+    // Validar precio: exactamente uno de precioPorColateral / precioTotal.
+    const tienePorCol = dto.precioPorColateral != null;
+    const tieneTotal = dto.precioTotal != null;
+    if (tienePorCol === tieneTotal) {
+      throw new Error(
+        'Debe enviar exactamente uno de precioPorColateral o precioTotal',
+      );
+    }
+
+    // parentescoCodigo opcional: si viene resuelve a id; si no, comodín (null).
+    let parentescoId: bigint | null = null;
+    if (dto.parentescoCodigo != null) {
+      const par = await this.prisma.parentesco.findUnique({
+        where: {
+          organizacionId_codigo_parentesco: {
+            organizacionId: orgId,
+            codigo: dto.parentescoCodigo,
+          },
+        },
+        select: { id: true },
+      });
+      if (!par) throw new Error('Parentesco inexistente');
+      parentescoId = par.id;
+    }
 
     return this.prisma.reglaPrecioColateral.create({
       data: {
         organizacionId: orgId,
-        parentescoId: par.id,
+        parentescoId,
         cantidadDesde: dto.cantidadDesde,
         cantidadHasta: dto.cantidadHasta ?? null,
         vigenteDesde: new Date(dto.vigenteDesde),
         vigenteHasta: dto.vigenteHasta ? new Date(dto.vigenteHasta) : null,
-        precioTotal: new Prisma.Decimal(dto.precioTotal),
+        precioPorColateral:
+          dto.precioPorColateral != null ? new Prisma.Decimal(dto.precioPorColateral) : null,
+        precioTotal: dto.precioTotal != null ? new Prisma.Decimal(dto.precioTotal) : null,
         activo: dto.activo ?? true,
       },
     });
   }
 
-  editarColateral(orgId: string, id: string, dto: EditarReglaColateralDto) {
+  async editarColateral(orgId: string, id: string, dto: EditarReglaColateralDto) {
     const rid = BigInt(id);
+
+    // Resolver parentescoCodigo si vino (incluye null explícito → comodín).
+    let parentescoIdUpdate: bigint | null | undefined = undefined;
+    if (dto.parentescoCodigo !== undefined) {
+      if (dto.parentescoCodigo === null) {
+        parentescoIdUpdate = null;
+      } else {
+        const par = await this.prisma.parentesco.findUnique({
+          where: {
+            organizacionId_codigo_parentesco: {
+              organizacionId: orgId,
+              codigo: dto.parentescoCodigo,
+            },
+          },
+          select: { id: true },
+        });
+        if (!par) throw new Error('Parentesco inexistente');
+        parentescoIdUpdate = par.id;
+      }
+    }
+
     return this.prisma.reglaPrecioColateral.update({
       where: { id: rid },
       data: {
+        parentescoId: parentescoIdUpdate,
         cantidadDesde: dto.cantidadDesde ?? undefined,
         cantidadHasta: dto.cantidadHasta === undefined ? undefined : dto.cantidadHasta,
         vigenteHasta:
@@ -103,8 +144,18 @@ export class ReglasService {
             : dto.vigenteHasta
               ? new Date(dto.vigenteHasta)
               : null,
+        precioPorColateral:
+          dto.precioPorColateral === undefined
+            ? undefined
+            : dto.precioPorColateral === null
+              ? null
+              : new Prisma.Decimal(dto.precioPorColateral),
         precioTotal:
-          dto.precioTotal !== undefined ? new Prisma.Decimal(dto.precioTotal) : undefined,
+          dto.precioTotal === undefined
+            ? undefined
+            : dto.precioTotal === null
+              ? null
+              : new Prisma.Decimal(dto.precioTotal),
         activo: dto.activo ?? undefined,
       },
     });

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { ParametrosService } from './parametros.service';
+import { calcularJ38ParaAfiliado } from '../colaterales/colaterales-precio.util';
 
 /**
  * Calcula la cobertura mensual del afiliado y la materializa en
@@ -140,20 +141,13 @@ export class CoberturaService {
     let j38Esperado = 0;
     const cantidadColaterales = afiliado.Colateral.length;
     if (cantidadColaterales > 0 && afiliado.coseguro?.estado === 'activo') {
-      const reglas = await this.prisma.reglaPrecioColateral.findMany({
-        where: {
-          organizacionId,
-          activo: true,
-          vigenteDesde: { lte: fechaPeriodo },
-          OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fechaPeriodo } }],
-          cantidadDesde: { lte: cantidadColaterales },
-        },
-        orderBy: { vigenteDesde: 'desc' },
-      });
-      const reglaAplicable = reglas.find(
-        (r) => r.cantidadHasta == null || r.cantidadHasta >= cantidadColaterales,
+      const total = await calcularJ38ParaAfiliado(
+        this.prisma,
+        organizacionId,
+        BigInt(afiliado.id),
+        fechaPeriodo,
       );
-      j38Esperado = Number(reglaAplicable?.precioTotal ?? 0);
+      j38Esperado = Number(total);
     }
 
     // ---------- K16 esperado ----------

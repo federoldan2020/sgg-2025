@@ -5,6 +5,11 @@ import { BaseProcessor } from '../base/base.processor';
 import { PrismaService } from '../../../common/prisma.service';
 import { JOB_NAMES, QUEUE_NAMES } from '../queues.constants';
 import { PublicacionEstado, Prisma } from '@prisma/client';
+import {
+  seleccionarReglaJ38,
+  aplicarPrecioRegla,
+  type ReglaColateralCandidata,
+} from '../../../modulos/colaterales/colaterales-precio.util';
 
 type RecalcPublicacionPayload = {
   publicacionId: string;
@@ -91,38 +96,52 @@ export class PublicacionesProcessor extends BaseProcessor {
     return { ok: true as const, impactos: impactos.length };
   }
 
+  /**
+   * Aplica los drafts. Devuelve el set de parentescos afectados explícitamente.
+   * Si algún draft toca una regla comodín (parentescoId=null), incluimos un
+   * sentinel `null` en el set para indicar "el cambio afecta a todos los
+   * parentescos" — el cálculo de impacto debe expandir a todos los parentescos
+   * con colaterales activos en esa org.
+   */
   private async aplicarDraftsColaterales(
     organizacionId: string,
     publicacionId: bigint,
-  ): Promise<Set<bigint>> {
+  ): Promise<Set<bigint | null>> {
     const drafts = await this.prisma.reglaPrecioColateralDraft.findMany({
       where: { publicacionId },
     });
-    const afectados = new Set<bigint>();
+    const afectados = new Set<bigint | null>();
     const now = new Date();
 
     await this.prisma.$transaction(async (tx) => {
       for (const d of drafts) {
+        // El draft puede traer parentescoId explícito (incluye null = comodín).
         if (d.parentescoId) afectados.add(BigInt(d.parentescoId));
 
         if (d.op === 'create') {
+          // Validaciones mínimas: vigenteDesde + cantidadDesde + exactamente
+          // un precio. parentescoId puede ser null (comodín).
+          const tienePorCol = d.precioPorColateral != null;
+          const tieneTotal = d.precioTotal != null;
           if (
-            !d.parentescoId ||
             d.cantidadDesde == null ||
             d.vigenteDesde == null ||
-            d.precioTotal == null
+            tienePorCol === tieneTotal
           ) {
             continue;
           }
+          if (d.parentescoId == null) afectados.add(null);
+
           await tx.reglaPrecioColateral.create({
             data: {
               organizacionId,
-              parentescoId: d.parentescoId,
+              parentescoId: d.parentescoId ?? null,
               cantidadDesde: d.cantidadDesde,
               cantidadHasta: d.cantidadHasta ?? null,
               vigenteDesde: d.vigenteDesde,
               vigenteHasta: d.vigenteHasta ?? null,
-              precioTotal: d.precioTotal,
+              precioPorColateral: d.precioPorColateral ?? null,
+              precioTotal: d.precioTotal ?? null,
               activo: d.activo ?? true,
             },
           });
@@ -134,6 +153,7 @@ export class PublicacionesProcessor extends BaseProcessor {
             select: { parentescoId: true },
           });
           if (target?.parentescoId) afectados.add(BigInt(target.parentescoId));
+          else afectados.add(null);
 
           await tx.reglaPrecioColateral.update({
             where: { id: d.targetId },
@@ -143,6 +163,7 @@ export class PublicacionesProcessor extends BaseProcessor {
               cantidadHasta: d.cantidadHasta === undefined ? undefined : d.cantidadHasta,
               vigenteDesde: d.vigenteDesde ?? undefined,
               vigenteHasta: d.vigenteHasta === undefined ? undefined : d.vigenteHasta,
+              precioPorColateral: d.precioPorColateral ?? undefined,
               precioTotal: d.precioTotal ?? undefined,
               activo: d.activo ?? undefined,
             },
@@ -155,6 +176,7 @@ export class PublicacionesProcessor extends BaseProcessor {
             select: { parentescoId: true },
           });
           if (target?.parentescoId) afectados.add(BigInt(target.parentescoId));
+          else afectados.add(null);
 
           await tx.reglaPrecioColateral.update({
             where: { id: d.targetId },
@@ -169,27 +191,29 @@ export class PublicacionesProcessor extends BaseProcessor {
 
   private async calcularImpactosJ38(
     organizacionId: string,
-    parentescosAfectados: Set<bigint>,
+    parentescosAfectados: Set<bigint | null>,
   ): Promise<Array<{ padronId: bigint; j38: Prisma.Decimal }>> {
     const hoy = new Date();
 
-    // Reglas vigentes
-    const reglas = await this.prisma.reglaPrecioColateral.findMany({
-      where: {
-        organizacionId,
-        activo: true,
-        vigenteDesde: { lte: hoy },
-        OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: hoy } }],
-      },
-      orderBy: [{ parentescoId: 'asc' }, { vigenteDesde: 'desc' }, { cantidadDesde: 'desc' }],
-    });
-
-    const reglasPorParentesco = new Map<bigint, typeof reglas>();
-    for (const r of reglas) {
-      const key = BigInt(r.parentescoId);
-      if (!reglasPorParentesco.has(key)) reglasPorParentesco.set(key, []);
-      reglasPorParentesco.get(key)!.push(r);
-    }
+    // Reglas vigentes (incluye comodín parentescoId=null)
+    const reglas: ReglaColateralCandidata[] =
+      await this.prisma.reglaPrecioColateral.findMany({
+        where: {
+          organizacionId,
+          activo: true,
+          vigenteDesde: { lte: hoy },
+          OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: hoy } }],
+        },
+        select: {
+          id: true,
+          parentescoId: true,
+          cantidadDesde: true,
+          cantidadHasta: true,
+          vigenteDesde: true,
+          precioPorColateral: true,
+          precioTotal: true,
+        },
+      });
 
     // Map afiliado -> padrón de imputación (Colaterales)
     const coseguros = await this.prisma.coseguroAfiliado.findMany({
@@ -201,10 +225,17 @@ export class PublicacionesProcessor extends BaseProcessor {
       padronPorAfiliado.set(BigInt(c.afiliadoId), BigInt(c.imputacionPadronIdColaterales!));
     }
 
-    // Colaterales activos (acotado por parentescos afectados si aplica)
-    const whereParentesco: Prisma.BigIntFilter | undefined = parentescosAfectados.size
-      ? { in: Array.from(parentescosAfectados) }
-      : undefined;
+    // ¿Hay un cambio que afecta a "todos" (comodín, parentescoId=null)?
+    const afectaATodos = parentescosAfectados.has(null);
+    const parentescosFijos = new Set<bigint>();
+    for (const p of parentescosAfectados) if (p !== null) parentescosFijos.add(p);
+
+    // Colaterales activos. Si el cambio es comodín → necesitamos TODOS;
+    // sino, acotamos por los parentescos puntualmente afectados.
+    const whereParentesco: Prisma.BigIntFilter | undefined =
+      !afectaATodos && parentescosFijos.size
+        ? { in: Array.from(parentescosFijos) }
+        : undefined;
 
     const colats = await this.prisma.colateral.findMany({
       where: {
@@ -230,35 +261,35 @@ export class PublicacionesProcessor extends BaseProcessor {
     // Afiliados objetivo
     const afiliadosObjetivo: bigint[] = [];
     for (const [aid] of padronPorAfiliado) {
-      if (parentescosAfectados.size === 0 || afiliadosTocados.has(aid)) {
+      if (afectaATodos || parentescosFijos.size === 0 || afiliadosTocados.has(aid)) {
         afiliadosObjetivo.push(aid);
       }
     }
 
-    // Calcular J38 por padrón
+    // Calcular J38 por padrón usando el helper común
     const impactos: Array<{ padronId: bigint; j38: Prisma.Decimal }> = [];
     for (const afiliadoId of afiliadosObjetivo) {
       const padronId = padronPorAfiliado.get(afiliadoId);
       if (!padronId) continue;
 
-      let total = new Prisma.Decimal(0);
-      const parentescosParaAfiliado = parentescosAfectados.size
-        ? Array.from(parentescosAfectados)
-        : Array.from(reglasPorParentesco.keys());
+      // Parentescos a considerar: si afectaATodos, todos los del afiliado;
+      // sino, sólo los explícitamente afectados (intersectados con los que
+      // realmente tiene).
+      const parentescosDelAfi = new Set<bigint>();
+      for (const c of colats) {
+        if (BigInt(c.afiliadoId) === afiliadoId) parentescosDelAfi.add(BigInt(c.parentescoId));
+      }
+      const parentescosParaAfiliado = afectaATodos
+        ? Array.from(parentescosDelAfi)
+        : Array.from(parentescosFijos).filter((p) => parentescosDelAfi.has(p));
 
+      let total = new Prisma.Decimal(0);
       for (const parId of parentescosParaAfiliado) {
         const cant = counts.get(`${afiliadoId}:${parId}`) || 0;
         if (cant <= 0) continue;
-
-        const reglasP = reglasPorParentesco.get(parId);
-        if (!reglasP?.length) continue;
-
-        const regla = reglasP.find(
-          (r) => r.cantidadDesde <= cant && (r.cantidadHasta == null || cant <= r.cantidadHasta),
-        );
-        if (!regla) continue;
-
-        total = total.add(regla.precioTotal);
+        const ganadora = seleccionarReglaJ38(reglas, parId, cant);
+        if (!ganadora) continue;
+        total = total.add(aplicarPrecioRegla(ganadora, cant));
       }
 
       impactos.push({ padronId, j38: total });

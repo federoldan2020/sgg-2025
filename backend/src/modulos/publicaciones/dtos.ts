@@ -13,11 +13,15 @@ export class DraftColateralDto {
   @IsOptional() @IsString() targetId?: string;
 
   // Para create/update (parciales válidos en update)
-  @IsOptional() @IsString() parentescoId?: string;
+  /** Opcional: null/omitido = regla comodín (aplica a cualquier parentesco). */
+  @IsOptional() @IsString() parentescoId?: string | null;
   @IsOptional() @IsString() cantidadDesde?: string;
   @IsOptional() @IsString() cantidadHasta?: string | null;
   @IsOptional() @IsString() vigenteDesde?: string;
   @IsOptional() @IsString() vigenteHasta?: string | null;
+  /** Precio por cabeza (nuevo modelo). Exactamente uno de los dos por draft. */
+  @IsOptional() @IsString() precioPorColateral?: string;
+  /** Precio total fijo del tramo (semántica histórica). */
   @IsOptional() @IsString() precioTotal?: string;
   @IsOptional() @IsBoolean() activo?: boolean;
 }

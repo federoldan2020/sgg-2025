@@ -3,6 +3,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit.service';
 import { ParametrosService } from './parametros.service';
+import { calcularJ38ParaAfiliado } from '../colaterales/colaterales-precio.util';
 
 /**
  * Materialización mensual de Obligaciones (decisiones 19-23 del modelo).
@@ -193,20 +194,13 @@ export class ObligacionesMensualesService {
       const cantidadColaterales = cs.afiliado.Colateral.length;
       if (cantidadColaterales > 0) {
         resumen.j38.afiliadosConsiderados++;
-        const reglas = await this.prisma.reglaPrecioColateral.findMany({
-          where: {
-            organizacionId,
-            activo: true,
-            vigenteDesde: { lte: fechaPeriodo },
-            OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fechaPeriodo } }],
-            cantidadDesde: { lte: cantidadColaterales },
-          },
-          orderBy: { vigenteDesde: 'desc' },
-        });
-        const reglaAplicable = reglas.find(
-          (r) => r.cantidadHasta == null || r.cantidadHasta >= cantidadColaterales,
+        const totalJ38 = await calcularJ38ParaAfiliado(
+          this.prisma,
+          organizacionId,
+          BigInt(cs.afiliadoId),
+          fechaPeriodo,
         );
-        const valorJ38 = reglaAplicable ? Number(reglaAplicable.precioTotal) : 0;
+        const valorJ38 = Number(totalJ38);
 
         if (valorJ38 <= 0) {
           resumen.j38.sinReglaVigente++;
