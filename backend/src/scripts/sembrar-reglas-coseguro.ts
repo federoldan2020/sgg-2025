@@ -20,17 +20,45 @@ import { AppModule } from '../app.module';
 import { PrismaService } from '../common/prisma.service';
 import { Prisma } from '@prisma/client';
 
-type Parent = 'CONYUGE' | 'HIJO' | 'PADRE' | 'MADRE' | 'SUEGRO' | 'SUEGRA' | 'HERMANO' | 'NIETO';
+/**
+ * Catálogo canónico de parentescos de UDAP (alineado con producción al
+ * 2026-06-18). Los códigos NO son secuenciales: el código 5 fue eliminado
+ * tras una corrida errónea del script viejo. La regla "no usar código 5"
+ * queda permanente para no confundir con históricos.
+ *
+ * El catálogo encodea condiciones (discapacidad por edad, cónyuge con
+ * aportes) en el parentesco mismo — por eso varios parentescos para
+ * "hijo discapacitado" según rango etario. Las reglas de clasificación
+ * de abajo aprovechan esto en lugar de depender de flags genéricos.
+ */
+type Parent =
+  | 'CONYUGE' // 1
+  | 'HIJO' // 2
+  | 'PADRE_MADRE' // 3
+  | 'HERMANO' // 4
+  | 'HIJO_DISC' // 6
+  | 'SUEGRO' // 7
+  | 'HIJO_DISC_MAYOR26' // 8
+  | 'NIETO' // 9
+  | 'HIJO_DISC_21_26' // 10
+  | 'CONYUGE_CON_APORTES' // 11
+  | 'HIJO_DISC_GENERICO' // 12
+  | 'HABILITADOS_OTROS'; // 13 — legacy, sin regla
 
 const PARENTESCOS_CANON: { codigo: number; descripcion: string; key: Parent }[] = [
   { codigo: 1, descripcion: 'CONYUGE', key: 'CONYUGE' },
   { codigo: 2, descripcion: 'HIJO/A', key: 'HIJO' },
-  { codigo: 3, descripcion: 'PADRE', key: 'PADRE' },
-  { codigo: 4, descripcion: 'MADRE', key: 'MADRE' },
-  { codigo: 5, descripcion: 'SUEGRO', key: 'SUEGRO' },
-  { codigo: 6, descripcion: 'SUEGRA', key: 'SUEGRA' },
-  { codigo: 7, descripcion: 'HERMANO/A', key: 'HERMANO' },
-  { codigo: 8, descripcion: 'NIETO/A', key: 'NIETO' },
+  { codigo: 3, descripcion: 'PADRE/MADRE', key: 'PADRE_MADRE' },
+  { codigo: 4, descripcion: 'HERMANO/A', key: 'HERMANO' },
+  // codigo 5 reservado: no usar (parentesco SUEGRO obsoleto eliminado)
+  { codigo: 6, descripcion: 'HIJO DISCAPACITADO', key: 'HIJO_DISC' },
+  { codigo: 7, descripcion: 'SUEGRO/A', key: 'SUEGRO' },
+  { codigo: 8, descripcion: 'HIJO/A DISC(MAYOR 26 AÑOS)', key: 'HIJO_DISC_MAYOR26' },
+  { codigo: 9, descripcion: 'NIETO/A MENOR TENENCIA', key: 'NIETO' },
+  { codigo: 10, descripcion: 'HIJO DISC(21 a 26 años)', key: 'HIJO_DISC_21_26' },
+  { codigo: 11, descripcion: 'CONY.C/AP Y/O ADM.PUBL', key: 'CONYUGE_CON_APORTES' },
+  { codigo: 12, descripcion: 'HIJO/A DISC', key: 'HIJO_DISC_GENERICO' },
+  { codigo: 13, descripcion: 'HABILITADOS/OTROS', key: 'HABILITADOS_OTROS' },
 ];
 
 async function main() {
@@ -184,6 +212,14 @@ async function main() {
 
   // ──────────────────────────────────────────────────
   // 5) Reglas de clasificación (data-driven)
+  //
+  // Modelo: el catálogo de parentescos ya distingue casos especiales
+  // (cónyuge con aportes = código 11; cuatro categorías de hijo
+  // discapacitado según edad). Por eso las reglas mapean 1-a-1 contra
+  // parentescos en vez de depender de flags genéricos.
+  //
+  // HABILITADOS/OTROS (cód 13) queda en el catálogo pero sin regla —
+  // legacy, no se usa en altas nuevas.
   // ──────────────────────────────────────────────────
   console.log('\n── Reglas de clasificación ───────────');
   const reglasClasif: Array<{
@@ -197,7 +233,7 @@ async function main() {
     resultado: 'GF' | 'J38' | 'SIN_COBERTURA';
     descripcion: string;
   }> = [
-    // Cónyuge: espejo por aportes (sin importar sexo del titular)
+    // Cónyuge
     {
       prioridad: 10,
       parentesco: 'CONYUGE',
@@ -207,7 +243,7 @@ async function main() {
       requiereAportes: false,
       requiereDiscapacidad: null,
       resultado: 'GF',
-      descripcion: 'Cónyuge sin aportes → grupo familiar',
+      descripcion: 'Conyuge (cod 1) sin aportes -> grupo familiar',
     },
     {
       prioridad: 11,
@@ -218,9 +254,20 @@ async function main() {
       requiereAportes: true,
       requiereDiscapacidad: null,
       resultado: 'J38',
-      descripcion: 'Cónyuge con aportes → colateral J38',
+      descripcion: 'Conyuge (cod 1) con aportes -> colateral J38 (legacy si quedaron asi)',
     },
-    // Hijos
+    {
+      prioridad: 12,
+      parentesco: 'CONYUGE_CON_APORTES',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Conyuge con aportes / admin publica (cod 11) -> colateral J38',
+    },
+    // Hijos base
     {
       prioridad: 20,
       parentesco: 'HIJO',
@@ -230,21 +277,10 @@ async function main() {
       requiereAportes: null,
       requiereDiscapacidad: null,
       resultado: 'GF',
-      descripcion: 'Hijo ≤ 20 años → grupo familiar',
+      descripcion: 'Hijo/a (cod 2) <= 20 anos -> grupo familiar',
     },
     {
       prioridad: 21,
-      parentesco: 'HIJO',
-      edadDesde: 21,
-      edadHasta: null,
-      requiereEstudiante: null,
-      requiereAportes: null,
-      requiereDiscapacidad: true,
-      resultado: 'J38',
-      descripcion: 'Hijo discapacitado ≥ 21 → colateral J38',
-    },
-    {
-      prioridad: 22,
       parentesco: 'HIJO',
       edadDesde: 21,
       edadHasta: 26,
@@ -252,10 +288,10 @@ async function main() {
       requiereAportes: null,
       requiereDiscapacidad: null,
       resultado: 'J38',
-      descripcion: 'Hijo estudiante 21-26 → colateral J38',
+      descripcion: 'Hijo/a (cod 2) 21-26 estudiante -> colateral J38',
     },
     {
-      prioridad: 23,
+      prioridad: 22,
       parentesco: 'HIJO',
       edadDesde: 21,
       edadHasta: null,
@@ -263,22 +299,98 @@ async function main() {
       requiereAportes: null,
       requiereDiscapacidad: null,
       resultado: 'SIN_COBERTURA',
-      descripcion: 'Hijo ≥ 21 sin condiciones → sin cobertura (fallback)',
+      descripcion: 'Hijo/a (cod 2) >= 21 sin condicion -> sin cobertura (fallback)',
     },
-    // Padre, madre, suegro/a, hermano/a, nieto/a → J38 sin restricción
-    ...(['PADRE', 'MADRE', 'SUEGRO', 'SUEGRA', 'HERMANO', 'NIETO'] as Parent[]).map(
-      (p, idx) => ({
-        prioridad: 30 + idx,
-        parentesco: p,
-        edadDesde: null,
-        edadHasta: null,
-        requiereEstudiante: null,
-        requiereAportes: null,
-        requiereDiscapacidad: null,
-        resultado: 'J38' as const,
-        descripcion: `${p} → colateral J38`,
-      }),
-    ),
+    // Hijos con parentesco de discapacidad propio
+    {
+      prioridad: 23,
+      parentesco: 'HIJO_DISC',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Hijo discapacitado (cod 6) -> colateral J38',
+    },
+    {
+      prioridad: 24,
+      parentesco: 'HIJO_DISC_MAYOR26',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Hijo/a disc. mayor 26 (cod 8) -> colateral J38',
+    },
+    {
+      prioridad: 25,
+      parentesco: 'HIJO_DISC_21_26',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Hijo disc. 21-26 (cod 10) -> colateral J38',
+    },
+    {
+      prioridad: 26,
+      parentesco: 'HIJO_DISC_GENERICO',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Hijo/a discapacitado generico (cod 12) -> colateral J38',
+    },
+    // Resto del grupo familiar -> J38
+    {
+      prioridad: 30,
+      parentesco: 'PADRE_MADRE',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Padre/madre (cod 3) -> colateral J38',
+    },
+    {
+      prioridad: 31,
+      parentesco: 'HERMANO',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Hermano/a (cod 4) -> colateral J38',
+    },
+    {
+      prioridad: 32,
+      parentesco: 'SUEGRO',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Suegro/a (cod 7) -> colateral J38',
+    },
+    {
+      prioridad: 33,
+      parentesco: 'NIETO',
+      edadDesde: null,
+      edadHasta: null,
+      requiereEstudiante: null,
+      requiereAportes: null,
+      requiereDiscapacidad: null,
+      resultado: 'J38',
+      descripcion: 'Nieto/a menor a cargo (cod 9) -> colateral J38',
+    },
   ];
 
   for (const r of reglasClasif) {
