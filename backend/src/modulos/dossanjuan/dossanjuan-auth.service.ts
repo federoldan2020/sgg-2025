@@ -53,49 +53,115 @@ export class DossanjuanAuthService {
         'dossanjuan: credenciales no configuradas (DOSSANJUAN_USER / DOSSANJUAN_PASS)',
       );
     }
+    const url0 = `${cfg.loginUrl}?ReturnUrl=${encodeURIComponent(cfg.returnUrl)}`;
+    const jar: CookieJar = {};
 
-    const url = `${cfg.loginUrl}?ReturnUrl=${encodeURIComponent(cfg.returnUrl)}`;
+    // 1) GET del formulario. El primer hit responde 302 con
+    //    AspxAutoDetectCookieSupport=1 y redirige a la misma URL con la flag
+    //    en query. Hay que seguir el redirect manualmente preservando la
+    //    cookie, sino se pierde el viewstate de la página correcta.
+    const html = await this.fetchWithFollow(url0, jar, 'GET', null, cfg.timeout);
+    const vs = hiddenValue(html, '__VIEWSTATE');
+    const vsg = hiddenValue(html, '__VIEWSTATEGENERATOR');
+    const ev = hiddenValue(html, '__EVENTVALIDATION');
+    if (!vs) {
+      throw new Error('Login dossanjuan: no se encontró __VIEWSTATE en el form');
+    }
 
-    // 1) GET del formulario de login para sacar __VIEWSTATE etc.
-    const getResp = await fetch(url, { signal: AbortSignal.timeout(cfg.timeout) });
-    const html = await getResp.text();
-    const cookiesIniciales = parseSetCookie(getRawSetCookies(getResp));
-
+    // 2) POST del login. La URL que el server espera tiene AspxAutoDetectCookieSupport=1.
+    const postUrl = `${url0}&AspxAutoDetectCookieSupport=1`;
     const form = new URLSearchParams({
-      __VIEWSTATE: hiddenValue(html, '__VIEWSTATE'),
-      __VIEWSTATEGENERATOR: hiddenValue(html, '__VIEWSTATEGENERATOR'),
-      __EVENTVALIDATION: hiddenValue(html, '__EVENTVALIDATION'),
+      __VIEWSTATE: vs,
+      __VIEWSTATEGENERATOR: vsg,
+      __EVENTVALIDATION: ev,
       'Login1$UserName': cfg.usuario,
       'Login1$Password': cfg.password,
       'Login1$LoginButton': 'Inicio de sesión',
     });
-
-    // 2) POST del login con las cookies iniciales
-    const postResp = await fetch(url, {
+    const postResp = await fetch(postUrl, {
       method: 'POST',
       redirect: 'manual',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        Cookie: this.cookieHeader(cookiesIniciales),
+        Cookie: this.cookieHeader(jar),
       },
       body: form.toString(),
       signal: AbortSignal.timeout(cfg.timeout),
     });
+    Object.assign(jar, parseSetCookie(getRawSetCookies(postResp)));
+    const locPost = postResp.headers.get('location');
 
-    const cookiesFinales: CookieJar = {
-      ...cookiesIniciales,
-      ...parseSetCookie(getRawSetCookies(postResp)),
-    };
-
-    if (!cookiesFinales['.ASPROLESCOSEGURO']) {
+    if (postResp.status !== 302 || !locPost) {
       this.logger.error(
-        `Login dossanjuan falló — status=${postResp.status} cookies=${Object.keys(cookiesFinales).join(',') || '(vacío)'}`,
+        `Login dossanjuan POST inesperado — status=${postResp.status} loc=${locPost}`,
+      );
+      throw new Error(`Login dossanjuan falló (POST status=${postResp.status})`);
+    }
+
+    // 3) Seguir el redirect del POST. ASP.NET setea `.ASPROLESCOSEGURO`
+    //    recién en el primer hit a una página protegida después del login.
+    await this.fetchWithFollow(
+      this.absolutize(locPost),
+      jar,
+      'GET',
+      null,
+      cfg.timeout,
+    );
+
+    if (!jar['.ASPROLESCOSEGURO']) {
+      this.logger.error(
+        `Login dossanjuan falló — sin .ASPROLESCOSEGURO tras follow. Cookies=${Object.keys(jar).join(',') || '(vacío)'}`,
       );
       throw new Error('Login dossanjuan falló (sin cookie .ASPROLESCOSEGURO)');
     }
 
     this.logger.log('Login dossanjuan OK');
-    return cookiesFinales;
+    return jar;
+  }
+
+  /**
+   * GET (o POST si quisiera, pero acá solo GET) siguiendo redirects 301/302/303/307
+   * manualmente y preservando cookies en el `jar` provisto.
+   * Devuelve el body del último hop no-redirect.
+   */
+  private async fetchWithFollow(
+    url: string,
+    jar: CookieJar,
+    method: 'GET' | 'POST',
+    body: string | null,
+    timeoutMs: number,
+    maxHops = 6,
+  ): Promise<string> {
+    let cur = url;
+    for (let i = 0; i < maxHops; i++) {
+      const resp = await fetch(cur, {
+        method,
+        redirect: 'manual',
+        headers: {
+          ...(method === 'POST'
+            ? { 'Content-Type': 'application/x-www-form-urlencoded' }
+            : {}),
+          Cookie: this.cookieHeader(jar),
+        },
+        body: body ?? undefined,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      Object.assign(jar, parseSetCookie(getRawSetCookies(resp)));
+      const isRedirect = [301, 302, 303, 307].includes(resp.status);
+      const loc = resp.headers.get('location');
+      if (!isRedirect || !loc) return await resp.text();
+      cur = this.absolutize(loc);
+      // Sólo el primer salto puede ser POST; los siguientes son GET.
+      method = 'GET';
+      body = null;
+    }
+    throw new Error('Demasiados redirects siguiendo login dossanjuan');
+  }
+
+  private absolutize(loc: string): string {
+    if (loc.startsWith('http')) return loc;
+    const base = 'https://dossanjuan.online';
+    return loc.startsWith('/') ? `${base}${loc}` : `${base}/${loc}`;
   }
 }
 
