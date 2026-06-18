@@ -75,6 +75,9 @@ model Organizacion {
   // Farmacias y consumos de órdenes
   farmacias              Farmacia[]
   ordenesFarmaciaConsumo OrdenFarmaciaConsumo[]
+
+  // Sincronización con dossanjuan.online (WS SOAP UDAP)
+  syncDossanjuan SyncDossanjuan[]
 }
 
 /**
@@ -585,6 +588,8 @@ model CoseguroAfiliado {
 
   colaterales Colateral[]
 
+  syncDossanjuan SyncDossanjuan[]
+
   @@index([organizacionId, afiliadoId])
 }
 
@@ -793,6 +798,47 @@ model OrdenFarmaciaConsumo {
   @@index([organizacionId, periodo])
   @@index([afiliadoTitularId, periodo])
   @@index([farmaciaId, consumidaEn])
+}
+
+/// Cola persistente para sincronizar altas/bajas de coseguro contra
+/// dossanjuan.online (WS SOAP UDAP). Las acciones locales encolan una fila
+/// con `estado=PENDIENTE` y un worker en background la procesa con
+/// idempotencia y reintentos.
+///
+/// `dni` = documento del integrante a sincronizar (en general el titular).
+/// `coseguroId` puede quedar `null` si la fila sobrevive al borrado del
+/// coseguro local (no rompe el historial de sincronización).
+model SyncDossanjuan {
+  id             BigInt               @id @default(autoincrement())
+  organizacionId String
+  coseguroId     BigInt?
+  dni            BigInt
+  accion         SyncDossanjuanAccion
+  estado         SyncDossanjuanEstado @default(PENDIENTE)
+  intentos       Int                  @default(0)
+  ultimoError    String?              @db.Text
+  respuestaWs    String?              @db.Text
+  ejecutadoEn    DateTime?
+  creadoEn       DateTime             @default(now())
+  actualizadoEn  DateTime             @updatedAt
+
+  organizacion Organizacion      @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  coseguro     CoseguroAfiliado? @relation(fields: [coseguroId], references: [id], onDelete: SetNull)
+
+  @@index([estado, creadoEn])
+  @@index([organizacionId, estado])
+  @@index([dni])
+}
+
+enum SyncDossanjuanAccion {
+  ALTA
+  BAJA
+}
+
+enum SyncDossanjuanEstado {
+  PENDIENTE
+  OK
+  ERROR_PERMANENTE
 }
 
 // MODIFICACIONES DE PRECIO CON WORKER Y borrador

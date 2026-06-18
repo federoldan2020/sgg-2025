@@ -7,9 +7,10 @@ import { CoseguroReglasService } from './coseguro-reglas.service';
 import { CoseguroMarcadoInicialController } from './coseguro-marcado-inicial.controller';
 import { AuditService } from '../../common/audit.service';
 import { NovedadesModule } from '../novedades/novedades.module';
+import { DossanjuanModule } from '../dossanjuan/dossanjuan.module';
 
 @Module({
-  imports: [NovedadesModule],
+  imports: [NovedadesModule, DossanjuanModule],
   controllers: [
     CoseguroController,
     CoseguroReglasController,

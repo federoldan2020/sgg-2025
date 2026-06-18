@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { NovedadesPendientesService } from '../novedades/novedades-pendientes.service';
+import { DossanjuanSyncService } from '../dossanjuan/dossanjuan-sync.service';
 
 type IdLike = string | number | bigint;
 const toBig = (v: IdLike) => {
@@ -18,10 +20,43 @@ const toBig = (v: IdLike) => {
 
 @Injectable()
 export class CoseguroService {
+  private readonly logger = new Logger(CoseguroService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly novedadesPendientes: NovedadesPendientesService,
+    private readonly dossanjuanSync: DossanjuanSyncService,
   ) {}
+
+  /**
+   * Resuelve el DNI del titular y encola sync con dossanjuan. Best-effort —
+   * cualquier error se loggea pero no rompe la operación local del coseguro.
+   */
+  private async sincronizarDossanjuan(
+    organizacionId: string,
+    afiliadoId: bigint,
+    coseguroId: bigint | null,
+    accion: 'ALTA' | 'BAJA',
+  ): Promise<void> {
+    try {
+      const af = await this.prisma.afiliado.findFirst({
+        where: { id: afiliadoId, organizacionId },
+        select: { dni: true },
+      });
+      if (!af?.dni || af.dni <= 0n) return;
+      if (accion === 'ALTA') {
+        this.dossanjuanSync.encolarAlta(organizacionId, coseguroId, af.dni);
+      } else {
+        this.dossanjuanSync.encolarBaja(organizacionId, coseguroId, af.dni);
+      }
+    } catch (e: unknown) {
+      this.logger.warn(
+        `No se pudo encolar sync dossanjuan ${accion} afiliado=${afiliadoId.toString()}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+  }
 
   // ----------------- helpers -----------------
   private async ensureAfiliadoInOrg(organizacionId: string, afiliadoId: IdLike) {
@@ -235,6 +270,16 @@ export class CoseguroService {
     const estadoNuevo = actualizado.estado as 'activo' | 'baja';
     const padronFinal = actualizado.imputacionPadronIdCoseguro ?? null;
 
+    // Sincronizar con dossanjuan solo si hubo cambio de estado real.
+    if (estadoNuevo !== estadoPrevio) {
+      await this.sincronizarDossanjuan(
+        organizacionId,
+        afId,
+        actualizado.id,
+        estadoNuevo === 'activo' ? 'ALTA' : 'BAJA',
+      );
+    }
+
     return {
       estado: estadoNuevo,
       fechaAlta: actualizado.fechaAlta?.toISOString().slice(0, 10) ?? null,
@@ -258,6 +303,8 @@ export class CoseguroService {
     const regla = await this.reglaCoseguroVigente(organizacionId, fecha);
     const valorJ22 = regla ? Number(regla.precioBase) : null;
 
+    let coseguroIdSync: bigint | null = null;
+    let huboAlta = false;
     await this.prisma.$transaction(async (tx) => {
       const existente = await tx.coseguroAfiliado.findFirst({
         where: { organizacionId, afiliadoId: afId },
@@ -275,14 +322,17 @@ export class CoseguroService {
         fechaAlta: existente?.fechaAlta ?? fecha,
       };
       if (!existente) {
-        await tx.coseguroAfiliado.create({ data });
+        const creado = await tx.coseguroAfiliado.create({ data, select: { id: true } });
+        coseguroIdSync = creado.id;
       } else {
         await tx.coseguroAfiliado.update({ where: { id: existente.id }, data });
+        coseguroIdSync = existente.id;
       }
 
       // Si ya estaba activo no emitimos novedad (no hay delta para Cómputos).
       // Si arrancó / se reactivó, encolamos ALTA J22 al lote del mes corriente.
       if (!yaActivo) {
+        huboAlta = true;
         if (valorJ22 == null || valorJ22 <= 0) {
           throw new BadRequestException(
             'No hay ReglaPrecioCoseguro vigente: cargá una regla activa antes de dar de alta el coseguro.',
@@ -303,6 +353,12 @@ export class CoseguroService {
         );
       }
     });
+
+    // Sincronizar con dossanjuan SOLO si efectivamente arrancó/reactivó (no
+    // si ya estaba activo — sería ruido).
+    if (huboAlta) {
+      await this.sincronizarDossanjuan(organizacionId, afId, coseguroIdSync, 'ALTA');
+    }
 
     return { ok: true };
   }
@@ -329,6 +385,7 @@ export class CoseguroService {
       select: { id: true, fechaAlta: true, imputacionPadronIdCoseguro: true },
     });
 
+    let coseguroIdSync: bigint | null = cos?.id ?? null;
     await this.prisma.$transaction(async (tx) => {
       if (cos) {
         await tx.coseguroAfiliado.update({
@@ -336,7 +393,7 @@ export class CoseguroService {
           data: { estado: 'baja', fechaBaja: fecha, origenBaja },
         });
       } else {
-        await tx.coseguroAfiliado.create({
+        const creado = await tx.coseguroAfiliado.create({
           data: {
             organizacionId,
             afiliadoId: afId,
@@ -346,7 +403,9 @@ export class CoseguroService {
             fechaBaja: fecha,
             imputacionPadronIdCoseguro: null,
           },
+          select: { id: true },
         });
+        coseguroIdSync = creado.id;
       }
 
       // Solo informamos baja si efectivamente estaba imputado a un padrón
@@ -366,6 +425,8 @@ export class CoseguroService {
         );
       }
     });
+
+    await this.sincronizarDossanjuan(organizacionId, afId, coseguroIdSync, 'BAJA');
 
     return { ok: true };
   }
@@ -408,6 +469,16 @@ export class CoseguroService {
       where: { organizacionId, afiliadoId: afId },
       data: { estado: 'baja', fechaBaja: fecha },
     });
+    const cos = await this.prisma.coseguroAfiliado.findFirst({
+      where: { organizacionId, afiliadoId: afId },
+      select: { id: true },
+    });
+    await this.sincronizarDossanjuan(
+      organizacionId,
+      afId,
+      cos?.id ?? null,
+      'BAJA',
+    );
     return { ok: true };
   }
 
@@ -422,6 +493,16 @@ export class CoseguroService {
       where: { organizacionId, afiliadoId: afId },
       data: { estado: 'activo', fechaBaja: null },
     });
+    const cos = await this.prisma.coseguroAfiliado.findFirst({
+      where: { organizacionId, afiliadoId: afId },
+      select: { id: true },
+    });
+    await this.sincronizarDossanjuan(
+      organizacionId,
+      afId,
+      cos?.id ?? null,
+      'ALTA',
+    );
     return { ok: true };
   }
 }
