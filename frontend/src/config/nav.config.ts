@@ -35,6 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/coseguro/", label: "Coseguro" },
       { href: "/coseguro/reintegros", label: "Reintegros" },
       { href: "/coseguro/reintegros/politicas", label: "Políticas de reintegro" },
+      { href: "/farmacias", label: "Farmacias" },
     ],
   },
 
@@ -93,6 +94,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/parametricos/parentescos", label: "Parentescos" },
       { href: "/parametricos/parentescos/importar", label: "Importar parentescos" },
       { href: "/parametricos/reglas/colaterales", label: "Reglas de colaterales" },
+      { href: "/parametricos/reglas/cobertura", label: "Reglas de cobertura" },
+      { href: "/parametricos/reglas/clasificacion", label: "Reglas de clasificación" },
       { href: "/parametros", label: "Parámetros de cobertura" },
     ],
   },

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, getErrorMessage } from "@/servicios/api";
 import { historialCobertura, type Cobertura } from "@/servicios/suspensiones";
+import { obtenerSaldoOrdenes, type SaldoOrdenes } from "@/servicios/farmacias";
 import { SemaforoCoberturaInline } from "@/components/coseguro/SemaforoCoberturaInline";
 import { CupoOrdenesInline } from "@/components/coseguro/CupoOrdenesInline";
 import { TabCobertura } from "@/components/coseguro/TabCobertura";
@@ -46,6 +47,7 @@ export default function CoseguroAfiliadoPage() {
   const [parentescos, setParentescos] = useState<Parentesco[]>([]);
   const [precio, setPrecio] = useState<PrecioResumen | null>(null);
   const [cobertura, setCobertura] = useState<Cobertura | null>(null);
+  const [saldoOrdenes, setSaldoOrdenes] = useState<SaldoOrdenes | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -60,7 +62,7 @@ export default function CoseguroAfiliadoPage() {
     if (!afiliadoId) return;
     try {
       setLoading(true);
-      const [panel, familia, cats, cfgColat, pr, cob] = await Promise.all([
+      const [panel, familia, cats, cfgColat, pr, cob, saldo] = await Promise.all([
         api<{
           afiliado: AfiliadoLite;
           padrones: PadronLite[];
@@ -82,6 +84,7 @@ export default function CoseguroAfiliadoPage() {
         historialCobertura(afiliadoId, 1)
           .then((arr) => arr[0] ?? null)
           .catch(() => null),
+        obtenerSaldoOrdenes(String(afiliadoId)).catch(() => null),
       ]);
 
       setAfiliado(panel.afiliado ?? null);
@@ -97,6 +100,7 @@ export default function CoseguroAfiliadoPage() {
       setParentescos(cats ?? []);
       setPrecio(pr ?? null);
       setCobertura(cob);
+      setSaldoOrdenes(saldo);
     } catch (e) {
       notify("error", getErrorMessage(e));
     } finally {
@@ -155,8 +159,8 @@ export default function CoseguroAfiliadoPage() {
               </Badge>
               <SemaforoCoberturaInline cobertura={cobertura} loading={loading} />
               <CupoOrdenesInline
-                consumidas={null}
-                cupo={null}
+                consumidas={saldoOrdenes?.consumidas ?? null}
+                cupo={saldoOrdenes?.cupo ?? null}
                 loading={loading}
               />
             </div>
@@ -214,7 +218,7 @@ export default function CoseguroAfiliadoPage() {
             </TabsContent>
 
             <TabsContent value="ordenes">
-              <TabOrdenesFarmacia />
+              <TabOrdenesFarmacia afiliadoId={String(afiliadoId)} />
             </TabsContent>
 
             <TabsContent value="cuotas">

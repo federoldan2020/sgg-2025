@@ -33,6 +33,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  // Vista pública de farmacia externa: tiene su propio layout y auth (token
+  // distinto al de usuario admin). No aplica el shell del admin.
+  if (pathname?.startsWith('/farmacia-externa')) {
+    return <>{children}</>;
+  }
+
   return (
     <AuthGuard>
       <UserContext.Provider value={ctx}>

@@ -22,6 +22,17 @@ import { ConfirmDialog } from "@/components/ui-kit/ConfirmDialog";
 import { Money } from "@/components/ui-kit/Money";
 import { KpiGrid } from "@/components/ui-kit/KpiGrid";
 import { api, getErrorMessage } from "@/servicios/api";
+import {
+  sugerirParaAfiliado,
+  type Sugerencia,
+  type ClasifResultado,
+} from "@/servicios/coseguroAdmin";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
   CoseguroCfg,
   Colateral,
@@ -127,6 +138,42 @@ export function TabCobertura({
   // Confirmación de eliminación
   const [delOpen, setDelOpen] = React.useState(false);
   const [delTarget, setDelTarget] = React.useState<Colateral | null>(null);
+
+  // Sugerencias de clasificación por integrante
+  const [sugerencias, setSugerencias] = React.useState<
+    Record<string, Sugerencia | null>
+  >({});
+
+  React.useEffect(() => {
+    let cancel = false;
+    if (colaterales.length === 0) {
+      setSugerencias({});
+      return;
+    }
+    (async () => {
+      try {
+        const arr = await sugerirParaAfiliado(afiliadoId);
+        if (cancel) return;
+        const map: Record<string, Sugerencia | null> = {};
+        for (const s of arr) {
+          map[s.colateralId] = {
+            resultado: s.resultado,
+            reglaId: s.reglaId,
+            reglaDescripcion: s.reglaDescripcion,
+            reglaPrioridad: s.reglaPrioridad,
+            evaluadoAt: s.evaluadoAt,
+          };
+        }
+        setSugerencias(map);
+      } catch {
+        // Si el endpoint falla (ej. sin reglas), no mostramos chip
+        if (!cancel) setSugerencias({});
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [afiliadoId, colaterales.map((c) => String(c.id)).join(",")]);
 
   const padronesActivos = React.useMemo(
     () => padrones.filter((p) => p.activo !== false),
@@ -395,6 +442,7 @@ export function TabCobertura({
                     <th className="px-3 py-2 text-center">Edad</th>
                     <th className="px-3 py-2 text-left">Flags</th>
                     <th className="px-3 py-2 text-center">Rol</th>
+                    <th className="px-3 py-2 text-center">Sugerencia</th>
                     <th className="px-3 py-2 text-center">Activo</th>
                     <th className="px-3 py-2 text-right">Acciones</th>
                   </tr>
@@ -443,6 +491,12 @@ export function TabCobertura({
                           >
                             {c.esColateral !== false ? "J38" : "GF"}
                           </Badge>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <SugerenciaCell
+                            colateral={c}
+                            sugerencia={sugerencias[String(c.id)] ?? null}
+                          />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <Badge variant={c.activo ? "success" : "secondary"}>
@@ -651,3 +705,58 @@ export function TabCobertura({
 
 // Suprimimos warnings de Money sin uso (se queda disponible si lo necesitamos).
 void Money;
+
+function rolMarcado(c: Colateral): ClasifResultado {
+  return c.esColateral !== false ? "J38" : "GF";
+}
+
+function SugerenciaCell({
+  colateral,
+  sugerencia,
+}: {
+  colateral: Colateral;
+  sugerencia: Sugerencia | null;
+}) {
+  if (!sugerencia) {
+    return <span className="text-neutral-300">—</span>;
+  }
+  const marcado = rolMarcado(colateral);
+  const sugerido = sugerencia.resultado;
+  if (marcado === sugerido) {
+    return (
+      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+        OK
+      </Badge>
+    );
+  }
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="inline-flex size-5 items-center justify-center rounded-full bg-amber-100 text-amber-700"
+              title="La regla sugiere otra clasificación"
+            >
+              ⚠
+            </span>
+            <Badge variant="warning">{sugerido}</Badge>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <div className="max-w-xs text-xs">
+            <div className="font-semibold">
+              Operario marcó {marcado}, la regla sugiere {sugerido}
+            </div>
+            {sugerencia.reglaDescripcion && (
+              <div className="mt-1 text-neutral-300">
+                {sugerencia.reglaDescripcion}
+              </div>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
