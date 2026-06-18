@@ -29,6 +29,7 @@ import { HealthModule } from './health/health.module';
 import { DashboardController } from './modulos/dashboard/dashboard.controller';
 import { SuspensionesModule } from './modulos/suspensiones/suspensiones.module';
 import { CupoModule } from './modulos/cupo/cupo.module';
+import { FarmaciasModule } from './modulos/farmacias/farmacias.module';
 import { PrismaService } from './common/prisma.service';
 
 @Module({
@@ -54,6 +55,7 @@ import { PrismaService } from './common/prisma.service';
     ReintegrosModule,
     SuspensionesModule,
     CupoModule,
+    FarmaciasModule,
   ],
   controllers: [
     AfiliadosController,

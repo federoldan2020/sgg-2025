@@ -48,3 +48,64 @@ export interface EditarReglaColateralDto {
   precioTotal?: number | null;
   activo?: boolean;
 }
+
+// =============================================================================
+// Reglas de cobertura (cupo de órdenes de farmacia por mes por afiliado titular)
+// =============================================================================
+export interface CrearReglaCoberturaDto {
+  ordenesPorMes: number; // ej. 4
+  vigenteDesde: string; // YYYY-MM-DD
+  vigenteHasta?: string | null;
+  activo?: boolean;
+}
+
+export interface EditarReglaCoberturaDto {
+  ordenesPorMes?: number;
+  vigenteHasta?: string | null;
+  activo?: boolean;
+}
+
+// =============================================================================
+// Reglas de clasificación de integrantes (GF / J38 / SIN_COBERTURA)
+// =============================================================================
+export type ClasifResultadoDto = 'GF' | 'J38' | 'SIN_COBERTURA';
+
+export interface CrearReglaClasificacionDto {
+  /** null/omitido = cualquier parentesco. */
+  parentescoCodigo?: number | null;
+  /** null/omitido = cualquier sexo del titular. */
+  sexoTitular?: 'M' | 'F' | 'X' | null;
+  edadDesde?: number | null;
+  edadHasta?: number | null;
+  /** null = no importa; true/false = requiere ese valor exacto. */
+  requiereEstudiante?: boolean | null;
+  requiereAportes?: boolean | null;
+  requiereDiscapacidad?: boolean | null;
+  resultado: ClasifResultadoDto;
+  prioridad: number;
+  vigenteDesde: string; // YYYY-MM-DD
+  vigenteHasta?: string | null;
+  activo?: boolean;
+  descripcion?: string | null;
+}
+
+export interface EditarReglaClasificacionDto {
+  parentescoCodigo?: number | null;
+  sexoTitular?: 'M' | 'F' | 'X' | null;
+  edadDesde?: number | null;
+  edadHasta?: number | null;
+  requiereEstudiante?: boolean | null;
+  requiereAportes?: boolean | null;
+  requiereDiscapacidad?: boolean | null;
+  resultado?: ClasifResultadoDto;
+  prioridad?: number;
+  vigenteHasta?: string | null;
+  activo?: boolean;
+  descripcion?: string | null;
+}
+
+/** Body para reordenar masivamente las prioridades. */
+export interface ReordenarReglasClasificacionDto {
+  /** Lista de { id, prioridad }. Permite drag-and-drop frontend. */
+  orden: { id: string; prioridad: number }[];
+}
