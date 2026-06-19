@@ -58,6 +58,72 @@ export class CoseguroService {
     }
   }
 
+  /**
+   * Cascada al grupo familiar: encola la misma acción para cada integrante
+   * activo del afiliado que tenga DNI cargado.
+   *
+   * Política: cuando se suspende/da de baja al titular, todo el grupo
+   * familiar pasa a no tener cobertura en dossanjuan. Y al activar/rehab,
+   * los integrantes vigentes recuperan cobertura UDAP.
+   *
+   * El sync service maneja la idempotencia (no llama al WS si el estado ya
+   * coincide), así que es seguro encolar para integrantes que ya estaban en
+   * el estado deseado.
+   *
+   * Integrantes SIN DNI se omiten silenciosamente — no se pueden identificar
+   * en dossanjuan.
+   */
+  private async cascadaGrupoFamiliarDossanjuan(
+    organizacionId: string,
+    afiliadoId: bigint,
+    coseguroId: bigint | null,
+    accion: 'ALTA' | 'BAJA',
+  ): Promise<void> {
+    try {
+      const integrantes = await this.prisma.colateral.findMany({
+        where: { afiliadoId, activo: true },
+        select: { id: true, dni: true },
+      });
+      let encolados = 0;
+      let sinDni = 0;
+      for (const i of integrantes) {
+        const limpio = (i.dni ?? '').replace(/\D+/g, '');
+        if (!limpio) {
+          sinDni++;
+          continue;
+        }
+        let dniBig: bigint;
+        try {
+          dniBig = BigInt(limpio);
+        } catch {
+          sinDni++;
+          continue;
+        }
+        if (dniBig <= 0n) {
+          sinDni++;
+          continue;
+        }
+        if (accion === 'ALTA') {
+          this.dossanjuanSync.encolarAlta(organizacionId, coseguroId, dniBig);
+        } else {
+          this.dossanjuanSync.encolarBaja(organizacionId, coseguroId, dniBig);
+        }
+        encolados++;
+      }
+      if (encolados > 0 || sinDni > 0) {
+        this.logger.log(
+          `Cascada GF dossanjuan ${accion} afiliado=${afiliadoId.toString()}: ${encolados} encolados, ${sinDni} omitidos (sin DNI)`,
+        );
+      }
+    } catch (e: unknown) {
+      this.logger.warn(
+        `Cascada GF dossanjuan ${accion} afiliado=${afiliadoId.toString()} falló: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+  }
+
   // ----------------- helpers -----------------
   private async ensureAfiliadoInOrg(organizacionId: string, afiliadoId: IdLike) {
     const id = toBig(afiliadoId);
@@ -272,11 +338,18 @@ export class CoseguroService {
 
     // Sincronizar con dossanjuan solo si hubo cambio de estado real.
     if (estadoNuevo !== estadoPrevio) {
+      const accion = estadoNuevo === 'activo' ? 'ALTA' : 'BAJA';
       await this.sincronizarDossanjuan(
         organizacionId,
         afId,
         actualizado.id,
-        estadoNuevo === 'activo' ? 'ALTA' : 'BAJA',
+        accion,
+      );
+      await this.cascadaGrupoFamiliarDossanjuan(
+        organizacionId,
+        afId,
+        actualizado.id,
+        accion,
       );
     }
 
@@ -358,6 +431,12 @@ export class CoseguroService {
     // si ya estaba activo — sería ruido).
     if (huboAlta) {
       await this.sincronizarDossanjuan(organizacionId, afId, coseguroIdSync, 'ALTA');
+      await this.cascadaGrupoFamiliarDossanjuan(
+        organizacionId,
+        afId,
+        coseguroIdSync,
+        'ALTA',
+      );
     }
 
     return { ok: true };
@@ -427,6 +506,12 @@ export class CoseguroService {
     });
 
     await this.sincronizarDossanjuan(organizacionId, afId, coseguroIdSync, 'BAJA');
+    await this.cascadaGrupoFamiliarDossanjuan(
+      organizacionId,
+      afId,
+      coseguroIdSync,
+      'BAJA',
+    );
 
     return { ok: true };
   }
@@ -479,6 +564,12 @@ export class CoseguroService {
       cos?.id ?? null,
       'BAJA',
     );
+    await this.cascadaGrupoFamiliarDossanjuan(
+      organizacionId,
+      afId,
+      cos?.id ?? null,
+      'BAJA',
+    );
     return { ok: true };
   }
 
@@ -498,6 +589,12 @@ export class CoseguroService {
       select: { id: true },
     });
     await this.sincronizarDossanjuan(
+      organizacionId,
+      afId,
+      cos?.id ?? null,
+      'ALTA',
+    );
+    await this.cascadaGrupoFamiliarDossanjuan(
       organizacionId,
       afId,
       cos?.id ?? null,

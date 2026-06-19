@@ -12,9 +12,10 @@ import { ClasificacionController } from './clasificacion.controller';
 import { ClasificacionService } from './clasificacion.service';
 import { AuditService } from '../../common/audit.service';
 import { NovedadesModule } from '../novedades/novedades.module';
+import { DossanjuanModule } from '../dossanjuan/dossanjuan.module';
 
 @Module({
-  imports: [NovedadesModule],
+  imports: [NovedadesModule, DossanjuanModule],
   controllers: [
     ColateralesController,
     ColateralesReglasController,

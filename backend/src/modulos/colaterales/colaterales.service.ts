@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../../common/prisma.service';
 import { ColateralesCalculoService } from './colaterales-calculo.service';
 import { NovedadesPendientesService } from '../novedades/novedades-pendientes.service';
+import { DossanjuanSyncService } from '../dossanjuan/dossanjuan-sync.service';
 import { parsePage, type PageQuery } from '../../common/pagination.util';
 import type { Prisma } from '@prisma/client';
 
@@ -39,7 +40,64 @@ export class ColateralesService {
     private readonly prisma: PrismaService,
     private readonly calc: ColateralesCalculoService,
     private readonly novedadesPendientes: NovedadesPendientesService,
+    private readonly dossanjuanSync: DossanjuanSyncService,
   ) {}
+
+  // ----------------- sync dossanjuan -----------------
+
+  /**
+   * Encola sync con dossanjuan para un integrante del grupo familiar.
+   *
+   * Best-effort: si el DNI está vacío o inválido, se skipea silenciosamente
+   * (no se puede identificar a la persona en dossanjuan sin DNI). Si el
+   * titular no tiene coseguro activo, también se omite el ALTA — el
+   * integrante no puede estar como UDAP si el titular no lo está.
+   *
+   * NOTA: la idempotencia la maneja el sync service (consulta el estado
+   * remoto antes de cada escritura), así que es seguro encolar de más.
+   */
+  private async sincronizarIntegrante(
+    organizacionId: string,
+    afiliadoTitularId: bigint,
+    dniIntegrante: string | null | undefined,
+    accion: 'ALTA' | 'BAJA',
+  ): Promise<void> {
+    try {
+      const limpio = (dniIntegrante ?? '').replace(/\D+/g, '');
+      if (!limpio) return;
+      let dniBig: bigint;
+      try {
+        dniBig = BigInt(limpio);
+      } catch {
+        return;
+      }
+      if (dniBig <= 0n) return;
+
+      // Para ALTA, exigimos que el titular tenga coseguro activo. Para BAJA
+      // siempre encolamos (mejor que quede sin cobertura aunque el titular
+      // ya esté bajo).
+      if (accion === 'ALTA') {
+        const cos = await this.prisma.coseguroAfiliado.findFirst({
+          where: { organizacionId, afiliadoId: afiliadoTitularId },
+          select: { id: true, estado: true },
+        });
+        if (cos?.estado !== 'activo') return;
+        this.dossanjuanSync.encolarAlta(organizacionId, cos.id, dniBig);
+      } else {
+        const cos = await this.prisma.coseguroAfiliado.findFirst({
+          where: { organizacionId, afiliadoId: afiliadoTitularId },
+          select: { id: true },
+        });
+        this.dossanjuanSync.encolarBaja(organizacionId, cos?.id ?? null, dniBig);
+      }
+    } catch (e: unknown) {
+      this.logger.warn(
+        `Sync dossanjuan ${accion} integrante dni=${dniIntegrante ?? '?'} falló: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+  }
 
   // ----------------- helpers -----------------
   private async ensureAfiliadoInOrg(organizacionId: string, afiliadoId: IdLike) {
@@ -310,6 +368,13 @@ export class ColateralesService {
       `Modif total por alta colateral id=${creado.id}`,
     );
 
+    // Sync dossanjuan: si el integrante quedó activo y tiene DNI, encolamos
+    // ALTA (la verificación de coseguro activo del titular la hace el helper).
+    const quedaActivo = dto.activo ?? true;
+    if (quedaActivo) {
+      await this.sincronizarIntegrante(organizacionId, afId, dto.dni, 'ALTA');
+    }
+
     return { id: creado.id };
   }
 
@@ -325,7 +390,7 @@ export class ColateralesService {
 
     const actual = await this.prisma.colateral.findFirst({
       where: { id: colId, afiliadoId: afId },
-      select: { id: true, dni: true },
+      select: { id: true, dni: true, activo: true },
     });
     if (!actual) throw new NotFoundException('Colateral no encontrado');
 
@@ -371,6 +436,25 @@ export class ColateralesService {
       `Modif por edición colateral id=${colId}`,
     );
 
+    // Sync dossanjuan:
+    //   - cambió `activo`: false → true ⇒ ALTA; true → false ⇒ BAJA.
+    //   - cambió `dni`: dar de BAJA al DNI viejo y de ALTA al nuevo
+    //     (si el integrante queda activo).
+    const activoAhora = dto.activo ?? actual.activo;
+    const dniAhora = dto.dni !== undefined ? dto.dni?.trim() || null : actual.dni;
+    const dniCambio = dto.dni !== undefined && (actual.dni ?? '') !== (dniAhora ?? '');
+
+    if (dniCambio && actual.dni) {
+      await this.sincronizarIntegrante(organizacionId, afId, actual.dni, 'BAJA');
+    }
+    if (dto.activo !== undefined && actual.activo !== activoAhora) {
+      const accion: 'ALTA' | 'BAJA' = activoAhora ? 'ALTA' : 'BAJA';
+      await this.sincronizarIntegrante(organizacionId, afId, dniAhora, accion);
+    } else if (dniCambio && activoAhora) {
+      // Solo cambió el DNI y sigue activo → ALTA del nuevo
+      await this.sincronizarIntegrante(organizacionId, afId, dniAhora, 'ALTA');
+    }
+
     return { ok: true };
   }
 
@@ -383,6 +467,12 @@ export class ColateralesService {
     const afId = await this.ensureAfiliadoInOrg(organizacionId, afiliadoId);
     const colId = toBig(colateralId);
     const fecha = new Date();
+
+    // Capturar DNI antes de borrar/desactivar para poder dar BAJA en dossanjuan.
+    const previo = await this.prisma.colateral.findFirst({
+      where: { id: colId, afiliadoId: afId },
+      select: { dni: true, activo: true },
+    });
 
     const totalAntes = await this.calc.calcularTotalJ38(organizacionId, afId, fecha);
 
@@ -403,6 +493,12 @@ export class ColateralesService {
       options?.hard ? 'Baja dura colateral' : 'Baja colateral',
       'Modif total por baja colateral',
     );
+
+    // Si el integrante estaba activo (y por ende posiblemente como UDAP en
+    // dossanjuan), encolamos BAJA. El sync service maneja idempotencia.
+    if (previo?.dni && previo.activo) {
+      await this.sincronizarIntegrante(organizacionId, afId, previo.dni, 'BAJA');
+    }
 
     return { ok: true };
   }
