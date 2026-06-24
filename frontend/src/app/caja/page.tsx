@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import AuthGate from "@/components/auth/AuthGate";
 import { useRouter } from "next/navigation";
-import Swal from "sweetalert2";
 import {
   cajaService,
   AfiliadoSuggest,
@@ -30,11 +29,9 @@ import {
   Layers,
   Plus,
   Printer,
-  RefreshCw,
   Search,
   ShoppingCart,
   Trash2,
-  TrendingUp,
   X,
   XCircle,
   Zap,
@@ -42,6 +39,7 @@ import {
 import { PageContainer, PageHeader, Money, EmptyState } from "@/components/ui-kit";
 
 type MetodoRow = {
+  id: string;
   metodo: "efectivo" | "tarjeta" | "mercadopago" | "otro";
   monto: string;
   ref?: string;
@@ -70,6 +68,24 @@ const toNum = (v: string) => {
 const fmt = (n: number) =>
   new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
+const createMetodoRow = (): MetodoRow => ({
+  id:
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `metodo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  metodo: "efectivo",
+  monto: "",
+  ref: "",
+});
+
+let swalPromise: Promise<typeof import("sweetalert2").default> | null = null;
+async function getSwal() {
+  if (!swalPromise) {
+    swalPromise = import("sweetalert2").then((mod) => mod.default);
+  }
+  return swalPromise;
+}
+
 /** Identifica el destino (obligación/cuota) de una fila pendiente. */
 function aplicTarget(o: ObligPend): { obligacionId?: string; cuotaId?: string } {
   if (o.tipo === "cuota" && o.cuotaId) return { cuotaId: o.cuotaId };
@@ -80,6 +96,8 @@ function aplicTarget(o: ObligPend): { obligacionId?: string; cuotaId?: string } 
 }
 const sameTarget = (a: AplicRow, t: { obligacionId?: string; cuotaId?: string }) =>
   t.cuotaId ? a.cuotaId === t.cuotaId : t.obligacionId ? a.obligacionId === t.obligacionId : false;
+const aplicKey = (t: { obligacionId?: string; cuotaId?: string }) =>
+  t.cuotaId ? `cuota:${t.cuotaId}` : `obligacion:${t.obligacionId ?? ""}`;
 
 /** Normaliza un período variado a "YYYY-MM". */
 function periodoToYM(periodo?: string | null): string | null {
@@ -116,92 +134,6 @@ function KeyBadge({ keys }: { keys: string }) {
     >
       {keys}
     </Badge>
-  );
-}
-
-/* ============ Dólar (píldora compacta para el toolbar) ============ */
-type DolarApiQuote = {
-  compra: number;
-  venta: number;
-  fechaActualizacion: string;
-};
-
-async function fetchDolar(casa: "oficial" | "blue") {
-  const res = await fetch(`https://dolarapi.com/v1/dolares/${casa}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Dólar API (${casa}) ${res.status}`);
-  return (await res.json()) as DolarApiQuote;
-}
-
-function DolarPill() {
-  const [oficial, setOficial] = useState<DolarApiQuote | null>(null);
-  const [blue, setBlue] = useState<DolarApiQuote | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      setErr(false);
-      setLoading(true);
-      const [o, b] = await Promise.all([fetchDolar("oficial"), fetchDolar("blue")]);
-      setOficial(o);
-      setBlue(b);
-    } catch {
-      setErr(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [load]);
-
-  const brecha = useMemo(() => {
-    if (!oficial?.venta || !blue?.venta) return null;
-    return +(((blue.venta - oficial.venta) / oficial.venta) * 100).toFixed(1);
-  }, [oficial?.venta, blue?.venta]);
-
-  return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 shadow-sm">
-      <TrendingUp className="h-4 w-4 shrink-0 text-medical-600" />
-      {err ? (
-        <span className="text-xs text-muted-foreground">Dólar no disponible</span>
-      ) : (
-        <>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Of.</span>
-            <span className="text-sm font-semibold tabular-nums">
-              {loading || !oficial ? "—" : `$${fmt(oficial.venta)}`}
-            </span>
-          </div>
-          <span className="h-4 w-px bg-neutral-200" />
-          <div className="flex items-baseline gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Blue</span>
-            <span className="text-sm font-semibold tabular-nums">
-              {loading || !blue ? "—" : `$${fmt(blue.venta)}`}
-            </span>
-          </div>
-          {brecha !== null && (
-            <Badge
-              variant="secondary"
-              className="px-1.5 py-0 text-[10px] font-semibold tabular-nums bg-medical-50 text-medical-700 border border-medical-200"
-            >
-              +{brecha}%
-            </Badge>
-          )}
-        </>
-      )}
-      <button
-        onClick={load}
-        disabled={loading}
-        title="Actualizar"
-        className="ml-0.5 text-neutral-400 hover:text-neutral-700"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-      </button>
-    </div>
   );
 }
 
@@ -317,7 +249,7 @@ function CajaCobrosInner() {
   const [pend, setPend] = useState<ObligPend[]>([]);
   const [deudaTotal, setDeudaTotal] = useState(0);
   const [aplic, setAplic] = useState<AplicRow[]>([]);
-  const [metodos, setMetodos] = useState<MetodoRow[]>([{ metodo: "efectivo", monto: "", ref: "" }]);
+  const [metodos, setMetodos] = useState<MetodoRow[]>([createMetodoRow()]);
 
   const [msg, setMsg] = useState<string | null>(null);
   const [msgType, setMsgType] = useState<"success" | "error" | null>(null);
@@ -405,9 +337,17 @@ function CajaCobrosInner() {
     return Array.from(m.entries());
   }, [pend]);
 
+  const aplicIndex = useMemo(() => {
+    const m = new Map<string, AplicRow>();
+    for (const row of aplic) {
+      m.set(aplicKey(row), row);
+    }
+    return m;
+  }, [aplic]);
+
   const rowFor = useCallback(
-    (o: ObligPend) => aplic.find((a) => sameTarget(a, aplicTarget(o))),
-    [aplic]
+    (o: ObligPend) => aplicIndex.get(aplicKey(aplicTarget(o))),
+    [aplicIndex]
   );
 
   /* ----- acciones cuotas ----- */
@@ -434,9 +374,14 @@ function CajaCobrosInner() {
   const seleccionarVisibles = () => {
     setAplic((prev) => {
       const next = [...prev];
+      const keys = new Set(prev.map((row) => aplicKey(row)));
       for (const o of pend) {
         const t = aplicTarget(o);
-        if (!next.some((a) => sameTarget(a, t))) next.push({ ...t, monto: o.saldo.toFixed(2) });
+        const key = aplicKey(t);
+        if (!keys.has(key)) {
+          next.push({ ...t, monto: o.saldo.toFixed(2) });
+          keys.add(key);
+        }
       }
       return next;
     });
@@ -446,7 +391,7 @@ function CajaCobrosInner() {
   const autoAsignar = useCallback(() => {
     const objetivo = +totalAplic.toFixed(2);
     setMetodos((prev) => {
-      if (prev.length === 0) return [{ metodo: "efectivo", monto: objetivo.toFixed(2), ref: "" }];
+      if (prev.length === 0) return [{ ...createMetodoRow(), monto: objetivo.toFixed(2) }];
       const others = prev.slice(1).reduce((a, m) => a + toNum(m.monto), 0);
       const primero = { ...prev[0], monto: Math.max(0, +(objetivo - others).toFixed(2)).toFixed(2) };
       return [primero, ...prev.slice(1)];
@@ -463,7 +408,7 @@ function CajaCobrosInner() {
     setPend([]);
     setDeudaTotal(0);
     setAplic([]);
-    setMetodos([{ metodo: "efectivo", monto: "", ref: "" }]);
+    setMetodos([createMetodoRow()]);
     setMsg(null);
     setMsgType(null);
     setPagoId(null);
@@ -526,6 +471,7 @@ function CajaCobrosInner() {
     const idPago = pagoIdParam || pagoId;
     const idComp = comprobanteIdParam ?? comprobanteId;
     const nroRecibo = numeroReciboParam ?? numeroRecibo;
+    const Swal = await getSwal();
     if (!idPago) {
       await Swal.fire({ title: "Error", text: "No se encontró el ID del pago", icon: "error", confirmButtonColor: "#0284c7" });
       return;
@@ -622,9 +568,10 @@ function CajaCobrosInner() {
       setNumeroRecibo(nuevoNumeroRecibo);
       setMsg(`Pago registrado correctamente. Recibo ${reciboLabel} — Total $${fmt(Number(r.total))}`);
       setMsgType("success");
-      setMetodos([{ metodo: "efectivo", monto: "", ref: "" }]);
+      setMetodos([createMetodoRow()]);
       setAplic([]);
 
+      const Swal = await getSwal();
       const result = await Swal.fire({
         title: "¡Pago registrado!",
         html: `<div class="text-center"><p class="text-lg mb-3">Recibo ${reciboLabel}</p><p class="text-3xl font-bold text-green-600 mb-2">$${fmt(Number(r.total))}</p><p class="text-sm text-gray-600">¿Deseás imprimir el comprobante?</p></div>`,
@@ -680,8 +627,8 @@ function CajaCobrosInner() {
 
   return (
     <PageContainer>
-      {/* ===== Toolbar sticky: buscador + dólar ===== */}
-      <div className="sticky top-14 z-30 -mx-6 border-b border-neutral-200/70 bg-white/90 px-6 py-3 backdrop-blur-md">
+      {/* ===== Toolbar sticky: buscador principal ===== */}
+      <div className="sticky top-14 z-30 -mx-6 border-b border-neutral-200 bg-white px-6 py-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted-foreground/80" />
@@ -724,11 +671,15 @@ function CajaCobrosInner() {
               </div>
             )}
           </div>
-          <DolarPill />
+          <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600 lg:flex">
+            <span className="font-medium text-neutral-800">Caja rápida</span>
+            <span className="h-3.5 w-px bg-neutral-200" />
+            <span>Buscá, seleccioná cuotas y cobr&aacute;</span>
+          </div>
         </div>
       </div>
 
-      <PageHeader title="Caja" subtitle="Registrar pago de cuotas · aporte gremial">
+      <PageHeader title="Caja" subtitle="Cobro de cuotas y aportes">
         <Button variant="ghost" onClick={resetAll} className="rounded-xl" disabled={loading}>
           Limpiar
           <KeyBadge keys="Esc" />
@@ -826,24 +777,24 @@ function CajaCobrosInner() {
 
                   {/* Deuda total — rojo si debe, verde compacta si está al día */}
                   {deudaTotal > 0.01 ? (
-                    <div className="mt-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="text-[11px] font-medium uppercase tracking-wide text-rose-600">
                           Deuda total acumulada
                         </div>
-                        <div className="text-2xl font-bold tabular-nums text-rose-700">
+                        <div className="text-xl font-bold tabular-nums text-rose-700">
                           <Money amount={deudaTotal} />
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground sm:text-right">
-                        Sumando cuotas pendientes de todos los padrones
+                        Incluye cuotas pendientes de todos los padrones
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span className="font-medium">Afiliado al día</span>
-                      <span className="text-emerald-700/70">— sin cuotas pendientes en ningún padrón</span>
+                      <span className="text-emerald-700/70">— sin cuotas pendientes</span>
                     </div>
                   )}
                 </CardContent>
@@ -887,7 +838,7 @@ function CajaCobrosInner() {
                   )}
                 </CardHeader>
 
-                <CardContent className="thin-scroll max-h-[calc(100vh-30rem)] min-h-[200px] overflow-y-auto pr-1">
+                <CardContent className="thin-scroll max-h-[calc(100vh-32rem)] min-h-[200px] overflow-y-auto pr-1">
                   {pend.length === 0 ? (
                     <EmptyState
                       className="py-6"
@@ -900,7 +851,7 @@ function CajaCobrosInner() {
                         const sub = items.reduce((a, b) => a + b.saldo, 0);
                         return (
                           <div key={label} className="space-y-2">
-                            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/50 bg-white/95 pb-1.5 pt-0.5 backdrop-blur-sm">
+                            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/50 bg-white pb-1.5 pt-0.5">
                               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 <Layers className="h-3.5 w-3.5" />
                                 <span className="truncate">{label}</span>
@@ -962,18 +913,20 @@ function CajaCobrosInner() {
         {/* ===== Sidebar POS — SIEMPRE visible y sticky ===== */}
         <div className="space-y-4 lg:col-span-4 lg:sticky lg:top-32 lg:h-fit lg:self-start">
           {/* Total a cobrar (hero) */}
-          <div className={`overflow-hidden rounded-2xl p-5 text-white shadow-lg transition-all ${
+          <div className={`overflow-hidden rounded-2xl border p-5 shadow-sm transition-colors ${
             afi
-              ? "bg-gradient-to-br from-medical-600 to-medical-800 shadow-medical-600/20"
-              : "bg-gradient-to-br from-neutral-400 to-neutral-600 shadow-neutral-400/20"
+              ? "border-medical-200 bg-medical-50 text-medical-950"
+              : "border-neutral-200 bg-neutral-50 text-neutral-800"
           }`}>
-            <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+            <div className={`text-[11px] font-medium uppercase tracking-wider ${
+              afi ? "text-medical-700" : "text-neutral-500"
+            }`}>
               Total a cobrar
             </div>
-            <div className="mt-1 text-4xl font-bold tabular-nums">
+            <div className="mt-1 text-3xl font-bold tabular-nums">
               <Money amount={totalAplic} />
             </div>
-            <div className="mt-2 truncate text-sm text-white/80">
+            <div className={`mt-2 truncate text-sm ${afi ? "text-medical-800/80" : "text-neutral-600"}`}>
               {!afi
                 ? "Seleccioná un afiliado"
                 : cuotasSel > 0
@@ -1006,13 +959,15 @@ function CajaCobrosInner() {
 
             <CardContent className="space-y-2.5">
               {metodos.map((m, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={m.id} className="flex items-center gap-2">
                   <Select
                     value={m.metodo}
                     onValueChange={(value) => {
-                      const v = [...metodos];
-                      v[i].metodo = value as typeof m.metodo;
-                      setMetodos(v);
+                      setMetodos((prev) =>
+                        prev.map((row) =>
+                          row.id === m.id ? { ...row, metodo: value as typeof m.metodo } : row
+                        )
+                      );
                     }}
                     disabled={!afi}
                   >
@@ -1034,9 +989,11 @@ function CajaCobrosInner() {
                     value={m.monto}
                     disabled={!afi}
                     onChange={(e) => {
-                      const v = [...metodos];
-                      v[i].monto = e.target.value;
-                      setMetodos(v);
+                      setMetodos((prev) =>
+                        prev.map((row) =>
+                          row.id === m.id ? { ...row, monto: e.target.value } : row
+                        )
+                      );
                     }}
                     className="h-10 flex-1 rounded-lg text-right tabular-nums"
                   />
@@ -1044,7 +1001,7 @@ function CajaCobrosInner() {
                     variant="ghost"
                     size="icon"
                     className="h-10 w-9 shrink-0 rounded-lg"
-                    onClick={() => setMetodos(metodos.filter((_, j) => j !== i))}
+                    onClick={() => setMetodos((prev) => prev.filter((row) => row.id !== m.id))}
                     disabled={metodos.length === 1 || !afi}
                     title="Quitar"
                   >
@@ -1056,7 +1013,7 @@ function CajaCobrosInner() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setMetodos([...metodos, { metodo: "efectivo", monto: "", ref: "" }])}
+                onClick={() => setMetodos((prev) => [...prev, createMetodoRow()])}
                 disabled={!afi}
                 className="h-10 w-full rounded-lg border-dashed"
               >
