@@ -323,6 +323,8 @@ function CajaCobrosInner() {
   const [msgType, setMsgType] = useState<"success" | "error" | null>(null);
   const [loading, setLoading] = useState(false);
   const [pagoId, setPagoId] = useState<string | null>(null);
+  const [comprobanteId, setComprobanteId] = useState<string | null>(null);
+  const [numeroRecibo, setNumeroRecibo] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -349,6 +351,8 @@ function CajaCobrosInner() {
     setAfiDet(null);
     setDeudaTotal(0);
     setPagoId(null);
+    setComprobanteId(null);
+    setNumeroRecibo(null);
     if (!afi) return;
     (async () => {
       const [pads, det, todos] = await Promise.all([
@@ -463,6 +467,8 @@ function CajaCobrosInner() {
     setMsg(null);
     setMsgType(null);
     setPagoId(null);
+    setComprobanteId(null);
+    setNumeroRecibo(null);
     setTimeout(() => inputRef.current?.focus(), 80);
   }, []);
 
@@ -511,8 +517,15 @@ function CajaCobrosInner() {
   }, [canConfirmar, pagoId, loading, resetAll, autoAsignar, totalAplic]);
 
   /* ----- impresión / cobro ----- */
-  const imprimirRecibo = async (formato: "A4" | "TICKET_80MM", pagoIdParam?: string) => {
+  const imprimirRecibo = async (
+    formato: "A4" | "TICKET_80MM",
+    pagoIdParam?: string,
+    comprobanteIdParam?: string,
+    numeroReciboParam?: string,
+  ) => {
     const idPago = pagoIdParam || pagoId;
+    const idComp = comprobanteIdParam ?? comprobanteId;
+    const nroRecibo = numeroReciboParam ?? numeroRecibo;
     if (!idPago) {
       await Swal.fire({ title: "Error", text: "No se encontró el ID del pago", icon: "error", confirmButtonColor: "#0284c7" });
       return;
@@ -525,15 +538,36 @@ function CajaCobrosInner() {
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
-      const pagoData = await api<Record<string, unknown>>(`/caja/pagos/${idPago}/para-imprimir`, { method: "GET" });
-      const blob = await apiBlob("/print/comprobantes?disposition=attachment", {
-        method: "POST",
-        body: JSON.stringify({ ...pagoData, formato }),
-      });
+
+      let blob: Blob;
+      let downloadName: string;
+
+      if (idComp && formato === "A4") {
+        // Recibo persistido en disco (idéntico al emitido en el cobro).
+        blob = await apiBlob(
+          `/comprobantes/${idComp}/pdf?disposition=attachment`,
+          { method: "GET" },
+        );
+        downloadName = `recibo-${nroRecibo || idPago}-a4.pdf`;
+      } else {
+        // Ticket 80mm o pago sin comprobante persistido: render on-the-fly.
+        const pagoData = await api<Record<string, unknown>>(
+          `/caja/pagos/${idPago}/para-imprimir`,
+          { method: "GET" },
+        );
+        blob = await apiBlob("/print/comprobantes?disposition=attachment", {
+          method: "POST",
+          body: JSON.stringify({ ...pagoData, formato }),
+        });
+        downloadName = `recibo-${nroRecibo || idPago}-${
+          formato === "A4" ? "a4" : "ticket"
+        }.pdf`;
+      }
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `recibo-${idPago}-${formato === "A4" ? "a4" : "ticket"}.pdf`;
+      link.download = downloadName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -580,15 +614,20 @@ function CajaCobrosInner() {
 
       const r = await cajaService.cobrar(payload);
       const nuevoPagoId = String(r.id);
+      const nuevoComprobanteId = r.comprobanteId ?? null;
+      const nuevoNumeroRecibo = r.numeroRecibo ?? r.comprobanteNumero ?? null;
+      const reciboLabel = nuevoNumeroRecibo ?? `#${nuevoPagoId}`;
       setPagoId(nuevoPagoId);
-      setMsg(`Pago registrado correctamente. Recibo #${nuevoPagoId} — Total $${fmt(Number(r.total))}`);
+      setComprobanteId(nuevoComprobanteId);
+      setNumeroRecibo(nuevoNumeroRecibo);
+      setMsg(`Pago registrado correctamente. Recibo ${reciboLabel} — Total $${fmt(Number(r.total))}`);
       setMsgType("success");
       setMetodos([{ metodo: "efectivo", monto: "", ref: "" }]);
       setAplic([]);
 
       const result = await Swal.fire({
         title: "¡Pago registrado!",
-        html: `<div class="text-center"><p class="text-lg mb-3">Recibo #${nuevoPagoId}</p><p class="text-3xl font-bold text-green-600 mb-2">$${fmt(Number(r.total))}</p><p class="text-sm text-gray-600">¿Deseás imprimir el comprobante?</p></div>`,
+        html: `<div class="text-center"><p class="text-lg mb-3">Recibo ${reciboLabel}</p><p class="text-3xl font-bold text-green-600 mb-2">$${fmt(Number(r.total))}</p><p class="text-sm text-gray-600">¿Deseás imprimir el comprobante?</p></div>`,
         icon: "success",
         showCancelButton: true,
         confirmButtonText: "Sí, imprimir",
@@ -614,8 +653,10 @@ function CajaCobrosInner() {
           cancelButtonColor: "#6b7280",
           customClass: { popup: "rounded-2xl" },
         });
-        if (f.isConfirmed) await imprimirRecibo("A4", nuevoPagoId);
-        else if (f.isDenied) await imprimirRecibo("TICKET_80MM", nuevoPagoId);
+        if (f.isConfirmed)
+          await imprimirRecibo("A4", nuevoPagoId, nuevoComprobanteId ?? undefined, nuevoNumeroRecibo ?? undefined);
+        else if (f.isDenied)
+          await imprimirRecibo("TICKET_80MM", nuevoPagoId, nuevoComprobanteId ?? undefined, nuevoNumeroRecibo ?? undefined);
       }
 
       setTimeout(() => resetAll(), 1200);
@@ -623,6 +664,8 @@ function CajaCobrosInner() {
       setMsg(`Error: ${getErrorMessage(e)}`);
       setMsgType("error");
       setPagoId(null);
+      setComprobanteId(null);
+      setNumeroRecibo(null);
     } finally {
       setLoading(false);
     }
@@ -851,12 +894,12 @@ function CajaCobrosInner() {
                       description={padronId ? "Este padrón no tiene cuotas pendientes" : "El afiliado no tiene cuotas pendientes"}
                     />
                   ) : (
-                    <div className="space-y-5">
+                    <div className="thin-scroll max-h-[calc(100vh-26rem)] space-y-5 overflow-y-auto pr-1">
                       {grupos.map(([label, items]) => {
                         const sub = items.reduce((a, b) => a + b.saldo, 0);
                         return (
                           <div key={label} className="space-y-2">
-                            <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-1.5">
+                            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/50 bg-white/95 pb-1.5 pt-0.5 backdrop-blur-sm">
                               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 <Layers className="h-3.5 w-3.5" />
                                 <span className="truncate">{label}</span>
