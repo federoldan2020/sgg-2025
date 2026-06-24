@@ -10,8 +10,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Gate liviano: typecheck del frontend. El build real corre en el VPS dentro de deploy.sh.
-  guard:
+  # Gates de build/typecheck en paralelo. El build real productivo
+  # corre en el VPS dentro de deploy.sh; estos jobs solo validan
+  # que el código compila para no deployar algo roto.
+  guard-frontend:
     name: Frontend typecheck
     runs-on: ubuntu-latest
     steps:
@@ -28,9 +30,30 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+  guard-backend:
+    name: Backend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+      - name: Install
+        working-directory: backend
+        run: npm ci
+      # prisma generate hace falta antes del build para que tsc encuentre los tipos de @prisma/client.
+      - name: Prisma generate
+        working-directory: backend
+        run: npx prisma generate
+      - name: Build (nest = tsc gate)
+        working-directory: backend
+        run: npm run build
+
   deploy:
     name: Run deploy.sh on VPS
-    needs: guard
+    needs: [guard-frontend, guard-backend]
     runs-on: ubuntu-latest
     steps:
       - name: SSH agent
