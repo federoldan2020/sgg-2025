@@ -688,23 +688,9 @@ export default function AfiliadosListadoPage() {
             <CardContent className="pt-4">
 
             {/* Warning moderno */}
-            <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-              <div className="alert-content">
-                <div className="alert-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <circle cx="12" cy="16" r="1" />
-                  </svg>
-                </div>
-                <div className="alert-text">
+            <div className="mb-3 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <div className="flex-1">
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
                     <li>
                       La baja de padrón genera novedad J17 = 0 (para el período
@@ -729,27 +715,20 @@ export default function AfiliadosListadoPage() {
                         quedará en estado <b>“baja”</b>.
                       </li>
                     )}
-                  </ul>
-                </div>
+                </ul>
               </div>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
               <div>
                 <label
-                  className="filter-label"
-                  style={{ display: "block", fontSize: 12, color: "#666" }}
+                  className="mb-1 block text-xs font-medium text-muted-foreground"
                 >
                   Alcance
                 </label>
                 <div style={{ display: "flex", gap: 12 }}>
                   <label
-                    className="checkbox-label"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
+                    className="inline-flex cursor-pointer items-center gap-1.5 text-sm"
                   >
                     <input
                       type="radio"
@@ -760,12 +739,7 @@ export default function AfiliadosListadoPage() {
                     <span>Solo un padrón</span>
                   </label>
                   <label
-                    className="checkbox-label"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
+                    className="inline-flex cursor-pointer items-center gap-1.5 text-sm"
                   >
                     <input
                       type="radio"
@@ -784,13 +758,12 @@ export default function AfiliadosListadoPage() {
               {bajaScope === "uno" && (
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Padrón
                   </label>
                   <select
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                     value={String(bajaPadronId ?? "")}
                     onChange={(e) => setBajaPadronId(e.target.value)}
                   >
@@ -804,18 +777,16 @@ export default function AfiliadosListadoPage() {
               )}
 
               {bajaScope === "todos" && (
-                <div
-                  className="padrones-container"
-                  style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-                >
+                <div className="flex flex-wrap gap-1.5">
                   {bajaOpen.row.padrones.map((p) => (
-                    <span
+                    <Badge
                       key={String(p.id)}
-                      className="padron-chip"
+                      variant="outline"
+                      className="border-medical-200 bg-medical-50 px-1.5 py-0 text-[11px] font-medium text-medical-700"
                       title="Se dará de baja"
                     >
                       {p.nro}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               )}
@@ -829,8 +800,7 @@ export default function AfiliadosListadoPage() {
               >
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Fecha de baja
                   </label>
@@ -838,20 +808,19 @@ export default function AfiliadosListadoPage() {
                     value={bajaFecha}
                     onChange={(iso) => setBajaFecha(iso)}
                     placeholder="dd/mm/aaaa"
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                   />
                 </div>
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Motivo
                   </label>
                   <select
                     value={bajaMotivo}
                     onChange={(e) => setBajaMotivo(e.target.value)}
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                   >
                     <option value="renuncia">Renuncia</option>
                     <option value="jubilacion">Jubilación</option>
@@ -922,40 +891,24 @@ export default function AfiliadosListadoPage() {
             <CardContent className="pt-4">
 
             {/* Warning moderno */}
-            <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-              <div className="alert-content">
-                <div className="alert-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <circle cx="12" cy="16" r="1" />
-                  </svg>
-                </div>
-                <div className="alert-text">
-                  Modificar <b>sistema/centro/sector/clase</b> puede impactar en
-                  la generación de novedades (canales J22/J38 por imputación).
-                  Revisá el período en curso.
-                </div>
+            <div className="mb-3 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <div className="flex-1">
+                Modificar <b>sistema/centro/sector/clase</b> puede impactar en
+                la generación de novedades (canales J22/J38 por imputación).
+                Revisá el período en curso.
               </div>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
               <div>
                 <label
-                  className="filter-label"
-                  style={{ display: "block", fontSize: 12, color: "#666" }}
+                  className="mb-1 block text-xs font-medium text-muted-foreground"
                 >
                   Padrón
                 </label>
                 <select
-                  className="filter-select"
+                  className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                   value={String(editPadronId ?? "")}
                   onChange={(e) => setEditPadronId(e.target.value)}
                 >
@@ -976,13 +929,12 @@ export default function AfiliadosListadoPage() {
               >
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Situación
                   </label>
                   <input
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                     placeholder="TITULAR / SUPLENTE / ..."
                     value={editData.situacion}
                     onChange={(e) =>
@@ -992,13 +944,12 @@ export default function AfiliadosListadoPage() {
                 </div>
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Sistema
                   </label>
                   <select
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                     value={editData.sistema}
                     onChange={(e) =>
                       setEditData((d) => ({ ...d, sistema: e.target.value }))
@@ -1022,13 +973,12 @@ export default function AfiliadosListadoPage() {
               >
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Centro
                   </label>
                   <input
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                     inputMode="numeric"
                     placeholder="número"
                     value={editData.centro}
@@ -1039,13 +989,12 @@ export default function AfiliadosListadoPage() {
                 </div>
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Sector
                   </label>
                   <input
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                     inputMode="numeric"
                     placeholder="número"
                     value={editData.sector}
@@ -1056,13 +1005,12 @@ export default function AfiliadosListadoPage() {
                 </div>
                 <div>
                   <label
-                    className="filter-label"
-                    style={{ display: "block", fontSize: 12, color: "#666" }}
+                    className="mb-1 block text-xs font-medium text-muted-foreground"
                   >
                     Clase
                   </label>
                   <input
-                    className="filter-select"
+                    className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                     placeholder="texto"
                     value={editData.clase}
                     onChange={(e) =>
