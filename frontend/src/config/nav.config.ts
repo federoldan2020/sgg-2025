@@ -106,7 +106,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/movimientos-por-revisar", label: "Movimientos por revisar" },
       { href: "/admin/recalcular-saldos", label: "Recalcular saldos" },
       { href: "/cierre-mensual", label: "Cierre mensual" },
-      { href: "/admin/materializar-mes", label: "Materializar coseguro" },
+      { href: "/admin/materializar-mes", label: "Generar obligaciones" },
     ],
   },
 

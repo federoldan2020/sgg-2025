@@ -58,7 +58,7 @@ export default function MaterializarMesPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
-            Materializar obligaciones del mes
+            Generar obligaciones del mes
           </h1>
           <p className="text-sm text-neutral-500">
             Genera ex-ante las obligaciones J22 (coseguro), J38 (colaterales) y
