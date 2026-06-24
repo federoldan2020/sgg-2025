@@ -27,8 +27,10 @@ import {
 
 type Row = { metodo: string; teorico: string; declarado: string };
 
-const toNum = (v: string) =>
-  Number.isFinite(+v) ? parseFloat(v) : parseFloat(String(v).replace(",", ".")) || 0;
+const toNum = (v: string) => {
+  const n = parseFloat(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
 const fmt = (n: number) =>
   new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 

@@ -36,6 +36,18 @@ export type CierreItem = {
 };
 
 export type AfiliadoSuggest = { id: string; dni: string; display: string };
+export type AfiliadoDetalle = {
+  id: string | number;
+  dni: string | number;
+  apellido?: string | null;
+  nombre?: string | null;
+  estado?: string | null;
+  tipo?: string | null;
+  numeroSocio?: string | null;
+  cuit?: string | null;
+  creadoEn?: string | null;
+  saldo?: number | string | null;
+};
 export type ObligPend = {
   id: string;
   obligacionId?: string;
@@ -83,6 +95,9 @@ export const cajaService = {
   // Auxiliares (si ya existen estos endpoints en tu back)
   suggestAfiliados: (q: string) =>
     api<AfiliadoSuggest[]>(`/afiliados/suggest?q=${encodeURIComponent(q)}`),
+
+  getAfiliado: (id: string | number) =>
+    api<AfiliadoDetalle>(`/afiliados/${encodeURIComponent(String(id))}`),
 
   pendientesAfiliado: (afiliadoId: string, padronId?: string) => {
     const params = new URLSearchParams({ afiliadoId });

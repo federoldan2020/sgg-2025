@@ -76,7 +76,6 @@ export default function AperturaCajaPage() {
         ) : (
           <Card className="rounded-2xl border-border/60 shadow-sm">
             <CardContent className="flex flex-col items-center gap-6 px-8 py-10 text-center">
-              {/* Medallón */}
               <div className="relative">
                 <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-medical-400 to-medical-600 shadow-lg shadow-medical-500/25">
                   <Lock className="h-9 w-9 text-white" />
@@ -84,7 +83,6 @@ export default function AperturaCajaPage() {
                 <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-neutral-300" />
               </div>
 
-              {/* Texto */}
               <div className="space-y-1.5">
                 <h2 className="text-xl font-semibold tracking-tight text-neutral-900">
                   La caja está cerrada
@@ -95,7 +93,6 @@ export default function AperturaCajaPage() {
                 </p>
               </div>
 
-              {/* Metadatos */}
               <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/30 p-3 text-left">
                   <CalendarDays className="h-4 w-4 shrink-0 text-medical-600" />
@@ -117,7 +114,6 @@ export default function AperturaCajaPage() {
                 </div>
               </div>
 
-              {/* Error */}
               {error && (
                 <div className="flex w-full items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-left">
                   <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
@@ -125,7 +121,6 @@ export default function AperturaCajaPage() {
                 </div>
               )}
 
-              {/* Acción */}
               <Button
                 onClick={abrir}
                 disabled={opening}
