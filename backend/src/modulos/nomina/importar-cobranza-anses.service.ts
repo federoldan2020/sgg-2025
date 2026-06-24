@@ -294,6 +294,10 @@ export class ImportarCobranzaAnsesService {
             fecha: fechaMovimiento,
             periodo: prev.periodo,
             origen: 'nomina',
+            // ANSES siempre cobra J17 (jubilados). El monto es porcentual:
+            // se materializa la obligación con el importe descontado y se
+            // marca pagada al mismo tiempo.
+            autoCrearObligacionSiFalta: true,
           });
         }
 

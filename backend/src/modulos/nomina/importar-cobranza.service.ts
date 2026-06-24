@@ -344,6 +344,11 @@ export class ImportarCobranzaService {
             fecha: fechaMovimiento,
             periodo: prev.periodo,
             origen: 'nomina',
+            // J17 es porcentual: el monto recién se conoce al llegar la
+            // cobranza. La obligación se materializa con el monto cobrado
+            // y se paga en el mismo paso. Resto de conceptos siguen el
+            // flujo normal (matching contra obligación pre-existente).
+            autoCrearObligacionSiFalta: c.codigo === 'J17',
           });
         }
 

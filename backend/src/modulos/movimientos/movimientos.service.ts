@@ -294,6 +294,14 @@ export class MovimientosService {
     periodo: string; // 'YYYY-MM'
     origen: 'nomina' | 'pago_caja';
     pagoId?: bigint | null;
+    /**
+     * Si true, en lugar de generar crédito huérfano cuando no hay obligación,
+     * crea la obligación con `monto=importe` y la aplica de inmediato.
+     * Pensado para conceptos porcentuales (J17/CUOTA_SOC): el monto solo se
+     * conoce cuando llega el descuento de nómina, por lo que la deuda y el
+     * pago se materializan al mismo tiempo desde Cómputos/ANSES.
+     */
+    autoCrearObligacionSiFalta?: boolean;
   }): Promise<{
     obligacionesAplicadas: number;
     pagadasTotal: number;
@@ -353,6 +361,39 @@ export class MovimientosService {
       select: { id: true, saldo: true, monto: true, periodo: true, conciliacionImporte: true },
     });
 
+    // Caso J17 (porcentual): si no hay obligación que matchear, la creamos
+    // con monto=importe del descuento. La materialización y el pago ocurren
+    // en el mismo paso. La nueva obligación se agrega al array para que el
+    // loop la consuma de inmediato.
+    if (
+      p.autoCrearObligacionSiFalta &&
+      obls.length === 0 &&
+      p.importe > 0
+    ) {
+      const nueva = await tx.obligacion.create({
+        data: {
+          organizacionId: p.organizacionId,
+          afiliadoId: p.afiliadoId,
+          padronId: p.padronId,
+          conceptoId: concepto.id,
+          periodo: p.periodo,
+          origen: 'conciliacion_nomina',
+          monto: this.dec(p.importe),
+          saldo: this.dec(p.importe),
+          estado: 'pendiente',
+          bloqueada: false,
+        },
+        select: {
+          id: true,
+          saldo: true,
+          monto: true,
+          periodo: true,
+          conciliacionImporte: true,
+        },
+      });
+      obls.push(nueva);
+    }
+
     let restante = Math.round(p.importe * 100) / 100;
     const ahora = p.fecha;
 
@@ -400,27 +441,69 @@ export class MovimientosService {
       restante = Math.round((restante - aplica) * 100) / 100;
     }
 
-    // Lo que sobró tras agotar obligaciones = saldo a favor que requiere revisión.
+    // Lo que sobró tras agotar obligaciones.
     if (restante > 0.009) {
       const sinObligacionMatch = obls.length === 0;
-      await this.postMovimiento({
-        tx,
-        organizacionId: p.organizacionId,
-        afiliadoId: p.afiliadoId,
-        padronId: p.padronId,
-        fecha: p.fecha,
-        naturaleza: 'credito',
-        origen: p.origen,
-        concepto: sinObligacionMatch
-          ? `${p.conceptoLabel} (sin obligación matcheada en ${p.periodo})`
-          : `${p.conceptoLabel} - excedente ${p.periodo}`,
-        importe: restante,
-        periodoContable: p.periodo,
-        pagoId: p.pagoId ?? null,
-        requiereRevision: true,
-      });
-      stats.excedente = restante;
-      if (sinObligacionMatch) stats.sinObligacion = true;
+
+      if (p.autoCrearObligacionSiFalta) {
+        // J17 (porcentual): materializar el excedente como nueva obligación
+        // pagada en el mismo paso. Nunca queda huérfano.
+        const extra = await tx.obligacion.create({
+          data: {
+            organizacionId: p.organizacionId,
+            afiliadoId: p.afiliadoId,
+            padronId: p.padronId,
+            conceptoId: concepto.id,
+            periodo: p.periodo,
+            origen: 'conciliacion_nomina',
+            monto: this.dec(restante),
+            saldo: this.dec(0),
+            estado: 'pagada',
+            bloqueada: false,
+            conciliacionEstado: 'descontado',
+            conciliacionImporte: this.dec(restante),
+            conciliacionFecha: ahora,
+          },
+          select: { id: true },
+        });
+        await this.postMovimiento({
+          tx,
+          organizacionId: p.organizacionId,
+          afiliadoId: p.afiliadoId,
+          padronId: p.padronId,
+          fecha: p.fecha,
+          naturaleza: 'credito',
+          origen: p.origen,
+          concepto: `${p.conceptoLabel} ${p.periodo}`,
+          importe: restante,
+          obligacionId: extra.id,
+          periodoContable: p.periodo,
+          pagoId: p.pagoId ?? null,
+        });
+        stats.obligacionesAplicadas++;
+        stats.pagadasTotal++;
+      } else {
+        // Resto de conceptos (J22/J38/K16): el excedente queda como saldo a
+        // favor con bandera de revisión para el operador.
+        await this.postMovimiento({
+          tx,
+          organizacionId: p.organizacionId,
+          afiliadoId: p.afiliadoId,
+          padronId: p.padronId,
+          fecha: p.fecha,
+          naturaleza: 'credito',
+          origen: p.origen,
+          concepto: sinObligacionMatch
+            ? `${p.conceptoLabel} (sin obligación matcheada en ${p.periodo})`
+            : `${p.conceptoLabel} - excedente ${p.periodo}`,
+          importe: restante,
+          periodoContable: p.periodo,
+          pagoId: p.pagoId ?? null,
+          requiereRevision: true,
+        });
+        stats.excedente = restante;
+        if (sinObligacionMatch) stats.sinObligacion = true;
+      }
     }
 
     return stats;
