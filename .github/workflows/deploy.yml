@@ -61,29 +61,27 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Trust VPS host key
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p ${{ secrets.VPS_PORT }} udap.fourdev.com.ar >> ~/.ssh/known_hosts
-          ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts || true
-
       # deploy.sh corre como root porque pm2 / sgg-backend / sgg-frontend son del root pm2.
       # IMPORTANTE: el secret SSH_PRIVATE_KEY debe ser una clave registrada en
       # /root/.ssh/authorized_keys (la entrada "github-actions-udap").
-      # En sesiones no-interactivas nvm no se carga: hay que sourcearlo a mano.
+      # accept-new agrega la host key al known_hosts en la primera conexión
+      # (más simple y robusto que un ssh-keyscan previo que falla si VPS_PORT está vacío).
+      # nvm no se carga en sesiones no-interactivas: hay que sourcearlo a mano.
       - name: Execute deploy.sh as root
+        env:
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
         run: |
-          ssh -p ${{ secrets.VPS_PORT }} -o StrictHostKeyChecking=accept-new \
+          mkdir -p ~/.ssh
+          ssh -p "$VPS_PORT" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts \
             root@udap.fourdev.com.ar \
             'bash -c "export NVM_DIR=/root/.nvm && . \$NVM_DIR/nvm.sh && nvm use 20 >/dev/null && bash /var/www/sgg-2025/deploy.sh"'
 
       - name: Health check
         run: |
-          set -e
           echo "Esperando que reinicien los procesos…"
           sleep 8
-          code_back=$(curl -s -o /dev/null -w "%{http_code}" https://api.udap.fourdev.com.ar/health || true)
-          code_front=$(curl -s -o /dev/null -w "%{http_code}" https://udap.fourdev.com.ar/ || true)
+          code_back=$(curl -s -o /dev/null -w "%{http_code}" https://api.udap.fourdev.com.ar/health || echo "000")
+          code_front=$(curl -s -o /dev/null -w "%{http_code}" https://udap.fourdev.com.ar/ || echo "000")
           echo "backend  HTTP $code_back"
           echo "frontend HTTP $code_front"
           if [ "$code_back" != "200" ] && [ "$code_back" != "204" ]; then
