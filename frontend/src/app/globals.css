@@ -5497,37 +5497,12 @@
   }
 }
 
-.page-container {
-  margin: 0 auto;
-  max-width: 80rem;
-  padding: 2rem 1rem;
-  animation: fadeIn 0.3s ease-in-out;
+/* HOTFIX (no tocar sin reemplazo en el componente Popover/Dropdown):
+   evita que algún backdrop-filter heredado vuelva traslúcidos los
+   menús/popovers de Radix. Cuando se rehagan los wrappers de
+   shadcn con bg-white explícito, este override se puede borrar. */
+[role="menu"], [data-radix-menu-content], [data-radix-popper-content-wrapper] {
+  background-color: white !important;
+  backdrop-filter: none !important;
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (min-width: 640px) { .page-container { padding-left: 1.5rem; padding-right: 1.5rem; } }
-@media (min-width: 1024px) { .page-container { padding-left: 2rem; padding-right: 2rem; } }
-
-.page-header { margin-bottom: 2rem; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border)); }
-.page-title { font-size: 2rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; background: linear-gradient(135deg, #171717 0%, #404040 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.page-subtitle { margin-top: 0.5rem; font-size: 0.875rem; color: #737373; font-weight: 500; }
-
-.section { display: flex; flex-direction: column; gap: 1rem; }
-.section-title { font-size: 0.875rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #737373; }
-
-.badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: 0.125rem 0.625rem; font-size: 0.75rem; font-weight: 500; }
-.badge-success { background-color: #d1fae5; color: #065f46; }
-.badge-warning { background-color: #fef3c7; color: #92400e; }
-.badge-error { background-color: #fee2e2; color: #991b1b; }
-.badge-neutral { background-color: #f5f5f5; color: #262626; }
-
-.interactive { transition: background-color 150ms ease-in-out; }
-.interactive-hover:hover { background-color: #fafafa; }
-.interactive-hover:active { background-color: #f5f5f5; }
-
-[role="menu"], [data-radix-menu-content], [data-radix-popper-content-wrapper] { background-color: white !important; backdrop-filter: none !important; }
 [role="menuitem"]:hover { background-color: #f5f5f5 !important; }
