@@ -198,16 +198,11 @@ export class ImportarCobranzaAnsesService {
         evaluadoCoberturaEn: Date;
       };
     }> = [];
-    const movimientosData: Array<{
-      organizacionId: string;
+    // Líneas a registrar con matching contra Obligacion J17 del período.
+    const cobranzasARegistrar: Array<{
       afiliadoId: bigint;
       padronId: bigint;
-      fecha: Date;
-      naturaleza: 'credito';
-      origen: 'nomina';
-      concepto: string;
-      importe: number;
-      periodoContable: string;
+      monto: number;
     }> = [];
     const detallesData: Array<{
       loteId: bigint;
@@ -245,16 +240,10 @@ export class ImportarCobranzaAnsesService {
       });
 
       if (item.monto > 0) {
-        movimientosData.push({
-          organizacionId,
+        cobranzasARegistrar.push({
           afiliadoId: padronDb.afiliadoId,
           padronId: padronDb.id,
-          fecha: fechaMovimiento,
-          naturaleza: 'credito',
-          origen: 'nomina',
-          concepto: 'J17 - Cuota societaria (ANSES)',
-          importe: item.monto,
-          periodoContable: prev.periodo,
+          monto: item.monto,
         });
       }
     }
@@ -289,22 +278,22 @@ export class ImportarCobranzaAnsesService {
             data: detallesData.map((d) => ({ ...d, loteId: lote.id })),
           });
         }
-        // Movimientos por cuenta corriente vía ledger centralizado.
-        // Mismo patrón que Cómputos: postMovimiento mantiene Padron.saldo,
-        // saldoPosterior y Afiliado.saldo coherentes. En Fase 2 hará matching
-        // contra Obligacion del período.
-        for (const m of movimientosData) {
-          await this.movs.postMovimiento({
+        // Cobranza con matching automático contra Obligacion J17.
+        // Si Cómputos cobró J17 a un jubilado que no tiene obligación del
+        // período (porque su padrón no es 04), el crédito queda con
+        // requiereRevision=true en la bandeja del operador.
+        for (const c of cobranzasARegistrar) {
+          await this.movs.registrarCobranza({
             tx,
-            organizacionId: m.organizacionId,
-            afiliadoId: m.afiliadoId,
-            padronId: m.padronId,
-            fecha: m.fecha,
-            naturaleza: m.naturaleza,
-            origen: m.origen,
-            concepto: m.concepto,
-            importe: m.importe,
-            periodoContable: m.periodoContable,
+            organizacionId,
+            afiliadoId: c.afiliadoId,
+            padronId: c.padronId,
+            conceptoCodigo: 'CUOTA_SOC',
+            conceptoLabel: 'J17 - Cuota societaria (ANSES)',
+            importe: c.monto,
+            fecha: fechaMovimiento,
+            periodo: prev.periodo,
+            origen: 'nomina',
           });
         }
 

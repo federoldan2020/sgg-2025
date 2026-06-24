@@ -31,6 +31,8 @@ export type Movimiento = {
   asientoId?: string | null;
   comprobanteId?: string | null;
   numeroRecibo?: string | null;
+  requiereRevision?: boolean;
+  aplicaSaldoFavorId?: string | null;
 };
 
 export type CtaCteResp = {

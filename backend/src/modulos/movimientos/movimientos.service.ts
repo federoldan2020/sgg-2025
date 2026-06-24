@@ -12,7 +12,14 @@ type PostParams = {
   padronId?: bigint | null;
   fecha?: Date;
   naturaleza: 'debito' | 'credito';
-  origen: 'orden_credito' | 'cuota' | 'pago_caja' | 'nomina' | 'ajuste' | 'anulacion';
+  origen:
+    | 'orden_credito'
+    | 'cuota'
+    | 'pago_caja'
+    | 'nomina'
+    | 'ajuste'
+    | 'anulacion'
+    | 'aplicacion_saldo_favor';
   concepto: string;
 
   /** Si trabajás en ARS, pasá `importe`. Si es USD, podés omitir `importe` y pasar (moneda, importeMoneda, tcAplicado). */
@@ -36,6 +43,21 @@ type PostParams = {
    * Default: true
    */
   afectaSaldo?: boolean;
+
+  /**
+   * Fase 2: marcar este movimiento como "requiere revisión" — se usa para
+   * créditos de cobranza que no pudieron matchearse contra una Obligación
+   * del período (cobranza huérfana). El saldo se actualiza igual, pero
+   * el operador tiene que revisar el caso.
+   */
+  requiereRevision?: boolean;
+
+  /**
+   * Fase 2: si este débito fue cubierto automáticamente por saldo a favor
+   * del padrón al momento de su creación, este campo apunta al movimiento
+   * crédito original que se está consumiendo.
+   */
+  aplicaSaldoFavorId?: bigint | null;
 
   // contabilidad (opcional)
   asiento?: {
@@ -198,9 +220,13 @@ export class MovimientosService {
           ordenId: p.ordenId ?? null,
           cuotaId: p.cuotaId ?? null,
           pagoId: p.pagoId ?? null,
-          
+
           // Período contable para agrupar por período cuando corresponde
           periodoContable: p.periodoContable ?? null,
+
+          // Fase 2 — bandera de revisión y traza de saldo a favor aplicado
+          requiereRevision: p.requiereRevision === true,
+          aplicaSaldoFavorId: p.aplicaSaldoFavorId ?? null,
 
           saldoPosterior: this.dec(nuevoSaldo),
           asientoId,
@@ -232,6 +258,248 @@ export class MovimientosService {
 
     if (p.tx) return run(p.tx);
     return this.prisma.$transaction(run);
+  }
+
+  // ===========================================================================
+  // Fase 2 — Conciliación de cobranza con matching automático contra obligaciones
+  // ===========================================================================
+
+  /**
+   * Registra una línea de cobranza (Cómputos / ANSES / Caja) realizando el
+   * matching automático contra las Obligaciones del padrón+concepto.
+   *
+   * Comportamiento:
+   *  1. Busca obligaciones del padrón+concepto con saldo > 0, ordenadas FIFO
+   *     por período ascendente (las más viejas primero).
+   *  2. Aplica el importe cobrado contra cada obligación hasta agotarlo.
+   *     Por cada obligación afectada genera un MovimientoAfiliado(crédito)
+   *     vinculado con `obligacionId` y actualiza `Obligacion.saldo/estado`.
+   *  3. Si sobra cobranza tras agotar las obligaciones: genera UN crédito
+   *     huérfano (saldo a favor) con `requiereRevision=true`.
+   *  4. Si NO había ninguna obligación que matchear: genera UN crédito
+   *     huérfano con `requiereRevision=true`.
+   *
+   * Devuelve detalle de cómo se distribuyó el monto cobrado, útil para
+   * estadísticas del lote de importación.
+   */
+  async registrarCobranza(p: {
+    tx: Prisma.TransactionClient;
+    organizacionId: string;
+    afiliadoId: bigint;
+    padronId: bigint;
+    conceptoCodigo: string; // 'CUOTA_SOC' | 'COSEGURO' | 'ADIC_COL' | 'ORDEN_CREDITO'
+    conceptoLabel: string; // p.ej. "J22 - Coseguro"
+    importe: number;
+    fecha: Date;
+    periodo: string; // 'YYYY-MM'
+    origen: 'nomina' | 'pago_caja';
+    pagoId?: bigint | null;
+  }): Promise<{
+    obligacionesAplicadas: number;
+    pagadasTotal: number;
+    parciales: number;
+    excedente: number; // monto remanente que quedó como saldo a favor
+    sinObligacion: boolean;
+  }> {
+    const { tx } = p;
+    const stats = {
+      obligacionesAplicadas: 0,
+      pagadasTotal: 0,
+      parciales: 0,
+      excedente: 0,
+      sinObligacion: false,
+    };
+
+    if (p.importe <= 0) return stats;
+
+    // Resolver conceptoId desde el código.
+    const concepto = await tx.concepto.findFirst({
+      where: { organizacionId: p.organizacionId, codigo: p.conceptoCodigo },
+      select: { id: true },
+    });
+    if (!concepto) {
+      // Concepto no existe: registramos crédito huérfano con revisión.
+      await this.postMovimiento({
+        tx,
+        organizacionId: p.organizacionId,
+        afiliadoId: p.afiliadoId,
+        padronId: p.padronId,
+        fecha: p.fecha,
+        naturaleza: 'credito',
+        origen: p.origen,
+        concepto: `${p.conceptoLabel} (sin concepto en BD)`,
+        importe: p.importe,
+        periodoContable: p.periodo,
+        pagoId: p.pagoId ?? null,
+        requiereRevision: true,
+      });
+      stats.excedente = p.importe;
+      stats.sinObligacion = true;
+      return stats;
+    }
+
+    // Buscar obligaciones del padrón+concepto pendientes, FIFO por período.
+    // Aceptamos obligaciones de períodos anteriores o iguales al cobrado.
+    const obls = await tx.obligacion.findMany({
+      where: {
+        organizacionId: p.organizacionId,
+        padronId: p.padronId,
+        conceptoId: concepto.id,
+        periodo: { lte: p.periodo },
+        saldo: { gt: 0 },
+        estado: { in: ['pendiente', 'parcialmente_pagada'] },
+      },
+      orderBy: [{ periodo: 'asc' }, { creadoEn: 'asc' }],
+      select: { id: true, saldo: true, monto: true, periodo: true, conciliacionImporte: true },
+    });
+
+    let restante = Math.round(p.importe * 100) / 100;
+    const ahora = p.fecha;
+
+    for (const o of obls) {
+      if (restante <= 0.009) break;
+      const saldoObl = Number(o.saldo);
+      const aplica = Math.min(saldoObl, restante);
+      const nuevoSaldo = Math.round((saldoObl - aplica) * 100) / 100;
+      const pagada = nuevoSaldo <= 0.009;
+
+      // Crear movimiento crédito vinculado a esta obligación.
+      await this.postMovimiento({
+        tx,
+        organizacionId: p.organizacionId,
+        afiliadoId: p.afiliadoId,
+        padronId: p.padronId,
+        fecha: p.fecha,
+        naturaleza: 'credito',
+        origen: p.origen,
+        concepto: `${p.conceptoLabel} ${o.periodo}`,
+        importe: aplica,
+        obligacionId: o.id,
+        periodoContable: o.periodo,
+        pagoId: p.pagoId ?? null,
+      });
+
+      // Actualizar saldo / estado / conciliación de la obligación.
+      const concImp =
+        Math.round((Number(o.conciliacionImporte ?? 0) + aplica) * 100) / 100;
+      await tx.obligacion.update({
+        where: { id: o.id },
+        data: {
+          saldo: nuevoSaldo,
+          estado: pagada ? 'pagada' : 'parcialmente_pagada',
+          conciliacionEstado: pagada ? 'descontado' : 'parcial',
+          conciliacionImporte: concImp,
+          conciliacionFecha: ahora,
+        },
+      });
+
+      stats.obligacionesAplicadas++;
+      if (pagada) stats.pagadasTotal++;
+      else stats.parciales++;
+
+      restante = Math.round((restante - aplica) * 100) / 100;
+    }
+
+    // Lo que sobró tras agotar obligaciones = saldo a favor que requiere revisión.
+    if (restante > 0.009) {
+      const sinObligacionMatch = obls.length === 0;
+      await this.postMovimiento({
+        tx,
+        organizacionId: p.organizacionId,
+        afiliadoId: p.afiliadoId,
+        padronId: p.padronId,
+        fecha: p.fecha,
+        naturaleza: 'credito',
+        origen: p.origen,
+        concepto: sinObligacionMatch
+          ? `${p.conceptoLabel} (sin obligación matcheada en ${p.periodo})`
+          : `${p.conceptoLabel} - excedente ${p.periodo}`,
+        importe: restante,
+        periodoContable: p.periodo,
+        pagoId: p.pagoId ?? null,
+        requiereRevision: true,
+      });
+      stats.excedente = restante;
+      if (sinObligacionMatch) stats.sinObligacion = true;
+    }
+
+    return stats;
+  }
+
+  /**
+   * Si el padrón tiene saldo a favor (Padron.saldo < 0), aplica
+   * automáticamente parte de ese saldo a una obligación recién creada,
+   * generando un crédito con origen='aplicacion_saldo_favor'. Devuelve
+   * cuánto se aplicó (0 si no había saldo a favor o la obligación estaba
+   * ya saldada).
+   *
+   * Se invoca desde la materialización mensual después de generar el
+   * movimiento débito de cada obligación.
+   */
+  async aplicarSaldoFavorSiCorresponde(p: {
+    tx: Prisma.TransactionClient;
+    organizacionId: string;
+    afiliadoId: bigint;
+    padronId: bigint;
+    obligacionId: bigint;
+    conceptoLabel: string;
+    fecha: Date;
+    periodoContable: string;
+  }): Promise<{ aplicado: number }> {
+    const { tx } = p;
+
+    // Estado actual del padrón (ya bloqueado por el postMovimiento previo en
+    // la misma tx, así que es seguro leer sin tomar lock nuevamente).
+    const padron = await tx.padron.findUnique({
+      where: { id: p.padronId },
+      select: { saldo: true },
+    });
+    const saldoPadron = Number(padron?.saldo ?? 0);
+    if (saldoPadron >= -0.009) return { aplicado: 0 };
+
+    const obl = await tx.obligacion.findUnique({
+      where: { id: p.obligacionId },
+      select: { id: true, saldo: true, conciliacionImporte: true, periodo: true },
+    });
+    if (!obl) return { aplicado: 0 };
+    const saldoObl = Number(obl.saldo);
+    if (saldoObl <= 0.009) return { aplicado: 0 };
+
+    // Aplicamos lo mínimo entre |saldo a favor del padrón| y saldo de la obligación.
+    const aplica = Math.round(Math.min(Math.abs(saldoPadron), saldoObl) * 100) / 100;
+    if (aplica <= 0.009) return { aplicado: 0 };
+
+    const nuevoSaldoObl = Math.round((saldoObl - aplica) * 100) / 100;
+    const pagada = nuevoSaldoObl <= 0.009;
+
+    await this.postMovimiento({
+      tx,
+      organizacionId: p.organizacionId,
+      afiliadoId: p.afiliadoId,
+      padronId: p.padronId,
+      fecha: p.fecha,
+      naturaleza: 'credito',
+      origen: 'aplicacion_saldo_favor',
+      concepto: `Aplicación saldo a favor → ${p.conceptoLabel} ${obl.periodo}`,
+      importe: aplica,
+      obligacionId: obl.id,
+      periodoContable: p.periodoContable,
+    });
+
+    const concImp =
+      Math.round((Number(obl.conciliacionImporte ?? 0) + aplica) * 100) / 100;
+    await tx.obligacion.update({
+      where: { id: obl.id },
+      data: {
+        saldo: nuevoSaldoObl,
+        estado: pagada ? 'pagada' : 'parcialmente_pagada',
+        conciliacionEstado: pagada ? 'descontado' : 'parcial',
+        conciliacionImporte: concImp,
+        conciliacionFecha: p.fecha,
+      },
+    });
+
+    return { aplicado: aplica };
   }
 
   /**

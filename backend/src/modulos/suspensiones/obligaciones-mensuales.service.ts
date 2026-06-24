@@ -397,6 +397,10 @@ export class ObligacionesMensualesService {
     // Si no hay tx externa, abrimos una propia para mantener atomicidad.
     const run = async (txInner: Prisma.TransactionClient) => {
       for (const o of pendientes) {
+        const conceptoLabel =
+          labelByConceptoId.get(o.conceptoId.toString()) ?? 'Obligación mensual';
+
+        // 1) Débito por la obligación recién materializada.
         await this.movs.postMovimiento({
           tx: txInner,
           organizacionId,
@@ -405,12 +409,29 @@ export class ObligacionesMensualesService {
           fecha,
           naturaleza: 'debito',
           origen: 'cuota',
-          concepto:
-            labelByConceptoId.get(o.conceptoId.toString()) ?? 'Obligación mensual',
+          concepto: conceptoLabel,
           importe: Number(o.monto),
           periodoContable: periodo,
           obligacionId: o.id,
         });
+
+        // 2) Si el padrón tiene saldo a favor (Padron.saldo < 0) de cobranzas
+        //    excedentes anteriores, aplicarlo automáticamente a esta obligación.
+        //    Esto cierra el ciclo "Cómputos cobró 17k de J22 sin obligación →
+        //    quedó -17k en padrón → este mes se materializa J22 5k → se
+        //    aplican 5k y el padrón queda en -12k".
+        if (o.padronId) {
+          await this.movs.aplicarSaldoFavorSiCorresponde({
+            tx: txInner,
+            organizacionId,
+            afiliadoId: o.afiliadoId,
+            padronId: o.padronId,
+            obligacionId: o.id,
+            conceptoLabel,
+            fecha,
+            periodoContable: periodo,
+          });
+        }
       }
     };
 

@@ -3,11 +3,13 @@
 import { useState } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Eye,
   Receipt,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -85,6 +87,8 @@ const origenBadgeClass = (origen: string) => {
       return "bg-muted text-foreground";
     case "anulacion":
       return "bg-red-50 text-red-700";
+    case "aplicacion_saldo_favor":
+      return "bg-emerald-50 text-emerald-700";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -223,6 +227,28 @@ export function TablaMovimientos({
                               className="rounded border-amber-200 bg-amber-50 text-amber-700 font-mono"
                             >
                               Recibo N° {m.numeroRecibo}
+                            </Badge>
+                          )}
+
+                          {m.requiereRevision && (
+                            <Badge
+                              variant="outline"
+                              className="rounded-full gap-1 border-amber-300 bg-amber-100 text-amber-900"
+                              title="Cobranza sin obligación matcheada. Pendiente de revisión."
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              Requiere revisión
+                            </Badge>
+                          )}
+
+                          {m.origen === "aplicacion_saldo_favor" && (
+                            <Badge
+                              variant="outline"
+                              className="rounded-full gap-1 border-emerald-200 bg-emerald-50 text-emerald-700"
+                              title="Crédito automático aplicado por saldo a favor del padrón"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Saldo a favor aplicado
                             </Badge>
                           )}
 

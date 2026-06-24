@@ -1939,6 +1939,7 @@ enum OrigenMovimientoAf {
   nomina // crédito por descuento por nómina
   ajuste // débito/crédito manual
   anulacion // movimiento inverso para revertir
+  aplicacion_saldo_favor // crédito automático al materializar obligación con Padron.saldo < 0
 }
 
 model MovimientoAfiliado {
@@ -1980,14 +1981,27 @@ model MovimientoAfiliado {
   // Permite agrupar por período sin afectar el orden cronológico ni el cálculo de saldo
   periodoContable String? // Período al que corresponde el movimiento (para agrupación/reportes)
 
+  // Fase 2 — Modelo unificado de saldos (ver memory/project_modelo_saldos.md)
+  // requiereRevision: true cuando un crédito de cobranza (Cómputos/ANSES/caja) NO
+  //   pudo matchearse contra una Obligación del período. El saldo se actualiza
+  //   igual (la realidad es que se cobró), pero queda pendiente de revisión
+  //   manual: vincular a otra obligación, aceptar como saldo a favor, o anular.
+  // aplicaSaldoFavorId: si este movimiento es un débito que fue cubierto
+  //   automáticamente al momento de su creación porque el padrón tenía
+  //   Padron.saldo < 0, este campo apunta al crédito que lo cubrió.
+  requiereRevision   Boolean @default(false)
+  aplicaSaldoFavorId BigInt?
+
   // relaciones
-  organizacion Organizacion       @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
-  afiliado     Afiliado           @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
-  padron       Padron?            @relation(fields: [padronId], references: [id])
-  asiento      Asiento?           @relation(fields: [asientoId], references: [id])
-  obligacion   Obligacion?        @relation(fields: [obligacionId], references: [id])
-  orden        OrdenCredito?      @relation(fields: [ordenId], references: [id])
-  cuota        OrdenCreditoCuota? @relation(fields: [cuotaId], references: [id])
+  organizacion       Organizacion        @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  afiliado           Afiliado            @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  padron             Padron?             @relation(fields: [padronId], references: [id])
+  asiento            Asiento?            @relation(fields: [asientoId], references: [id])
+  obligacion         Obligacion?         @relation(fields: [obligacionId], references: [id])
+  orden              OrdenCredito?       @relation(fields: [ordenId], references: [id])
+  cuota              OrdenCreditoCuota?  @relation(fields: [cuotaId], references: [id])
+  aplicaSaldoFavor   MovimientoAfiliado? @relation("SaldoFavorAplicado", fields: [aplicaSaldoFavorId], references: [id])
+  cubreDebitos       MovimientoAfiliado[] @relation("SaldoFavorAplicado")
 
   @@index([organizacionId, afiliadoId, fecha, id])
   @@index([organizacionId, afiliadoId])
@@ -1997,6 +2011,7 @@ model MovimientoAfiliado {
   @@index([organizacionId, cuotaId])
   @@index([organizacionId, pagoId])
   @@index([organizacionId, afiliadoId, periodoContable]) // Para agrupar por período
+  @@index([organizacionId, requiereRevision]) // Bandeja "por revisar"
 }
 
 /**

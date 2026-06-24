@@ -48,11 +48,12 @@ export type ConfirmacionResult = {
   };
 };
 
-/** Código de cobranza → código de Concepto en la BD (J17 va por % aparte). */
-const CODIGO_CONCEPTO_COBRANZA: Record<'K16' | 'J22' | 'J38', string> = {
-  K16: 'ORDEN_CREDITO',
+/** Código de cobranza → código de Concepto en la BD. */
+const CODIGO_CONCEPTO_COBRANZA: Record<'J17' | 'J22' | 'J38' | 'K16', string> = {
+  J17: 'CUOTA_SOC',
   J22: 'COSEGURO',
   J38: 'ADIC_COL',
+  K16: 'ORDEN_CREDITO',
 };
 
 @Injectable()
@@ -239,7 +240,7 @@ export class ImportarCobranzaService {
       };
     }> = [];
 
-    // Detalles para NominaDetalle (auditoría del TXT) y movimientos para cuenta corriente.
+    // Detalles para NominaDetalle (auditoría del TXT).
     const detallesData: Array<{
       loteId: bigint;
       afiliadoId: bigint;
@@ -248,16 +249,13 @@ export class ImportarCobranzaService {
       monto: number;
     }> = [];
 
-    const movimientosData: Array<{
-      organizacionId: string;
+    // Líneas a registrar como cobranza (cada una con matching contra Obligación
+    // mediante MovimientosService.registrarCobranza).
+    const cobranzasARegistrar: Array<{
       afiliadoId: bigint;
       padronId: bigint;
-      fecha: Date;
-      naturaleza: 'credito';
-      origen: 'nomina';
-      concepto: string;
-      importe: number;
-      periodoContable: string;
+      codigo: 'J17' | 'J22' | 'J38' | 'K16';
+      monto: number;
     }> = [];
 
     for (const [padronStr, totales] of porPadron.entries()) {
@@ -287,16 +285,11 @@ export class ImportarCobranzaService {
           monto,
         });
 
-        movimientosData.push({
-          organizacionId,
+        cobranzasARegistrar.push({
           afiliadoId: padronDb.afiliadoId,
           padronId: padronDb.id,
-          fecha: fechaMovimiento,
-          naturaleza: 'credito',
-          origen: 'nomina',
-          concepto: CONCEPTOS[codigo],
-          importe: monto,
-          periodoContable: prev.periodo,
+          codigo,
+          monto,
         });
       }
     }
@@ -334,24 +327,23 @@ export class ImportarCobranzaService {
           });
         }
 
-        // Movimientos por cuenta corriente, vía ledger centralizado:
-        // postMovimiento toma lock pesimista del padrón, calcula saldoPosterior,
-        // actualiza Padron.saldo y Afiliado.saldo. Mantiene consistencia con
-        // el modelo unificado de saldos (ver memory/project_modelo_saldos.md).
-        // En Fase 2 esto pasa a hacer matching contra Obligacion del período;
-        // por ahora cada crédito queda sin obligacionId (igual que antes).
-        for (const m of movimientosData) {
-          await this.movs.postMovimiento({
+        // Cobranza con matching automático: cada línea (padrón × concepto)
+        // intenta aplicarse FIFO contra obligaciones pendientes del mismo
+        // padrón+concepto. Si sobra cobranza o no hay obligación matcheable,
+        // queda registrada como crédito huérfano con requiereRevision=true
+        // (bandeja del operador). Ver memory/project_modelo_saldos.md.
+        for (const c of cobranzasARegistrar) {
+          await this.movs.registrarCobranza({
             tx,
-            organizacionId: m.organizacionId,
-            afiliadoId: m.afiliadoId,
-            padronId: m.padronId,
-            fecha: m.fecha,
-            naturaleza: m.naturaleza,
-            origen: m.origen,
-            concepto: m.concepto,
-            importe: m.importe,
-            periodoContable: m.periodoContable,
+            organizacionId,
+            afiliadoId: c.afiliadoId,
+            padronId: c.padronId,
+            conceptoCodigo: CODIGO_CONCEPTO_COBRANZA[c.codigo],
+            conceptoLabel: CONCEPTOS[c.codigo],
+            importe: c.monto,
+            fecha: fechaMovimiento,
+            periodo: prev.periodo,
+            origen: 'nomina',
           });
         }
 
@@ -369,27 +361,13 @@ export class ImportarCobranzaService {
       Array.from(afiliadosTocadosSet),
     );
 
-    // Conciliación GRANULAR: aplicar lo cobrado a las obligaciones por padrón.
-    const cobranzaPorPadron: Array<{
-      padronId: bigint;
-      K16: number;
-      J22: number;
-      J38: number;
-    }> = [];
-    for (const [padronStr, totales] of porPadron.entries()) {
-      const padronDb = mapaPadron.get(padronStr);
-      if (!padronDb) continue;
-      cobranzaPorPadron.push({
-        padronId: padronDb.id,
-        K16: totales.K16,
-        J22: totales.J22,
-        J38: totales.J38,
-      });
-    }
-    const conciliacion = await this.aplicarCobranzaGranular(
+    // Conciliación: ya quedó hecha en registrarCobranza durante la tx
+    // (matching FIFO + actualización de Obligacion.saldo + crédito vinculado).
+    // Métricas agregadas: se recalculan a partir de la DB para el resumen.
+    const conciliacion = await this.calcularEstadisticasConciliacion(
       organizacionId,
       prev.periodo,
-      cobranzaPorPadron,
+      Array.from(afiliadosTocadosSet),
     );
 
     // Recalcular cobertura + intentar rehabilitar fuera de la transacción.
@@ -559,99 +537,45 @@ export class ImportarCobranzaService {
    * - Idempotencia: la confirmación está protegida por hash del lote, así que
    *   este método corre una sola vez por archivo.
    */
-  private async aplicarCobranzaGranular(
+  /**
+   * Calcula estadísticas agregadas de la conciliación que ya hizo
+   * registrarCobranza durante la tx. Mira las Obligaciones tocadas y los
+   * movimientos huérfanos (requiereRevision=true) creados en este lote.
+   */
+  private async calcularEstadisticasConciliacion(
     organizacionId: string,
     periodo: string,
-    cobranzaPorPadron: Array<{
-      padronId: bigint;
-      K16: number;
-      J22: number;
-      J38: number;
-    }>,
+    afiliadosTocados: bigint[],
   ): Promise<ConfirmacionResult['conciliacion']> {
     const stats = { obligacionesAplicadas: 0, pagadas: 0, parciales: 0, excedentes: 0 };
-    if (cobranzaPorPadron.length === 0) return stats;
+    if (afiliadosTocados.length === 0) return stats;
 
-    const conceptos = await this.prisma.concepto.findMany({
-      where: { organizacionId },
-      select: { id: true, codigo: true },
+    // Obligaciones del período (o anteriores) que fueron tocadas por cobranza
+    // de estos afiliados.
+    const conciliadas = await this.prisma.obligacion.findMany({
+      where: {
+        organizacionId,
+        afiliadoId: { in: afiliadosTocados },
+        periodo: { lte: periodo },
+        conciliacionEstado: { in: ['descontado', 'parcial'] },
+      },
+      select: { estado: true },
     });
-    const idByCodigo = new Map(conceptos.map((c) => [c.codigo, c.id]));
-    const ahora = new Date();
+    stats.obligacionesAplicadas = conciliadas.length;
+    stats.pagadas = conciliadas.filter((o) => o.estado === 'pagada').length;
+    stats.parciales = conciliadas.filter((o) => o.estado === 'parcialmente_pagada').length;
 
-    // Procesar padrones en chunks concurrentes (cada padrón es independiente;
-    // dentro de un padrón las obligaciones se aplican en orden FIFO).
-    const CHUNK = 10;
-    for (let i = 0; i < cobranzaPorPadron.length; i += CHUNK) {
-      const slice = cobranzaPorPadron.slice(i, i + CHUNK);
-      const resultados = await Promise.all(
-        slice.map((cob) => this.aplicarPadron(organizacionId, periodo, cob, idByCodigo, ahora)),
-      );
-      for (const r of resultados) {
-        stats.obligacionesAplicadas += r.obligacionesAplicadas;
-        stats.pagadas += r.pagadas;
-        stats.parciales += r.parciales;
-        stats.excedentes += r.excedentes;
-      }
-    }
-    return stats;
-  }
-
-  private async aplicarPadron(
-    organizacionId: string,
-    periodo: string,
-    cob: { padronId: bigint; K16: number; J22: number; J38: number },
-    idByCodigo: Map<string, bigint>,
-    ahora: Date,
-  ): Promise<ConfirmacionResult['conciliacion']> {
-    const stats = { obligacionesAplicadas: 0, pagadas: 0, parciales: 0, excedentes: 0 };
-
-    for (const codigo of ['K16', 'J22', 'J38'] as const) {
-      let restante = Number(cob[codigo] ?? 0);
-      if (restante <= 0) continue;
-      const conceptoId = idByCodigo.get(CODIGO_CONCEPTO_COBRANZA[codigo]);
-      if (!conceptoId) continue;
-
-      const obls = await this.prisma.obligacion.findMany({
-        where: {
-          organizacionId,
-          padronId: cob.padronId,
-          conceptoId,
-          periodo: { lte: periodo },
-          saldo: { gt: 0 },
-          estado: { in: ['pendiente', 'parcialmente_pagada'] },
-        },
-        orderBy: [{ periodo: 'asc' }, { creadoEn: 'asc' }],
-        select: { id: true, saldo: true, conciliacionImporte: true },
-      });
-
-      for (const o of obls) {
-        if (restante <= 0.009) break;
-        const saldo = Number(o.saldo);
-        const aplica = Math.min(saldo, restante);
-        const nuevoSaldo = Math.round((saldo - aplica) * 100) / 100;
-        restante = Math.round((restante - aplica) * 100) / 100;
-        const pagada = nuevoSaldo <= 0.009;
-        const concImp = Math.round((Number(o.conciliacionImporte ?? 0) + aplica) * 100) / 100;
-
-        await this.prisma.obligacion.update({
-          where: { id: o.id },
-          data: {
-            saldo: nuevoSaldo,
-            estado: pagada ? 'pagada' : 'parcialmente_pagada',
-            conciliacionEstado: pagada ? 'descontado' : 'parcial',
-            conciliacionImporte: concImp,
-            conciliacionFecha: ahora,
-          },
-        });
-        stats.obligacionesAplicadas++;
-        if (pagada) stats.pagadas++;
-        else stats.parciales++;
-      }
-
-      // Si quedó cobranza sin obligación que la absorba (cobró más que la deuda).
-      if (restante > 0.01) stats.excedentes++;
-    }
+    // Excedentes: créditos generados en este período que quedaron como
+    // saldo a favor / huérfanos (requiereRevision=true).
+    stats.excedentes = await this.prisma.movimientoAfiliado.count({
+      where: {
+        organizacionId,
+        afiliadoId: { in: afiliadosTocados },
+        periodoContable: periodo,
+        origen: 'nomina',
+        requiereRevision: true,
+      },
+    });
 
     return stats;
   }
