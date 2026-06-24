@@ -887,14 +887,15 @@ function CajaCobrosInner() {
                   )}
                 </CardHeader>
 
-                <CardContent>
+                <CardContent className="thin-scroll max-h-[calc(100vh-30rem)] min-h-[200px] overflow-y-auto pr-1">
                   {pend.length === 0 ? (
                     <EmptyState
+                      className="py-6"
                       title="Sin cuotas pendientes"
                       description={padronId ? "Este padrón no tiene cuotas pendientes" : "El afiliado no tiene cuotas pendientes"}
                     />
                   ) : (
-                    <div className="thin-scroll max-h-[calc(100vh-26rem)] space-y-5 overflow-y-auto pr-1">
+                    <div className="space-y-5">
                       {grupos.map(([label, items]) => {
                         const sub = items.reduce((a, b) => a + b.saldo, 0);
                         return (
@@ -939,7 +940,7 @@ function CajaCobrosInner() {
                 <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
                   Buscá un afiliado para comenzar
                 </h2>
-                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                <p className="mx-auto mt-2 w-full max-w-md text-sm text-muted-foreground">
                   Ingresá el DNI o el nombre en el buscador de arriba para ver
                   sus padrones, cuotas pendientes y cobrar.
                 </p>
