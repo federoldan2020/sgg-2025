@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, getErrorMessage } from "@/servicios/api";
 import { fecha10, num } from "@/utiles/formatos";
+import { PageContainer, PageHeader } from "@/components/ui-kit";
 
 /** ===== Tipos locales ===== */
 type IdLike = string | number | bigint;
@@ -431,62 +432,55 @@ export default function ReglasColateralesPage() {
   );
 
   return (
-    <div className="page-container">
-      <div className="page-header" style={{ gap: 12 }}>
-        <div className="page-title-section">
-          <h1 className="page-title">Reglas por Colaterales (J38)</h1>
-          <p className="page-subtitle">
-            Definí precios por tramo de cantidad y parentesco. La vigencia
-            determina qué regla aplica al calcular J38.
-          </p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        title="Reglas por Colaterales (J38)"
+        subtitle="Definí precios por tramo de cantidad y parentesco. La vigencia determina qué regla aplica al calcular J38."
+      >
+        {/* ===== Bloque Publicación ===== */}
+        <div
+          className="card"
+          style={{
+            padding: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span className="feature-badge">
+            {pub
+              ? `Publicación abierta #${String(pub.id)}`
+              : "Sin publicación abierta"}
+          </span>
 
-        {/* ===== Bloque Publicación (nuevo) ===== */}
-        <div className="page-actions" style={{ marginLeft: "auto" }}>
-          <div
-            className="card"
-            style={{
-              padding: 12,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <span className="feature-badge">
-              {pub
-                ? `Publicación abierta #${String(pub.id)}`
-                : "Sin publicación abierta"}
-            </span>
+          <input
+            className="filter-select"
+            style={{ minWidth: 240 }}
+            placeholder="Comentario de publicación (opcional)"
+            value={pubComentario}
+            onChange={(e) => setPubComentario(e.target.value)}
+          />
 
-            <input
-              className="filter-select"
-              style={{ minWidth: 240 }}
-              placeholder="Comentario de publicación (opcional)"
-              value={pubComentario}
-              onChange={(e) => setPubComentario(e.target.value)}
-            />
-
-            {!pub ? (
-              <button
-                className="btn btn-secondary"
-                onClick={() => void abrirPublicacion()}
-                disabled={pubBusy || busy}
-              >
-                {pubBusy ? "Abriendo…" : "Abrir publicación"}
-              </button>
-            ) : null}
-
+          {!pub ? (
             <button
-              className="btn btn-primary"
-              onClick={() => void publicarCambios()}
+              className="btn btn-secondary"
+              onClick={() => void abrirPublicacion()}
               disabled={pubBusy || busy}
-              title="Aplicar reglas vigentes: recalcular J38 y propagar a padrón"
             >
-              {pubBusy ? "Publicando…" : "Publicar cambios"}
+              {pubBusy ? "Abriendo…" : "Abrir publicación"}
             </button>
-          </div>
+          ) : null}
+
+          <button
+            className="btn btn-primary"
+            onClick={() => void publicarCambios()}
+            disabled={pubBusy || busy}
+            title="Aplicar reglas vigentes: recalcular J38 y propagar a padrón"
+          >
+            {pubBusy ? "Publicando…" : "Publicar cambios"}
+          </button>
         </div>
-      </div>
+      </PageHeader>
 
       {msg && (
         <div
@@ -939,6 +933,6 @@ export default function ReglasColateralesPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

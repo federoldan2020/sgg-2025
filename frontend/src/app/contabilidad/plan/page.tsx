@@ -5,6 +5,7 @@ import AuthGate from "@/components/auth/AuthGate";
 import { api } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageContainer, PageHeader } from "@/components/ui-kit";
 
 type Nodo = {
   id: string | number;
@@ -234,18 +235,13 @@ function PlanCtasInner() {
   }, [arbol]);
 
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Plan de Cuentas</h1>
-          <p className="page-subtitle">
-            Estructura contable y clasificación de cuentas
-          </p>
-        </div>
-        <div className="page-actions">
-          <Button asChild variant="secondary">
-            <a href="/contabilidad/plan/importar">
+    <PageContainer>
+      <PageHeader
+        title="Plan de Cuentas"
+        subtitle="Estructura contable y clasificación de cuentas"
+      >
+        <Button asChild variant="secondary">
+          <a href="/contabilidad/plan/importar">
             <svg
               width="16"
               height="16"
@@ -261,10 +257,9 @@ function PlanCtasInner() {
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             Importar Plan
-            </a>
-          </Button>
-        </div>
-      </div>
+          </a>
+        </Button>
+      </PageHeader>
 
       {/* Mensaje de error */}
       {msg && (
@@ -291,7 +286,7 @@ function PlanCtasInner() {
         </div>
       )}
 
-      <div className="page-content">
+      <div>
         {/* Controles y estadísticas */}
         <div className="plan-controls">
           <div className="search-section">
@@ -475,7 +470,7 @@ function PlanCtasInner() {
           )}
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 

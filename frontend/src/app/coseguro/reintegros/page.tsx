@@ -8,6 +8,7 @@ import { cajaService } from "@/servicios/cajaService";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 import { cn } from "@/lib/utils";
+import { PageContainer, PageHeader } from "@/components/ui-kit";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -661,29 +662,21 @@ export default function ReintegrosPage() {
   const canNext = page < totalPages && !listLoading;
 
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <h1 className="page-title">Reintegros</h1>
-          <p className="page-subtitle">
-            Gestión de solicitudes de reintegro de afiliados y familiares
-          </p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        title="Reintegros"
+        subtitle="Gestión de solicitudes de reintegro de afiliados y familiares"
+      >
+        <Button variant="outline" onClick={cargar} disabled={listLoading} size="sm">
+          <RefreshCcw className={cn("h-4 w-4", listLoading && "animate-spin", !listLoading && "mr-2")} />
+          {!listLoading && "Actualizar"}
+        </Button>
+        <Button onClick={openCreate} size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva solicitud
+        </Button>
+      </PageHeader>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={cargar} disabled={listLoading} size="sm">
-            <RefreshCcw className={cn("h-4 w-4", listLoading && "animate-spin", !listLoading && "mr-2")} />
-            {!listLoading && "Actualizar"}
-          </Button>
-          <Button onClick={openCreate} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva solicitud
-          </Button>
-        </div>
-      </div>
-
-      <div className="page-content">
 
       {/* Alert */}
       {msg && (
@@ -1465,7 +1458,6 @@ export default function ReintegrosPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
-    </div>
-    </div>
+    </PageContainer>
   );
 }

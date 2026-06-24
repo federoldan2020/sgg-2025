@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui-kit";
+import { PageContainer, PageHeader } from "@/components/ui-kit";
 
 type UsuarioRow = {
   id: string;
@@ -73,7 +73,7 @@ export default function SuperadminOrgUsuariosPage() {
 
   return (
     <AuthGate roles={["SUPERADMIN"]}>
-      <div className="page-container">
+      <PageContainer>
         <PageHeader
           title={`Usuarios de ${org?.nombre ?? "organización"}`}
           subtitle="Visualización de usuarios y roles para esta organización"
@@ -169,7 +169,7 @@ export default function SuperadminOrgUsuariosPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </PageContainer>
     </AuthGate>
   );
 }

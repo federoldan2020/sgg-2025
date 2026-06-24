@@ -6,6 +6,7 @@ import { api, ORG, getErrorMessage } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table } from "@/components/ui/table";
+import { PageContainer, PageHeader } from "@/components/ui-kit";
 
 type RolTercero = "PROVEEDOR" | "PRESTADOR" | "AFILIADO" | "OTRO";
 
@@ -146,54 +147,28 @@ export default function CuentasIndexPage() {
   );
 
   return (
-    <div className="page-container">
-      {/* Header de página */}
-      <div className="page-header">
-        <div className="page-title-section">
-          <div className="breadcrumb-nav">
-            <Link href="/finanzas/cuentas" className="breadcrumb-link">
-              Finanzas
-            </Link>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-            <span className="breadcrumb-current">Cuentas Corrientes</span>
-          </div>
-          <h1 className="page-title">Cuentas Corrientes</h1>
-          <p className="page-subtitle">
-            Consulta los saldos y movimientos por tercero
-          </p>
-        </div>
-        <div className="page-actions">
-          <div className="org-badge">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9,22 9,12 15,12 15,22" />
-            </svg>
-            {ORG}
-          </div>
-        </div>
+    <PageContainer>
+      <div className="breadcrumb-nav">
+        <Link href="/finanzas/cuentas" className="breadcrumb-link">Finanzas</Link>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9,18 15,12 9,6" />
+        </svg>
+        <span className="breadcrumb-current">Cuentas Corrientes</span>
       </div>
 
-      <div className="page-content">
+      <PageHeader
+        title="Cuentas Corrientes"
+        subtitle="Consulta los saldos y movimientos por tercero"
+      >
+        <div className="org-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9,22 9,12 15,12 15,22" />
+          </svg>
+          {ORG}
+        </div>
+      </PageHeader>
+
         {/* Buscador */}
         <div className="form-section">
           <div className="form-section-header">
@@ -592,6 +567,6 @@ export default function CuentasIndexPage() {
           )}
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
