@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit.service';
 import { ParametrosService } from './parametros.service';
+import { MovimientosService } from '../movimientos/movimientos.service';
 import { calcularJ38ParaAfiliado } from '../colaterales/colaterales-precio.util';
 
 /**
@@ -70,6 +72,7 @@ export class ObligacionesMensualesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly parametros: ParametrosService,
+    private readonly movs: MovimientosService,
   ) {}
 
   /**
@@ -284,22 +287,31 @@ export class ObligacionesMensualesService {
     }
 
     // --------------------- Persistir ---------------------
+    // Atomicidad: obligaciones + movimientos van en la misma transacción.
+    // Si falla a mitad NO quedan obligaciones sin movimiento ni viceversa.
+    // Timeout amplio: este job es mensual y puede tocar miles de afiliados.
     if (!dryRun) {
-      // 1) Crear las obligaciones nuevas en lote.
-      if (obligacionesACrear.length > 0) {
-        const CHUNK = 200;
-        for (let i = 0; i < obligacionesACrear.length; i += CHUNK) {
-          await this.prisma.obligacion.createMany({
-            data: obligacionesACrear.slice(i, i + CHUNK),
-          });
-        }
-      }
+      await this.prisma.$transaction(
+        async (tx) => {
+          // 1) Obligaciones nuevas en lote (createMany es seguro acá: tenemos
+          //    el chequeo de duplicado por (org, afi, concepto, periodo)).
+          if (obligacionesACrear.length > 0) {
+            const CHUNK = 200;
+            for (let i = 0; i < obligacionesACrear.length; i += CHUNK) {
+              await tx.obligacion.createMany({
+                data: obligacionesACrear.slice(i, i + CHUNK),
+              });
+            }
+          }
 
-      // 2) Crear MovimientoAfiliado(débito) por cada obligación de este período
-      // que todavía no tenga su movimiento asociado. Esto sirve tanto para las
-      // recién creadas como para corridas previas donde sólo se crearon
-      // obligaciones sin movimientos.
-      await this.generarMovimientosFaltantes(organizacionId, periodo);
+          // 2) Generar MovimientoAfiliado(débito) por cada obligación del
+          //    período que no tenga uno. Reutiliza el ledger centralizado
+          //    (postMovimiento) que mantiene Padron.saldo, saldoPosterior y
+          //    Afiliado.saldo coherentes.
+          await this.generarMovimientosFaltantes(organizacionId, periodo, tx);
+        },
+        { timeout: 10 * 60 * 1000 }, // 10 minutos para corridas grandes
+      );
 
       await this.audit.log({
         organizacionId,
@@ -322,12 +334,19 @@ export class ObligacionesMensualesService {
    * Es idempotente: si el movimiento ya existe, no duplica.
    *
    * Esto es lo que hace visible la deuda en la cuenta corriente del afiliado.
+   *
+   * Si recibe `tx`, opera dentro de esa transacción (uso desde materializarExAnte).
+   * Si no, abre una propia (uso standalone para recuperar movimientos faltantes
+   * de corridas previas).
    */
   async generarMovimientosFaltantes(
     organizacionId: string,
     periodo: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<{ creados: number }> {
-    const conceptosEnUso = await this.prisma.concepto.findMany({
+    const client = tx ?? this.prisma;
+
+    const conceptosEnUso = await client.concepto.findMany({
       where: {
         organizacionId,
         codigo: { in: Object.values(CODIGO_CONCEPTO) },
@@ -355,7 +374,7 @@ export class ObligacionesMensualesService {
     const fecha = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
 
     // Obligaciones materializadas sin movimiento de débito asociado.
-    const pendientes = await this.prisma.obligacion.findMany({
+    const pendientes = await client.obligacion.findMany({
       where: {
         organizacionId,
         periodo,
@@ -375,27 +394,33 @@ export class ObligacionesMensualesService {
 
     if (pendientes.length === 0) return { creados: 0 };
 
-    const movimientosData = pendientes.map((o) => ({
-      organizacionId,
-      afiliadoId: o.afiliadoId,
-      padronId: o.padronId,
-      fecha,
-      naturaleza: 'debito' as const,
-      origen: 'cuota' as const,
-      concepto: labelByConceptoId.get(o.conceptoId.toString()) ?? 'Obligación mensual',
-      importe: o.monto,
-      periodoContable: periodo,
-      obligacionId: o.id,
-    }));
+    // Si no hay tx externa, abrimos una propia para mantener atomicidad.
+    const run = async (txInner: Prisma.TransactionClient) => {
+      for (const o of pendientes) {
+        await this.movs.postMovimiento({
+          tx: txInner,
+          organizacionId,
+          afiliadoId: o.afiliadoId,
+          padronId: o.padronId,
+          fecha,
+          naturaleza: 'debito',
+          origen: 'cuota',
+          concepto:
+            labelByConceptoId.get(o.conceptoId.toString()) ?? 'Obligación mensual',
+          importe: Number(o.monto),
+          periodoContable: periodo,
+          obligacionId: o.id,
+        });
+      }
+    };
 
-    const CHUNK = 200;
-    for (let i = 0; i < movimientosData.length; i += CHUNK) {
-      await this.prisma.movimientoAfiliado.createMany({
-        data: movimientosData.slice(i, i + CHUNK),
-      });
+    if (tx) {
+      await run(tx);
+    } else {
+      await this.prisma.$transaction(run, { timeout: 10 * 60 * 1000 });
     }
 
-    return { creados: movimientosData.length };
+    return { creados: pendientes.length };
   }
 
   private async existeObligacion(

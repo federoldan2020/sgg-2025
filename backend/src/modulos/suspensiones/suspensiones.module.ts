@@ -8,6 +8,7 @@ import { ExcepcionesService } from './excepciones.service';
 import { CierreMensualService } from './cierre-mensual.service';
 import { GateService } from './gate.service';
 import { ObligacionesMensualesService } from './obligaciones-mensuales.service';
+import { MovimientosModule } from '../movimientos/movimientos.module';
 import {
   CierreMensualController,
   CoberturaController,
@@ -27,6 +28,7 @@ import {
  * servicios.
  */
 @Module({
+  imports: [MovimientosModule],
   controllers: [
     ParametrosController,
     CoberturaController,

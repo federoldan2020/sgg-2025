@@ -503,20 +503,21 @@ export class CajaController {
       });
       // ======================= /CONTABILIDAD ======================
 
-      // ======================= MOVIMIENTO DE CREDITO ======================
-      // Obtener último saldo del afiliado
-      const lastMov = await tx.movimientoAfiliado.findFirst({
-        where: { organizacionId: org, afiliadoId: BigInt(dto.afiliadoId) },
-        orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
-        select: { saldoPosterior: true },
-      });
-      let saldoActual = Number(lastMov?.saldoPosterior || 0);
+      // ======================= MOVIMIENTOS DE CRÉDITO (ledger) =================
+      // Cada aplicación genera un movimiento crédito vinculado a su obligación/cuota.
+      // Pasamos por MovimientosService.postMovimiento que:
+      //   - toma lock pesimista del padrón (evita races con cobranza nómina paralela),
+      //   - calcula saldoPosterior por padrón,
+      //   - actualiza Padron.saldo (fuente de verdad, ver project_modelo_saldos.md),
+      //   - actualiza Afiliado.saldo (legacy compat).
+      // No le pasamos `asiento` porque el asiento global ya se creó arriba.
+      const afiliadoIdBig = BigInt(dto.afiliadoId);
+      const fechaMov = new Date();
 
-      // Crear movimientos individuales para cada aplicación (para mejor trazabilidad)
-      // Primero, procesar obligaciones que tienen aplicaciones (directas)
+      // --- Aplicaciones a obligaciones ---
       if (aplicacionesObl.length > 0) {
         const obligaciones = await tx.obligacion.findMany({
-          where: { 
+          where: {
             id: { in: aplicacionesObl.map((a) => BigInt(a.obligacionId!)) },
             organizacionId: org,
           },
@@ -527,29 +528,25 @@ export class CajaController {
         for (const a of aplicacionesObl) {
           const obl = mapaObl.get(BigInt(a.obligacionId!).toString());
           if (!obl) continue;
-          
-          saldoActual = saldoActual - Number(a.monto);
-          
-          await tx.movimientoAfiliado.create({
-            data: {
-              organizacionId: org,
-              afiliadoId: BigInt(dto.afiliadoId),
-              padronId: obl.padronId,
-              fecha: new Date(),
-              naturaleza: 'credito',
-              origen: 'pago_caja',
-              concepto: obl.concepto?.nombre || obl.concepto?.codigo || 'Pago en caja',
-              importe: new Prisma.Decimal(a.monto),
-              saldoPosterior: new Prisma.Decimal(saldoActual),
-              obligacionId: obl.id,
-              pagoId: pago.id,
-              asientoId: null,
-            },
+
+          await this.movs.postMovimiento({
+            tx,
+            organizacionId: org,
+            afiliadoId: afiliadoIdBig,
+            padronId: obl.padronId,
+            fecha: fechaMov,
+            naturaleza: 'credito',
+            origen: 'pago_caja',
+            concepto: obl.concepto?.nombre || obl.concepto?.codigo || 'Pago en caja',
+            importe: a.monto,
+            obligacionId: obl.id,
+            pagoId: pago.id,
+            periodoContable: this.normalizarPeriodo(obl.periodo),
           });
         }
       }
 
-      // Procesar TODAS las cuotas (con y sin obligación vinculada)
+      // --- Aplicaciones a cuotas de orden de crédito ---
       if (aplicacionesCuota.length > 0) {
         const idsCuota = aplicacionesCuota.map((a) => BigInt(a.cuotaId!));
         const cuotasDetalle = await tx.ordenCreditoCuota.findMany({
@@ -571,79 +568,57 @@ export class CajaController {
           const cuota = mapaCuotaDetalle.get(BigInt(a.cuotaId!).toString());
           if (!cuota) continue;
 
-          saldoActual = saldoActual - Number(a.monto);
-
-          // Construir concepto descriptivo
-          let concepto = cuota.orden?.descripcion || '';
+          const baseDesc = cuota.orden?.descripcion || '';
           const periodoVenc = cuota.periodoVenc || '';
           const cuotaNum = cuota.numero || 0;
           const cuotaTotal = cuota.orden?.cantidadCuotas || 0;
-          
-          if (concepto) {
-            concepto = `${concepto} - Cuota ${cuotaNum}${cuotaTotal > 0 ? `/${cuotaTotal}` : ''}${periodoVenc ? ` (${periodoVenc})` : ''}`;
-          } else {
-            concepto = `Cuota ${cuotaNum}${cuotaTotal > 0 ? `/${cuotaTotal}` : ''}${periodoVenc ? ` (${periodoVenc})` : ''}`;
-          }
+          const concepto = baseDesc
+            ? `${baseDesc} - Cuota ${cuotaNum}${cuotaTotal > 0 ? `/${cuotaTotal}` : ''}${periodoVenc ? ` (${periodoVenc})` : ''}`
+            : `Cuota ${cuotaNum}${cuotaTotal > 0 ? `/${cuotaTotal}` : ''}${periodoVenc ? ` (${periodoVenc})` : ''}`;
 
-          // OPCIÓN A: Usar fecha física del pago + periodoContable para agrupación
-          // - fecha: fecha física del pago (para orden cronológico y cálculo correcto de saldo)
-          // - periodoContable: período al que corresponde (para agrupar/reportes)
-          const periodoContable = this.normalizarPeriodo(periodoVenc);
-
-          await tx.movimientoAfiliado.create({
-            data: {
-              organizacionId: org,
-              afiliadoId: BigInt(dto.afiliadoId),
-              padronId: cuota.orden?.padronId,
-              fecha: new Date(), // 👈 Fecha física del pago (orden cronológico correcto)
-              periodoContable, // 👈 Período contable para agrupar por período cuando se necesite
-              naturaleza: 'credito',
-              origen: 'pago_caja',
-              concepto,
-              importe: new Prisma.Decimal(a.monto),
-              saldoPosterior: new Prisma.Decimal(saldoActual),
-              cuotaId: cuota.id,
-              ordenId: cuota.ordenId,
-              // Si la cuota tiene obligación vinculada, también vincularla
-              obligacionId: cuota.obligacionId || null,
-              pagoId: pago.id,
-              asientoId: null,
-            },
+          await this.movs.postMovimiento({
+            tx,
+            organizacionId: org,
+            afiliadoId: afiliadoIdBig,
+            padronId: cuota.orden?.padronId ?? null,
+            fecha: fechaMov,
+            naturaleza: 'credito',
+            origen: 'pago_caja',
+            concepto,
+            importe: a.monto,
+            cuotaId: cuota.id,
+            ordenId: cuota.ordenId,
+            obligacionId: cuota.obligacionId || null,
+            pagoId: pago.id,
+            periodoContable: this.normalizarPeriodo(periodoVenc),
           });
         }
       }
 
-      // Verificar que todos los montos tengan movimiento
-      const totalConMovimiento = aplicacionesObl.reduce((sum, a) => sum + Number(a.monto), 0) +
-                                  aplicacionesCuota.reduce((sum, a) => sum + Number(a.monto), 0);
+      // --- Restante sin aplicación (defensivo: no debería ocurrir) ---
+      // La UI exige que totalMetodos == totalAplic. Si por algún motivo queda
+      // un sobrante, lo registramos como crédito sin padrón para no perder
+      // trazabilidad contra el Pago. En Fase 2 esto pasa a `requiereRevision=true`.
+      const totalConMovimiento =
+        aplicacionesObl.reduce((sum, a) => sum + Number(a.monto), 0) +
+        aplicacionesCuota.reduce((sum, a) => sum + Number(a.monto), 0);
       const restante = totalMetodos - totalConMovimiento;
 
-      // Si hay diferencia (no debería pasar, pero por seguridad)
       if (Math.abs(restante) > 0.01) {
-        saldoActual = saldoActual - restante;
-        await tx.movimientoAfiliado.create({
-          data: {
-            organizacionId: org,
-            afiliadoId: BigInt(dto.afiliadoId),
-            padronId: null,
-            fecha: new Date(),
-            naturaleza: 'credito',
-            origen: 'pago_caja',
-            concepto: `Pago en caja #${pago.id.toString()} - ${dto.metodos.map((m) => `${m.metodo} $${m.monto.toFixed(2)}`).join(', ')}`,
-            importe: new Prisma.Decimal(restante),
-            saldoPosterior: new Prisma.Decimal(saldoActual),
-            pagoId: pago.id,
-            asientoId: null,
-          },
+        await this.movs.postMovimiento({
+          tx,
+          organizacionId: org,
+          afiliadoId: afiliadoIdBig,
+          padronId: null,
+          fecha: fechaMov,
+          naturaleza: 'credito',
+          origen: 'pago_caja',
+          concepto: `Pago en caja #${pago.id.toString()} - ${dto.metodos.map((m) => `${m.metodo} $${m.monto.toFixed(2)}`).join(', ')}`,
+          importe: restante,
+          pagoId: pago.id,
         });
       }
-
-      // Actualizar saldo del afiliado
-      await tx.afiliado.update({
-        where: { id: BigInt(dto.afiliadoId) },
-        data: { saldo: new Prisma.Decimal(saldoActual) },
-      });
-      // ======================= /MOVIMIENTO DE CREDITO ======================
+      // ======================= /MOVIMIENTOS DE CRÉDITO ==========================
 
       // ======================= COMPROBANTE: RECIBO_AFILIADO ===============
       // Reservamos número, renderizamos PDF y persistimos el Comprobante en la

@@ -9,10 +9,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/afiliados", label: "Afiliados" },
       { href: "/afiliados/familiares", label: "Familiares" },
       { href: "/movimientos", label: "Cuenta corriente" },
-      { href: "/padrones/nuevo", label: "Alta por padrón" },
-      { href: "/afiliados/importar", label: "Importar afiliados" },
-      { href: "/afiliados/familiares/importar", label: "Importar familiares" },
-      { href: "/padrones/importar", label: "Importar padrones" },
+     
     ],
   },
 
@@ -58,8 +55,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/terceros", label: "Terceros" },
       { href: "/terceros/nuevo", label: "Nuevo tercero" },
-      { href: "/terceros/import", label: "Importar terceros" },
-      { href: "/importadores/comercios", label: "Importar comercios" },
+     
     ],
   },
 
@@ -82,7 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/contabilidad/plan", label: "Plan de cuentas" },
       { href: "/contabilidad/asientos", label: "Asientos contables" },
       { href: "/contabilidad/mapeos", label: "Mapeos" },
-      { href: "/contabilidad/plan/import", label: "Importar plan (CSV)" },
+     
     ],
   },
 
@@ -92,7 +88,6 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["ADMIN"],
     items: [
       { href: "/parametricos/parentescos", label: "Parentescos" },
-      { href: "/parametricos/parentescos/importar", label: "Importar parentescos" },
       { href: "/parametricos/reglas/colaterales", label: "Reglas de colaterales" },
       { href: "/parametricos/reglas/cobertura", label: "Reglas de cobertura" },
       { href: "/parametricos/reglas/clasificacion", label: "Reglas de clasificación" },
@@ -109,6 +104,20 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/auditoria", label: "Auditoría" },
       { href: "/cierre-mensual", label: "Cierre mensual" },
       { href: "/admin/materializar-mes", label: "Materializar coseguro" },
+    ],
+  },
+
+  {
+    titulo: "Importadores",
+    roles: ["ADMIN"],
+    items: [
+      { href: "/afiliados/importar", label: "Importar afiliados" },
+      { href: "/afiliados/familiares/importar", label: "Importar familiares" },
+      { href: "/padrones/importar", label: "Importar padrones" },
+      { href: "/parametricos/parentescos/importar", label: "Importar parentescos" },
+      { href: "/contabilidad/plan/import", label: "Importar plan (CSV)" },
+      { href: "/terceros/import", label: "Importar terceros" },
+      { href: "/importadores/comercios", label: "Importar comercios" },
     ],
   },
 

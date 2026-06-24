@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit.service';
+import { MovimientosService } from '../movimientos/movimientos.service';
 import {
   parseNovedadesXlsx,
   type CodigoNovedad,
@@ -74,6 +75,7 @@ export class ImportarNovedadesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly movs: MovimientosService,
   ) {}
 
   /** Carga el contexto común (padrones de la org y conceptos). */
@@ -393,34 +395,37 @@ export class ImportarNovedadesService {
     // fecha se corra al último día del mes anterior.
     const [pyy, pmm] = periodo.split('-').map(Number);
     const fecha = new Date(Date.UTC(pyy, pmm - 1, 1, 12, 0, 0));
-    const data: Array<Record<string, unknown>> = [];
-    for (const o of obls) {
-      if (o.padronId == null) continue;
-      if (setYa.has(o.id.toString())) continue;
-      const codigoBD = codigoBDPorId.get(o.conceptoId.toString()) ?? '';
-      data.push({
-        organizacionId,
-        afiliadoId: o.afiliadoId,
-        padronId: o.padronId,
-        fecha,
-        naturaleza: 'debito',
-        origen: 'ajuste', // saldo migrado del legacy (apertura)
-        concepto: CONCEPTO_LABEL[codigoBD] ?? codigoBD ?? 'Obligación',
-        importe: Number(o.monto),
-        obligacionId: o.id,
-        referenciaTipo: 'OBLIGACION',
-        periodoContable: periodo,
-      });
-    }
 
-    let creados = 0;
-    const CHUNK = 500;
-    for (let i = 0; i < data.length; i += CHUNK) {
-      const r = await this.prisma.movimientoAfiliado.createMany({
-        data: data.slice(i, i + CHUNK) as never,
-      });
-      creados += r.count;
-    }
-    return creados;
+    const pendientes = obls.filter(
+      (o) => o.padronId != null && !setYa.has(o.id.toString()),
+    );
+    if (pendientes.length === 0) return 0;
+
+    // Ledger centralizado: postMovimiento toma lock por padrón, calcula
+    // saldoPosterior, actualiza Padron.saldo y Afiliado.saldo. Envolvemos
+    // todo el sembrado del período en una sola tx para atomicidad.
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const o of pendientes) {
+          const codigoBD = codigoBDPorId.get(o.conceptoId.toString()) ?? '';
+          await this.movs.postMovimiento({
+            tx,
+            organizacionId,
+            afiliadoId: o.afiliadoId,
+            padronId: o.padronId!,
+            fecha,
+            naturaleza: 'debito',
+            origen: 'ajuste', // saldo migrado del legacy (apertura)
+            concepto: CONCEPTO_LABEL[codigoBD] ?? codigoBD ?? 'Obligación',
+            importe: Number(o.monto),
+            obligacionId: o.id,
+            periodoContable: periodo,
+          });
+        }
+      },
+      { timeout: 10 * 60 * 1000 },
+    );
+
+    return pendientes.length;
   }
 }

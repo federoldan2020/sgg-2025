@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit.service';
 import { CoberturaService } from '../suspensiones/cobertura.service';
 import { SuspensionesService } from '../suspensiones/suspensiones.service';
+import { MovimientosService } from '../movimientos/movimientos.service';
 import { parseTxt, type ItemTxt } from './parsers/computos.parser';
 
 export type PreviewResult = {
@@ -61,6 +62,7 @@ export class ImportarCobranzaService {
     private readonly audit: AuditService,
     private readonly cobertura: CoberturaService,
     private readonly suspensiones: SuspensionesService,
+    private readonly movs: MovimientosService,
   ) {}
 
   /**
@@ -332,14 +334,30 @@ export class ImportarCobranzaService {
           });
         }
 
-        // Movimientos por cuenta corriente (fuente de verdad de "cobrado por período").
-        if (movimientosData.length > 0) {
-          await tx.movimientoAfiliado.createMany({ data: movimientosData });
+        // Movimientos por cuenta corriente, vía ledger centralizado:
+        // postMovimiento toma lock pesimista del padrón, calcula saldoPosterior,
+        // actualiza Padron.saldo y Afiliado.saldo. Mantiene consistencia con
+        // el modelo unificado de saldos (ver memory/project_modelo_saldos.md).
+        // En Fase 2 esto pasa a hacer matching contra Obligacion del período;
+        // por ahora cada crédito queda sin obligacionId (igual que antes).
+        for (const m of movimientosData) {
+          await this.movs.postMovimiento({
+            tx,
+            organizacionId: m.organizacionId,
+            afiliadoId: m.afiliadoId,
+            padronId: m.padronId,
+            fecha: m.fecha,
+            naturaleza: m.naturaleza,
+            origen: m.origen,
+            concepto: m.concepto,
+            importe: m.importe,
+            periodoContable: m.periodoContable,
+          });
         }
 
         return lote;
       },
-      { timeout: 60000, maxWait: 10000 },
+      { timeout: 10 * 60 * 1000, maxWait: 30000 },
     );
 
     // Conciliar contra obligaciones bloqueadas: aplicar lo cobrado a cada

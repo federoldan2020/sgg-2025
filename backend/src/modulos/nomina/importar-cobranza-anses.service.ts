@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit.service';
 import { CoberturaService } from '../suspensiones/cobertura.service';
 import { SuspensionesService } from '../suspensiones/suspensiones.service';
+import { MovimientosService } from '../movimientos/movimientos.service';
 import { parseTxtAnses, type ItemAnses } from './parsers/anses.parser';
 
 /**
@@ -62,6 +63,7 @@ export class ImportarCobranzaAnsesService {
     private readonly audit: AuditService,
     private readonly cobertura: CoberturaService,
     private readonly suspensiones: SuspensionesService,
+    private readonly movs: MovimientosService,
   ) {}
 
   /**
@@ -287,13 +289,28 @@ export class ImportarCobranzaAnsesService {
             data: detallesData.map((d) => ({ ...d, loteId: lote.id })),
           });
         }
-        if (movimientosData.length > 0) {
-          await tx.movimientoAfiliado.createMany({ data: movimientosData });
+        // Movimientos por cuenta corriente vía ledger centralizado.
+        // Mismo patrón que Cómputos: postMovimiento mantiene Padron.saldo,
+        // saldoPosterior y Afiliado.saldo coherentes. En Fase 2 hará matching
+        // contra Obligacion del período.
+        for (const m of movimientosData) {
+          await this.movs.postMovimiento({
+            tx,
+            organizacionId: m.organizacionId,
+            afiliadoId: m.afiliadoId,
+            padronId: m.padronId,
+            fecha: m.fecha,
+            naturaleza: m.naturaleza,
+            origen: m.origen,
+            concepto: m.concepto,
+            importe: m.importe,
+            periodoContable: m.periodoContable,
+          });
         }
 
         return lote;
       },
-      { timeout: 60000, maxWait: 10000 },
+      { timeout: 10 * 60 * 1000, maxWait: 30000 },
     );
 
     // Recalcular cobertura + intentar rehabilitar.

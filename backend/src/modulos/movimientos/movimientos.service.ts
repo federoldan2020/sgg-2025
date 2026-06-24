@@ -98,21 +98,25 @@ export class MovimientosService {
     const afectaSaldo = p.afectaSaldo !== false;
 
     const run = async (tx: Prisma.TransactionClient) => {
-      // ===== 2) Último saldo (para saldoPosterior) =====
-      // El saldo es POR PADRÓN, así que filtramos por padronId si está presente
+      // ===== 2) Lock pesimista del padrón =====
+      // El saldo es POR PADRÓN, así que tomamos lock exclusivo de esa fila para
+      // evitar race conditions cuando dos transacciones operan sobre el mismo
+      // padrón en paralelo (ej: cobro caja + cobranza nómina simultáneos).
+      // El lock se mantiene hasta el commit de la tx.
+      // Para movimientos sin padrón (ajustes globales), no hay nada que bloquear.
+      if (p.padronId) {
+        await tx.$queryRaw`SELECT id FROM "Padron" WHERE id = ${p.padronId} FOR UPDATE`;
+      }
+
+      // ===== 3) Último saldo (para saldoPosterior) =====
+      // Fuente de verdad: el último saldoPosterior del padrón en MovimientoAfiliado.
+      // Para padronId=null, usamos los movimientos huérfanos del afiliado.
       const whereLastMov: Prisma.MovimientoAfiliadoWhereInput = {
         organizacionId: p.organizacionId,
         afiliadoId: p.afiliadoId,
+        padronId: p.padronId ?? null,
       };
-      
-      // Si el movimiento tiene padronId, buscar saldo de ese padrón específico
-      // Si no tiene, buscar movimientos sin padrón (padronId = null)
-      if (p.padronId) {
-        whereLastMov.padronId = p.padronId;
-      } else {
-        whereLastMov.padronId = null;
-      }
-      
+
       const last = await tx.movimientoAfiliado.findFirst({
         where: whereLastMov,
         orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
@@ -120,7 +124,7 @@ export class MovimientosService {
       });
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       const prevSaldo = this.toNum(last?.saldoPosterior as any, 0);
-      
+
       // Si afectaSaldo = false, el movimiento NO modifica el saldo (es solo informativo)
       // Útil para J17, J22, J38 que son descuentos sin deuda previa registrada
       const delta = afectaSaldo ? (importeArs * (p.naturaleza === 'credito' ? -1 : 1)) : 0;
@@ -203,11 +207,25 @@ export class MovimientosService {
         },
       });
 
-      // ===== 5) Refrescar saldo “rápido” en Afiliado =====
-      await tx.afiliado.update({
-        where: { id: p.afiliadoId },
-        data: { saldo: this.dec(nuevoSaldo) },
-      });
+      // ===== 5) Refrescar saldos cacheados =====
+      // Padron.saldo = fuente de verdad por padrón (modelo unificado, ver
+      // memory/project_modelo_saldos.md). Solo se actualiza si el movimiento
+      // afecta saldo y tiene padrón.
+      if (afectaSaldo && p.padronId) {
+        await tx.padron.update({
+          where: { id: p.padronId },
+          data: { saldo: this.dec(nuevoSaldo) },
+        });
+      }
+
+      // Afiliado.saldo: legacy, queda como copia del último saldo tocado.
+      // En Fase 3 pasa a ser derivado (suma de saldos de padrones) o se elimina.
+      if (afectaSaldo) {
+        await tx.afiliado.update({
+          where: { id: p.afiliadoId },
+          data: { saldo: this.dec(nuevoSaldo) },
+        });
+      }
 
       return mov;
     };

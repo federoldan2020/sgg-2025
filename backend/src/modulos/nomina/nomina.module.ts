@@ -10,9 +10,10 @@ import { ImportarNovedadesService } from './importar-novedades.service';
 import { AuditService } from '../../common/audit.service';
 import { PrismaService } from '../../common/prisma.service';
 import { SuspensionesModule } from '../suspensiones/suspensiones.module';
+import { MovimientosModule } from '../movimientos/movimientos.module';
 
 @Module({
-  imports: [SuspensionesModule],
+  imports: [SuspensionesModule, MovimientosModule],
   controllers: [
     NominaController,
     ImportarCobranzaController,
