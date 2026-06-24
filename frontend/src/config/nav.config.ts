@@ -9,6 +9,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/afiliados", label: "Afiliados" },
       { href: "/afiliados/familiares", label: "Familiares" },
       { href: "/movimientos", label: "Cuenta corriente" },
+      { href: "/ordenes/nueva", label: "Nueva orden de crédito" },
      
     ],
   },
@@ -20,7 +21,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/caja", label: "Caja" },
       { href: "/ordenes", label: "Órdenes por afiliado" },
-      { href: "/ordenes/nueva", label: "Nueva orden de crédito" },
+      
     ],
   },
 
@@ -102,6 +103,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/usuarios", label: "Usuarios" },
       { href: "/admin/auditoria", label: "Auditoría" },
+      { href: "/admin/movimientos-por-revisar", label: "Movimientos por revisar" },
+      { href: "/admin/recalcular-saldos", label: "Recalcular saldos" },
       { href: "/cierre-mensual", label: "Cierre mensual" },
       { href: "/admin/materializar-mes", label: "Materializar coseguro" },
     ],

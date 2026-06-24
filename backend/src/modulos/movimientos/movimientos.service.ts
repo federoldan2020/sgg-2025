@@ -502,6 +502,432 @@ export class MovimientosService {
     return { aplicado: aplica };
   }
 
+  // ===========================================================================
+  // Fase 3 — Administración: recálculo y bandeja de revisión
+  // ===========================================================================
+
+  /**
+   * Recalcula `Padron.saldo` y `MovimientoAfiliado.saldoPosterior` de todos los
+   * padrones del afiliado a partir del ledger (sum debito − sum credito).
+   *
+   * Es la red de seguridad para reconciliar cuando se sospecha desincronización
+   * entre el cache y el ledger. Idempotente: si ya está sincronizado, no hace
+   * nada visible.
+   *
+   * `dryRun=true` no escribe: reporta las diferencias detectadas.
+   */
+  async recalcularSaldosAfiliado(
+    organizacionId: string,
+    afiliadoId: bigint,
+    dryRun = true,
+  ): Promise<{
+    afiliadoId: string;
+    padrones: Array<{
+      padronId: string | null;
+      padronLabel: string | null;
+      saldoActual: number;
+      saldoCalculado: number;
+      diferencia: number;
+      movimientos: number;
+      movimientosActualizados: number;
+    }>;
+    aplicado: boolean;
+  }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Padrones del afiliado (incluye baja).
+        const padrones = await tx.padron.findMany({
+          where: { organizacionId, afiliadoId },
+          select: { id: true, padron: true, saldo: true },
+        });
+
+        // Movimientos sin padronId (huérfanos): los contamos aparte como "null".
+        const padronesIds = padrones.map((p) => p.id);
+        const reporte: Array<{
+          padronId: string | null;
+          padronLabel: string | null;
+          saldoActual: number;
+          saldoCalculado: number;
+          diferencia: number;
+          movimientos: number;
+          movimientosActualizados: number;
+        }> = [];
+
+        const procesarPadron = async (
+          padronId: bigint | null,
+          padronLabel: string | null,
+          saldoActual: number,
+        ) => {
+          const movs = await tx.movimientoAfiliado.findMany({
+            where: {
+              organizacionId,
+              afiliadoId,
+              padronId: padronId ?? null,
+            },
+            orderBy: [{ fecha: 'asc' }, { id: 'asc' }],
+            select: {
+              id: true,
+              naturaleza: true,
+              importe: true,
+              saldoPosterior: true,
+            },
+          });
+
+          let saldo = 0;
+          let actualizados = 0;
+          for (const m of movs) {
+            const delta = Number(m.importe) * (m.naturaleza === 'credito' ? -1 : 1);
+            saldo += delta;
+            const saldoRedondeado = Math.round(saldo * 100) / 100;
+            const previo = Number(m.saldoPosterior ?? 0);
+            if (Math.abs(previo - saldoRedondeado) > 0.009) {
+              if (!dryRun) {
+                await tx.movimientoAfiliado.update({
+                  where: { id: m.id },
+                  data: { saldoPosterior: this.dec(saldoRedondeado) },
+                });
+              }
+              actualizados++;
+            }
+          }
+
+          const saldoCalc = Math.round(saldo * 100) / 100;
+          const diferencia = Math.round((saldoCalc - saldoActual) * 100) / 100;
+
+          if (padronId && !dryRun && Math.abs(diferencia) > 0.009) {
+            await tx.padron.update({
+              where: { id: padronId },
+              data: { saldo: this.dec(saldoCalc) },
+            });
+          }
+
+          reporte.push({
+            padronId: padronId?.toString() ?? null,
+            padronLabel,
+            saldoActual,
+            saldoCalculado: saldoCalc,
+            diferencia,
+            movimientos: movs.length,
+            movimientosActualizados: actualizados,
+          });
+        };
+
+        // Por padrón conocido.
+        for (const p of padrones) {
+          await procesarPadron(p.id, p.padron, Number(p.saldo ?? 0));
+        }
+
+        // Movimientos huérfanos (padronId=null).
+        const huerfanosCount = await tx.movimientoAfiliado.count({
+          where: { organizacionId, afiliadoId, padronId: null },
+        });
+        if (huerfanosCount > 0) {
+          await procesarPadron(null, null, 0);
+        }
+
+        // Actualizar Afiliado.saldo legacy = suma de todos los Padron.saldo
+        // (más el saldo huérfano si existe). Esto es transitorio hasta que
+        // eliminemos Afiliado.saldo en una fase futura.
+        if (!dryRun && padronesIds.length > 0) {
+          const padronesActualizados = await tx.padron.findMany({
+            where: { id: { in: padronesIds } },
+            select: { saldo: true },
+          });
+          const huerfanoTotal = reporte.find((r) => r.padronId === null)?.saldoCalculado ?? 0;
+          const totalGlobal = padronesActualizados.reduce(
+            (acc, p) => acc + Number(p.saldo ?? 0),
+            huerfanoTotal,
+          );
+          await tx.afiliado.update({
+            where: { id: afiliadoId },
+            data: { saldo: this.dec(Math.round(totalGlobal * 100) / 100) },
+          });
+        }
+
+        return {
+          afiliadoId: afiliadoId.toString(),
+          padrones: reporte,
+          aplicado: !dryRun,
+        };
+      },
+      { timeout: 60_000 },
+    );
+  }
+
+  /**
+   * Recalcula saldos de TODA la organización. Itera por afiliado (chunked) y
+   * reusa el método de afiliado. Devuelve un resumen agregado y el detalle
+   * de divergencias detectadas.
+   *
+   * Diseñado para correr fuera de horario pico — puede tardar varios minutos
+   * con organizaciones grandes.
+   */
+  async recalcularSaldosOrganizacion(
+    organizacionId: string,
+    dryRun = true,
+  ): Promise<{
+    afiliadosProcesados: number;
+    padronesConDiferencia: number;
+    movimientosActualizados: number;
+    aplicado: boolean;
+    divergencias: Array<{
+      afiliadoId: string;
+      padronId: string | null;
+      saldoActual: number;
+      saldoCalculado: number;
+      diferencia: number;
+    }>;
+  }> {
+    const afiliados = await this.prisma.afiliado.findMany({
+      where: { organizacionId },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+
+    let padronesConDiferencia = 0;
+    let movimientosActualizados = 0;
+    const divergencias: Array<{
+      afiliadoId: string;
+      padronId: string | null;
+      saldoActual: number;
+      saldoCalculado: number;
+      diferencia: number;
+    }> = [];
+
+    for (const a of afiliados) {
+      const r = await this.recalcularSaldosAfiliado(organizacionId, a.id, dryRun);
+      for (const p of r.padrones) {
+        movimientosActualizados += p.movimientosActualizados;
+        if (Math.abs(p.diferencia) > 0.009) {
+          padronesConDiferencia++;
+          divergencias.push({
+            afiliadoId: r.afiliadoId,
+            padronId: p.padronId,
+            saldoActual: p.saldoActual,
+            saldoCalculado: p.saldoCalculado,
+            diferencia: p.diferencia,
+          });
+        }
+      }
+    }
+
+    return {
+      afiliadosProcesados: afiliados.length,
+      padronesConDiferencia,
+      movimientosActualizados,
+      aplicado: !dryRun,
+      divergencias,
+    };
+  }
+
+  /**
+   * Lista movimientos pendientes de revisión: créditos huérfanos generados
+   * por la conciliación de Cómputos/ANSES cuando no había Obligación que
+   * matchear, o cuando la cobranza excedió la deuda del padrón.
+   *
+   * Devuelve también el contexto que el operador necesita para decidir:
+   * datos del afiliado, padrón, monto, período.
+   */
+  async listarPorRevisar(
+    organizacionId: string,
+    filtros: { afiliadoId?: bigint; padronId?: bigint; page?: number; pageSize?: number } = {},
+  ): Promise<{
+    items: Array<{
+      id: string;
+      fecha: string;
+      naturaleza: 'debito' | 'credito';
+      origen: string;
+      concepto: string;
+      importe: number;
+      periodoContable: string | null;
+      afiliado: { id: string; dni: string | null; apellidoNombre: string };
+      padron: { id: string | null; numero: string | null };
+      saldoPadronActual: number | null;
+    }>;
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const page = Math.max(1, filtros.page ?? 1);
+    const pageSize = Math.min(100, Math.max(10, filtros.pageSize ?? 25));
+
+    const where: Prisma.MovimientoAfiliadoWhereInput = {
+      organizacionId,
+      requiereRevision: true,
+      ...(filtros.afiliadoId ? { afiliadoId: filtros.afiliadoId } : {}),
+      ...(filtros.padronId ? { padronId: filtros.padronId } : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.movimientoAfiliado.findMany({
+        where,
+        orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          afiliado: { select: { id: true, dni: true, apellido: true, nombre: true } },
+          padron: { select: { id: true, padron: true, saldo: true } },
+        },
+      }),
+      this.prisma.movimientoAfiliado.count({ where }),
+    ]);
+
+    const items = rows.map((m) => ({
+      id: m.id.toString(),
+      fecha: m.fecha.toISOString(),
+      naturaleza: m.naturaleza as 'debito' | 'credito',
+      origen: m.origen,
+      concepto: m.concepto,
+      importe: Number(m.importe),
+      periodoContable: m.periodoContable,
+      afiliado: {
+        id: m.afiliado.id.toString(),
+        dni: m.afiliado.dni != null ? String(m.afiliado.dni) : null,
+        apellidoNombre: `${m.afiliado.apellido ?? ''}${
+          m.afiliado.apellido && m.afiliado.nombre ? ', ' : ''
+        }${m.afiliado.nombre ?? ''}`.trim(),
+      },
+      padron: {
+        id: m.padron?.id.toString() ?? null,
+        numero: m.padron?.padron ?? null,
+      },
+      saldoPadronActual: m.padron?.saldo != null ? Number(m.padron.saldo) : null,
+    }));
+
+    return { items, total, page, pageSize };
+  }
+
+  /**
+   * Acción: aceptar el crédito huérfano como saldo a favor definitivo.
+   * Solo marca `requiereRevision=false`. El saldo del padrón YA refleja el
+   * crédito (se aplica al crear el movimiento). Esto sólo lo saca de la
+   * bandeja del operador.
+   */
+  async aceptarComoSaldoFavor(
+    organizacionId: string,
+    movimientoId: bigint,
+  ): Promise<{ ok: true }> {
+    await this.prisma.movimientoAfiliado.updateMany({
+      where: { id: movimientoId, organizacionId, requiereRevision: true },
+      data: { requiereRevision: false },
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Acción: vincular manualmente un crédito huérfano a una Obligación
+   * específica. Reduce el saldo de la obligación, marca el movimiento
+   * como sin revisar y deja traza en `obligacionId`.
+   *
+   * NOTA: no genera un movimiento nuevo — el crédito ya existe y ya impactó
+   * el saldo del padrón. Solo cambia los vínculos lógicos.
+   */
+  async vincularAObligacion(
+    organizacionId: string,
+    movimientoId: bigint,
+    obligacionId: bigint,
+  ): Promise<{ ok: true; obligacionSaldoFinal: number; obligacionEstado: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const mov = await tx.movimientoAfiliado.findFirst({
+        where: { id: movimientoId, organizacionId, requiereRevision: true },
+      });
+      if (!mov) {
+        throw new BadRequestException('Movimiento no existe o ya no requiere revisión');
+      }
+      if (mov.naturaleza !== 'credito') {
+        throw new BadRequestException('Solo se pueden vincular créditos a obligaciones');
+      }
+
+      const obl = await tx.obligacion.findFirst({
+        where: { id: obligacionId, organizacionId },
+      });
+      if (!obl) {
+        throw new BadRequestException('Obligación no encontrada');
+      }
+      if (obl.afiliadoId !== mov.afiliadoId) {
+        throw new BadRequestException(
+          'La obligación pertenece a otro afiliado',
+        );
+      }
+
+      const importe = Number(mov.importe);
+      const saldoObl = Number(obl.saldo);
+      const aplica = Math.min(saldoObl, importe);
+      const nuevoSaldo = Math.round((saldoObl - aplica) * 100) / 100;
+      const pagada = nuevoSaldo <= 0.009;
+      const concImp =
+        Math.round((Number(obl.conciliacionImporte ?? 0) + aplica) * 100) / 100;
+
+      await tx.obligacion.update({
+        where: { id: obl.id },
+        data: {
+          saldo: nuevoSaldo,
+          estado: pagada ? 'pagada' : 'parcialmente_pagada',
+          conciliacionEstado: pagada ? 'descontado' : 'parcial',
+          conciliacionImporte: concImp,
+          conciliacionFecha: new Date(),
+        },
+      });
+
+      await tx.movimientoAfiliado.update({
+        where: { id: mov.id },
+        data: {
+          obligacionId: obl.id,
+          requiereRevision: false,
+        },
+      });
+
+      return {
+        ok: true,
+        obligacionSaldoFinal: nuevoSaldo,
+        obligacionEstado: pagada ? 'pagada' : 'parcialmente_pagada',
+      };
+    });
+  }
+
+  /**
+   * Acción: anular un movimiento por revisión generando un movimiento
+   * inverso (`origen='anulacion'`) que neutraliza su impacto en el saldo.
+   * El movimiento original queda con requiereRevision=false (resuelto).
+   */
+  async anularMovimientoPorRevision(
+    organizacionId: string,
+    movimientoId: bigint,
+    motivo: string,
+  ): Promise<{ ok: true; movimientoInversoId: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const mov = await tx.movimientoAfiliado.findFirst({
+        where: { id: movimientoId, organizacionId, requiereRevision: true },
+      });
+      if (!mov) {
+        throw new BadRequestException('Movimiento no existe o ya no requiere revisión');
+      }
+
+      const naturalezaInversa: 'debito' | 'credito' =
+        mov.naturaleza === 'credito' ? 'debito' : 'credito';
+
+      const inverso = await this.postMovimiento({
+        tx,
+        organizacionId,
+        afiliadoId: mov.afiliadoId,
+        padronId: mov.padronId,
+        fecha: new Date(),
+        naturaleza: naturalezaInversa,
+        origen: 'anulacion',
+        concepto: `Anulación: ${mov.concepto} — ${motivo}`,
+        importe: Number(mov.importe),
+        periodoContable: mov.periodoContable,
+      });
+
+      await tx.movimientoAfiliado.update({
+        where: { id: mov.id },
+        data: { requiereRevision: false },
+      });
+
+      return { ok: true, movimientoInversoId: inverso.id.toString() };
+    });
+  }
+
   /**
    * Lista la cuenta corriente del afiliado.
    * 
