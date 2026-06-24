@@ -4,10 +4,16 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowLeft,
+  Building2,
+  Calculator,
   Check,
   CheckCircle2,
+  FileText,
+  Info,
+  ListChecks,
   Loader2,
   Plus,
+  Receipt,
   Search,
   Trash2,
   X,
@@ -68,6 +74,13 @@ const fmt = (n: number) =>
     maximumFractionDigits: 2,
   }).format(Number.isFinite(n) ? n : 0);
 
+const TIPO_LABEL: Record<TipoComprobante, string> = {
+  FACTURA: "Factura",
+  PRESTACION: "Prestación",
+  NOTA_CREDITO: "Nota de Crédito",
+  NOTA_DEBITO: "Nota de Débito",
+};
+
 function useDebounced<T>(value: T, delay = 300) {
   const [deb, setDeb] = useState(value);
   useEffect(() => {
@@ -79,7 +92,6 @@ function useDebounced<T>(value: T, delay = 300) {
 
 /* ===== Page ===== */
 export default function NuevoComprobantePage() {
-  // Cabecera
   // organizacionId fijo desde el contexto; no se edita en la UI.
   const [organizacionId] = useState(ORG);
   const [rol, setRol] = useState<RolTercero>("PROVEEDOR");
@@ -97,7 +109,6 @@ export default function NuevoComprobantePage() {
   const [cuitEmisor, setCuitEmisor] = useState<string>("");
   const [observaciones, setObs] = useState<string>("");
 
-  // Líneas + impuestos
   const [lineas, setLineas] = useState<Linea[]>([
     {
       descripcion: "Item 1",
@@ -108,9 +119,10 @@ export default function NuevoComprobantePage() {
   ]);
   const [impuestos, setImpuestos] = useState<ImpAdic[]>([]);
 
-  // Estado
   const [posting, setPosting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Marca para mostrar errores inline después del primer intento
+  const [touched, setTouched] = useState(false);
 
   /* ===== Autocomplete Terceros ===== */
   const [q, setQ] = useState("");
@@ -140,7 +152,6 @@ export default function NuevoComprobantePage() {
     void fetchIt();
   }, [debQ, rol]);
 
-  // Cerrar dropdown al hacer click afuera
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (!acWrapRef.current) return;
@@ -159,7 +170,6 @@ export default function NuevoComprobantePage() {
     setQ(`${t.nombre}${t.cuit ? " · " + t.cuit : ""}`);
     setOpen(false);
 
-    // autoadaptar rol si no coincide
     if (!t.roles.includes(rol)) {
       const nuevo = t.roles[0] ?? "OTRO";
       setRol(nuevo);
@@ -231,21 +241,14 @@ export default function NuevoComprobantePage() {
       }
     }
 
+    const subtotal =
+      netoGrav21 + netoGrav105 + netoGrav27 + netoNoGrav + netoExento;
+    const ivaTotal = iva21 + iva105 + iva27;
     const otros = impuestos.reduce(
       (acc, it) => acc + Number(it.importe || 0),
       0
     );
-
-    const total =
-      netoGrav21 +
-      netoGrav105 +
-      netoGrav27 +
-      netoNoGrav +
-      netoExento +
-      iva21 +
-      iva105 +
-      iva27 +
-      otros;
+    const total = subtotal + ivaTotal + otros;
 
     return {
       netoGrav21,
@@ -256,30 +259,50 @@ export default function NuevoComprobantePage() {
       iva21,
       iva105,
       iva27,
+      subtotal,
+      ivaTotal,
       otros,
       total,
     };
   }, [lineas, impuestos]);
 
-  /* ===== Submit ===== */
-  const canSubmit =
-    !!organizacionId &&
-    !!terceroSel &&
-    !!rol &&
-    !!tipo &&
-    !!fecha &&
-    lineas.length > 0 &&
-    lineas.every((l) => l.descripcion.trim().length > 0);
+  /* ===== Validación ===== */
+  // El backend exige PV y Número para FACTURA / PRESTACION / NOTA_CREDITO / NOTA_DEBITO.
+  // Como hoy son los únicos tipos soportados, los marcamos siempre como obligatorios.
+  const errores = useMemo(() => {
+    const e: { field: string; label: string; message: string }[] = [];
+    if (!terceroSel) e.push({ field: "tercero", label: "Tercero", message: "Seleccioná un tercero." });
+    if (puntoVenta === "" || puntoVenta == null)
+      e.push({ field: "puntoVenta", label: "Punto de venta", message: "Indicá el punto de venta (1 a 9999)." });
+    else if (Number(puntoVenta) < 1 || Number(puntoVenta) > 9999)
+      e.push({ field: "puntoVenta", label: "Punto de venta", message: "El punto de venta debe estar entre 1 y 9999." });
+    if (numero === "" || numero == null)
+      e.push({ field: "numero", label: "Número", message: "Indicá el número de comprobante." });
+    else if (Number(numero) < 1 || Number(numero) > 99999999)
+      e.push({ field: "numero", label: "Número", message: "El número debe estar entre 1 y 99.999.999." });
+    if (!fecha) e.push({ field: "fecha", label: "Fecha", message: "Indicá la fecha del comprobante." });
+    if (lineas.length === 0)
+      e.push({ field: "lineas", label: "Líneas", message: "Agregá al menos una línea." });
+    else if (!lineas.every((l) => l.descripcion.trim().length > 0))
+      e.push({ field: "lineas", label: "Líneas", message: "Completá la descripción de todas las líneas." });
+    return e;
+  }, [terceroSel, puntoVenta, numero, fecha, lineas]);
 
+  const hasError = (field: string) =>
+    touched && errores.some((e) => e.field === field);
+
+  const canSubmit = !!organizacionId && errores.length === 0;
+
+  /* ===== Submit ===== */
   const submit = async () => {
+    setTouched(true);
+    if (!canSubmit) {
+      setMsg(`Revisá los campos marcados antes de continuar.`);
+      return;
+    }
     try {
       setPosting(true);
       setMsg(null);
-
-      if (!canSubmit)
-        throw new Error(
-          "Completá los datos mínimos y al menos una línea válida."
-        );
 
       const payload = {
         organizacionId,
@@ -327,10 +350,21 @@ export default function NuevoComprobantePage() {
   /* ===== Render ===== */
   const isError = msg ? msg.toLowerCase().includes("error") : false;
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl pb-12">
       {/* Toolbar */}
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold text-neutral-900">Nuevo comprobante</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-neutral-500">
+            <Receipt className="size-3.5" />
+            Comprobantes de terceros
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+            Nuevo comprobante
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Registrá una factura, prestación o nota emitida por un tercero.
+          </p>
+        </div>
         <Button variant="outline" size="sm" asChild>
           <Link href="/terceros/comprobantes" className="gap-1.5">
             <ArrowLeft className="size-4" />
@@ -341,7 +375,7 @@ export default function NuevoComprobantePage() {
 
       {msg && (
         <div
-          className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+          className={`mb-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
             isError
               ? "border-rose-200 bg-rose-50 text-rose-800"
               : "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -349,9 +383,9 @@ export default function NuevoComprobantePage() {
           role="alert"
         >
           {isError ? (
-            <AlertCircle className="size-5 shrink-0" />
+            <AlertCircle className="mt-0.5 size-5 shrink-0" />
           ) : (
-            <CheckCircle2 className="size-5 shrink-0" />
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
           )}
           <span className="font-medium">{msg}</span>
           <button
@@ -364,20 +398,21 @@ export default function NuevoComprobantePage() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3">
         {/* Columna principal */}
-        <div className="space-y-4 lg:col-span-2">
-          {/* CABECERA */}
+        <div className="space-y-5 lg:col-span-2">
+          {/* TERCERO + ROL */}
           <Card className="rounded-xl border-neutral-200 p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-neutral-500">
-              Información general
-            </h2>
+            <SectionHeader
+              icon={<Building2 className="size-4" />}
+              title="Tercero"
+              hint="Buscá por nombre o CUIT y elegí el rol con el que se imputa."
+            />
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Autocomplete tercero */}
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="sm:col-span-2" ref={acWrapRef}>
                 <label className={labelCls}>
-                  Tercero <span className="text-rose-500">*</span>
+                  Tercero <Req />
                   {terceroSel && (
                     <span className="ml-1 font-normal text-neutral-400">
                       · {terceroSel.roles.join(", ")}
@@ -388,8 +423,9 @@ export default function NuevoComprobantePage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
                   <Input
                     ref={inputRef}
-                    className={`${inputCls} pl-9 pr-9`}
+                    className={`pl-9 pr-9 ${inputCls}`}
                     value={q}
+                    aria-invalid={hasError("tercero") || undefined}
                     onChange={(e) => {
                       setQ(e.target.value);
                       setOpen(Boolean(e.target.value.trim()));
@@ -458,6 +494,9 @@ export default function NuevoComprobantePage() {
                     </div>
                   )}
                 </div>
+                <FieldError show={hasError("tercero")}>
+                  Seleccioná un tercero del listado.
+                </FieldError>
               </div>
 
               <div>
@@ -484,18 +523,47 @@ export default function NuevoComprobantePage() {
                   <option value="COMERCIO">Comercio</option>
                 </select>
               </div>
+            </div>
 
+            {terceroSel && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-medical-100 bg-medical-50/60 px-3 py-2 text-xs text-medical-900">
+                <CheckCircle2 className="size-4 text-medical-600" />
+                <span className="font-medium">{terceroSel.nombre}</span>
+                {terceroSel.cuit && (
+                  <span className="text-medical-700/80">· CUIT {terceroSel.cuit}</span>
+                )}
+                <span className="ml-auto flex flex-wrap gap-1">
+                  {terceroSel.roles.map((r) => (
+                    <Badge key={r} variant="outline" className="border-medical-200 bg-white text-[10px] text-medical-700">
+                      {r}
+                    </Badge>
+                  ))}
+                </span>
+              </div>
+            )}
+          </Card>
+
+          {/* DATOS FISCALES */}
+          <Card className="rounded-xl border-neutral-200 p-5">
+            <SectionHeader
+              icon={<FileText className="size-4" />}
+              title="Datos del comprobante"
+              hint="Punto de venta y número son obligatorios para todos los tipos."
+            />
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <label className={labelCls}>Tipo de comprobante</label>
+                <label className={labelCls}>Tipo de comprobante <Req /></label>
                 <select
                   className={selectCls}
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value as TipoComprobante)}
                 >
-                  <option value="FACTURA">Factura</option>
-                  <option value="PRESTACION">Prestación</option>
-                  <option value="NOTA_CREDITO">Nota de Crédito</option>
-                  <option value="NOTA_DEBITO">Nota de Débito</option>
+                  {(Object.keys(TIPO_LABEL) as TipoComprobante[]).map((k) => (
+                    <option key={k} value={k}>
+                      {TIPO_LABEL[k]}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -516,24 +584,43 @@ export default function NuevoComprobantePage() {
               </div>
 
               <div>
-                <label className={labelCls}>Punto de venta</label>
+                <label className={labelCls}>CUIT emisor</label>
+                <Input
+                  className={inputCls}
+                  value={cuitEmisor}
+                  onChange={(e) => setCuitEmisor(e.target.value)}
+                  placeholder="20-12345678-9"
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Punto de venta <Req /></label>
                 <Input
                   className={inputCls}
                   type="number"
+                  min={1}
+                  max={9999}
                   value={puntoVenta}
+                  aria-invalid={hasError("puntoVenta") || undefined}
                   onChange={(e) =>
                     setPV(e.target.value === "" ? "" : Number(e.target.value))
                   }
                   placeholder="Ej: 1"
                 />
+                <FieldError show={hasError("puntoVenta")}>
+                  Indicá el punto de venta (1 a 9999).
+                </FieldError>
               </div>
 
               <div>
-                <label className={labelCls}>Número</label>
+                <label className={labelCls}>Número <Req /></label>
                 <Input
                   className={inputCls}
                   type="number"
+                  min={1}
+                  max={99999999}
                   value={numero}
+                  aria-invalid={hasError("numero") || undefined}
                   onChange={(e) =>
                     setNumero(
                       e.target.value === "" ? "" : Number(e.target.value)
@@ -541,14 +628,28 @@ export default function NuevoComprobantePage() {
                   }
                   placeholder="Ej: 1234"
                 />
+                <FieldError show={hasError("numero")}>
+                  Indicá el número del comprobante.
+                </FieldError>
               </div>
 
               <div>
-                <label className={labelCls}>Fecha</label>
+                <label className={labelCls}>Moneda</label>
+                <Input
+                  className={inputCls}
+                  value={moneda}
+                  onChange={(e) => setMoneda(e.target.value)}
+                  placeholder="ARS"
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Fecha <Req /></label>
                 <Input
                   className={inputCls}
                   type="date"
                   value={fecha}
+                  aria-invalid={hasError("fecha") || undefined}
                   onChange={(e) => setFecha(e.target.value)}
                 />
               </div>
@@ -563,27 +664,7 @@ export default function NuevoComprobantePage() {
                 />
               </div>
 
-              <div>
-                <label className={labelCls}>Moneda</label>
-                <Input
-                  className={inputCls}
-                  value={moneda}
-                  onChange={(e) => setMoneda(e.target.value)}
-                  placeholder="ARS"
-                />
-              </div>
-
-              <div>
-                <label className={labelCls}>CUIT emisor</label>
-                <Input
-                  className={inputCls}
-                  value={cuitEmisor}
-                  onChange={(e) => setCuitEmisor(e.target.value)}
-                  placeholder="20-12345678-9"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 lg:col-span-3">
                 <label className={labelCls}>Observaciones</label>
                 <Input
                   className={inputCls}
@@ -597,124 +678,148 @@ export default function NuevoComprobantePage() {
 
           {/* LÍNEAS */}
           <Card className="rounded-xl border-neutral-200 p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
-                Líneas
-              </h2>
-              <Button size="sm" onClick={addLinea} type="button" className="gap-1.5">
-                <Plus className="size-4" />
-                Agregar línea
-              </Button>
-            </div>
+            <SectionHeader
+              icon={<ListChecks className="size-4" />}
+              title="Líneas"
+              hint="Detalle de items con IVA discriminado."
+              action={
+                <Button size="sm" onClick={addLinea} type="button" className="gap-1.5">
+                  <Plus className="size-4" />
+                  Agregar línea
+                </Button>
+              }
+            />
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wider text-neutral-500">
-                  <tr>
-                    <th className="px-2 py-2">Descripción</th>
-                    <th className="w-24 px-2 py-2 text-right">Cant.</th>
-                    <th className="w-32 px-2 py-2 text-right">P. unitario</th>
-                    <th className="w-32 px-2 py-2">IVA</th>
-                    <th className="w-32 px-2 py-2 text-right">Subtotal</th>
-                    <th className="w-12 px-2 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lineas.map((l, i) => (
-                    <tr key={i} className="border-t border-neutral-100">
-                      <td className="px-2 py-2">
-                        <Input
-                          className={inputCls}
-                          value={l.descripcion}
-                          onChange={(e) =>
-                            updLinea(i, { descripcion: e.target.value })
-                          }
-                          placeholder="Descripción del item…"
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input
-                          className={`${inputCls} text-right`}
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={l.cantidad}
-                          onChange={(e) =>
-                            updLinea(i, { cantidad: Number(e.target.value) })
-                          }
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input
-                          className={`${inputCls} text-right`}
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={l.precioUnitario}
-                          onChange={(e) =>
-                            updLinea(i, {
-                              precioUnitario: Number(e.target.value),
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <select
-                          className={selectCls}
-                          value={String(l.alicuotaIVA ?? "")}
-                          onChange={(e) =>
-                            updLinea(i, {
-                              alicuotaIVA:
-                                e.target.value === ""
-                                  ? null
-                                  : Number(e.target.value),
-                            })
-                          }
-                        >
-                          <option value="">No gravado</option>
-                          <option value="0">0% Exento</option>
-                          <option value="10.5">10.5%</option>
-                          <option value="21">21%</option>
-                          <option value="27">27%</option>
-                        </select>
-                      </td>
-                      <td className="px-2 py-2 text-right font-mono tabular-nums text-neutral-700">
-                        ${fmt(Number(l.cantidad || 0) * Number(l.precioUnitario || 0))}
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => delLinea(i)}
-                          className="rounded p-1.5 text-neutral-400 hover:bg-rose-50 hover:text-rose-600"
-                          title="Eliminar línea"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </td>
+            {lineas.length === 0 ? (
+              <button
+                type="button"
+                onClick={addLinea}
+                className="flex w-full flex-col items-center justify-center rounded-lg border border-dashed border-neutral-300 py-8 text-sm text-neutral-500 transition-colors hover:border-medical-300 hover:bg-medical-50/40 hover:text-medical-700"
+              >
+                <Plus className="mb-1 size-5" />
+                Agregar la primera línea
+              </button>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs uppercase tracking-wider text-neutral-500">
+                    <tr>
+                      <th className="px-2 py-2">Descripción</th>
+                      <th className="w-24 px-2 py-2 text-right">Cant.</th>
+                      <th className="w-32 px-2 py-2 text-right">P. unitario</th>
+                      <th className="w-32 px-2 py-2">IVA</th>
+                      <th className="w-32 px-2 py-2 text-right">Subtotal</th>
+                      <th className="w-12 px-2 py-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {lineas.map((l, i) => {
+                      const descEmpty = touched && !l.descripcion.trim();
+                      return (
+                        <tr key={i} className="border-t border-neutral-100">
+                          <td className="px-2 py-2 align-top">
+                            <Input
+                              className={inputCls}
+                              value={l.descripcion}
+                              aria-invalid={descEmpty || undefined}
+                              onChange={(e) =>
+                                updLinea(i, { descripcion: e.target.value })
+                              }
+                              placeholder="Descripción del item…"
+                            />
+                            {descEmpty && (
+                              <p className="mt-1 text-[11px] text-rose-600">
+                                La descripción es obligatoria.
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <Input
+                              className={`text-right ${inputCls}`}
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={l.cantidad}
+                              onChange={(e) =>
+                                updLinea(i, { cantidad: Number(e.target.value) })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <Input
+                              className={`text-right ${inputCls}`}
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={l.precioUnitario}
+                              onChange={(e) =>
+                                updLinea(i, {
+                                  precioUnitario: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <select
+                              className={selectCls}
+                              value={String(l.alicuotaIVA ?? "")}
+                              onChange={(e) =>
+                                updLinea(i, {
+                                  alicuotaIVA:
+                                    e.target.value === ""
+                                      ? null
+                                      : Number(e.target.value),
+                                })
+                              }
+                            >
+                              <option value="">No gravado</option>
+                              <option value="0">0% Exento</option>
+                              <option value="10.5">10.5%</option>
+                              <option value="21">21%</option>
+                              <option value="27">27%</option>
+                            </select>
+                          </td>
+                          <td className="px-2 py-2 text-right align-top font-mono tabular-nums text-neutral-700">
+                            ${fmt(Number(l.cantidad || 0) * Number(l.precioUnitario || 0))}
+                          </td>
+                          <td className="px-2 py-2 text-center align-top">
+                            <button
+                              type="button"
+                              onClick={() => delLinea(i)}
+                              className="rounded p-1.5 text-neutral-400 hover:bg-rose-50 hover:text-rose-600"
+                              title="Eliminar línea"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           {/* IMPUESTOS */}
           <Card className="rounded-xl border-neutral-200 p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
-                Impuestos y percepciones
-              </h2>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={addImp}
-                type="button"
-                className="gap-1.5"
-              >
-                <Plus className="size-4" />
-                Agregar concepto
-              </Button>
-            </div>
+            <SectionHeader
+              icon={<Calculator className="size-4" />}
+              title="Impuestos y percepciones"
+              hint="Opcional. Sumá percepciones, retenciones o gastos administrativos."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={addImp}
+                  type="button"
+                  className="gap-1.5"
+                >
+                  <Plus className="size-4" />
+                  Agregar concepto
+                </Button>
+              }
+            />
 
             {impuestos.length > 0 ? (
               <div className="overflow-x-auto">
@@ -761,7 +866,7 @@ export default function NuevoComprobantePage() {
                         </td>
                         <td className="px-2 py-2">
                           <Input
-                            className={`${inputCls} text-right`}
+                            className={`text-right ${inputCls}`}
                             type="number"
                             step="0.01"
                             value={it.alicuota ?? ""}
@@ -777,7 +882,7 @@ export default function NuevoComprobantePage() {
                         </td>
                         <td className="px-2 py-2">
                           <Input
-                            className={`${inputCls} text-right`}
+                            className={`text-right ${inputCls}`}
                             type="number"
                             step="0.01"
                             min={0}
@@ -803,9 +908,8 @@ export default function NuevoComprobantePage() {
                 </table>
               </div>
             ) : (
-              <p className="py-6 text-center text-sm text-neutral-500">
-                Sin conceptos adicionales. Agregá percepciones, retenciones o
-                gastos administrativos si corresponde.
+              <p className="py-4 text-center text-sm text-neutral-500">
+                Sin conceptos adicionales.
               </p>
             )}
           </Card>
@@ -813,63 +917,103 @@ export default function NuevoComprobantePage() {
 
         {/* Columna lateral: totales sticky */}
         <div className="lg:col-span-1">
-          <Card className="sticky top-4 rounded-xl border-neutral-200 p-5">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
-              Resumen
-            </h2>
-
-            <div className="space-y-1.5 text-sm">
-              <Row label="Neto gravado 21%" value={totales.netoGrav21} />
-              <Row label="Neto gravado 10.5%" value={totales.netoGrav105} />
-              <Row label="Neto gravado 27%" value={totales.netoGrav27} />
-              <Row label="No gravado" value={totales.netoNoGrav} />
-              <Row label="Exento" value={totales.netoExento} />
-              <div className="my-2 border-t border-neutral-100" />
-              <Row label="IVA 21%" value={totales.iva21} />
-              <Row label="IVA 10.5%" value={totales.iva105} />
-              <Row label="IVA 27%" value={totales.iva27} />
-              <Row label="Otros conceptos" value={totales.otros} />
+          <Card className="sticky top-4 overflow-hidden rounded-xl border-neutral-200 p-0">
+            {/* Encabezado del resumen */}
+            <div className="border-b border-neutral-200 bg-neutral-50/60 px-5 py-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-600">
+                Resumen
+              </h2>
             </div>
 
-            <div className="mt-4 flex items-baseline justify-between border-t border-neutral-200 pt-4">
-              <span className="text-sm font-semibold text-neutral-600">
-                Total general
-              </span>
-              <span className="text-2xl font-bold tabular-nums text-neutral-900">
-                ${fmt(totales.total)}
-              </span>
-            </div>
+            <div className="space-y-3 px-5 py-4">
+              <div className="space-y-1.5 text-sm">
+                {totales.netoGrav21 > 0 && (
+                  <Row label="Neto gravado 21%" value={totales.netoGrav21} />
+                )}
+                {totales.netoGrav105 > 0 && (
+                  <Row label="Neto gravado 10.5%" value={totales.netoGrav105} />
+                )}
+                {totales.netoGrav27 > 0 && (
+                  <Row label="Neto gravado 27%" value={totales.netoGrav27} />
+                )}
+                {totales.netoNoGrav > 0 && (
+                  <Row label="No gravado" value={totales.netoNoGrav} />
+                )}
+                {totales.netoExento > 0 && (
+                  <Row label="Exento" value={totales.netoExento} />
+                )}
+                <Row strong label="Subtotal" value={totales.subtotal} />
+              </div>
 
-            <Button
-              onClick={submit}
-              disabled={posting || !canSubmit}
-              type="button"
-              className="mt-4 w-full gap-2"
-            >
-              {posting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Procesando…
-                </>
-              ) : (
-                <>
-                  <Check className="size-4" />
-                  Crear comprobante
-                </>
+              {(totales.iva21 > 0 || totales.iva105 > 0 || totales.iva27 > 0) && (
+                <div className="space-y-1.5 border-t border-neutral-100 pt-3 text-sm">
+                  {totales.iva21 > 0 && <Row label="IVA 21%" value={totales.iva21} />}
+                  {totales.iva105 > 0 && <Row label="IVA 10.5%" value={totales.iva105} />}
+                  {totales.iva27 > 0 && <Row label="IVA 27%" value={totales.iva27} />}
+                </div>
               )}
-            </Button>
 
-            {!canSubmit && (
-              <p className="mt-2 text-center text-xs text-amber-600">
-                {!terceroSel
-                  ? "Seleccioná un tercero"
-                  : lineas.length === 0
-                    ? "Agregá al menos una línea"
-                    : !lineas.every((l) => l.descripcion.trim())
-                      ? "Completá todas las descripciones"
-                      : "Completá los campos requeridos"}
-              </p>
-            )}
+              {totales.otros > 0 && (
+                <div className="space-y-1.5 border-t border-neutral-100 pt-3 text-sm">
+                  <Row label="Otros conceptos" value={totales.otros} />
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-neutral-200 bg-gradient-to-br from-medical-50 to-white px-5 py-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-medical-700">
+                  Total
+                </span>
+                <span className="text-3xl font-bold tabular-nums text-medical-900">
+                  ${fmt(totales.total)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 px-5 py-4">
+              {touched && errores.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <div className="mb-1.5 flex items-center gap-1.5 font-semibold">
+                    <Info className="size-3.5" />
+                    Faltan datos
+                  </div>
+                  <ul className="ml-1 list-inside list-disc space-y-0.5">
+                    {errores.map((e, i) => (
+                      <li key={i}>
+                        <span className="font-medium">{e.label}:</span>{" "}
+                        {e.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <Button
+                onClick={submit}
+                disabled={posting}
+                type="button"
+                className="w-full gap-2"
+              >
+                {posting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Procesando…
+                  </>
+                ) : (
+                  <>
+                    <Check className="size-4" />
+                    Crear comprobante
+                  </>
+                )}
+              </Button>
+
+              {!touched && errores.length > 0 && (
+                <p className="text-center text-xs text-neutral-500">
+                  {errores.length} {errores.length === 1 ? "campo pendiente" : "campos pendientes"} de completar.
+                </p>
+              )}
+            </div>
           </Card>
         </div>
       </div>
@@ -877,18 +1021,83 @@ export default function NuevoComprobantePage() {
   );
 }
 
-/** Estilos compartidos de los campos del formulario. */
+/* ===== Subcomponentes ===== */
+function SectionHeader({
+  icon,
+  title,
+  hint,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 flex size-7 items-center justify-center rounded-md bg-medical-50 text-medical-700">
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
+          {hint && <p className="text-xs text-neutral-500">{hint}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Req() {
+  return <span className="text-rose-500" aria-hidden>*</span>;
+}
+
+function FieldError({
+  show,
+  children,
+}: {
+  show: boolean;
+  children: React.ReactNode;
+}) {
+  if (!show) return null;
+  return <p className="mt-1 text-[11px] text-rose-600">{children}</p>;
+}
+
+/** Estilos compartidos. */
 const labelCls = "mb-1 block text-xs font-medium text-neutral-600";
-const inputCls = "h-9 rounded-lg border-neutral-200";
+const inputCls = "h-9 rounded-lg";
 const selectCls =
-  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-medical-500";
+  "h-9 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm transition-colors hover:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-medical-500";
 
 /** Fila etiqueta/valor del panel de totales. */
-function Row({ label, value }: { label: string; value: number }) {
+function Row({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-neutral-500">{label}</span>
-      <span className="font-mono tabular-nums text-neutral-700">
+      <span
+        className={
+          strong
+            ? "text-xs font-semibold uppercase tracking-wider text-neutral-700"
+            : "text-neutral-500"
+        }
+      >
+        {label}
+      </span>
+      <span
+        className={
+          strong
+            ? "font-mono text-sm font-semibold tabular-nums text-neutral-900"
+            : "font-mono tabular-nums text-neutral-700"
+        }
+      >
         ${fmt(value)}
       </span>
     </div>
