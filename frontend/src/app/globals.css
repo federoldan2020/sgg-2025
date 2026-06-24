@@ -4104,13 +4104,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-/* HOTFIX (no tocar sin reemplazo en el componente Popover/Dropdown):
-   evita que algún backdrop-filter heredado vuelva traslúcidos los
-   menús/popovers de Radix. Cuando se rehagan los wrappers de
-   shadcn con bg-white explícito, este override se puede borrar. */
-[role="menu"], [data-radix-menu-content], [data-radix-popper-content-wrapper] {
-  background-color: white !important;
-  backdrop-filter: none !important;
-}
-[role="menuitem"]:hover { background-color: #f5f5f5 !important; }
