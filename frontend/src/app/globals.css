@@ -83,27 +83,13 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    cursor: default;
   }
 
-  * { cursor: default; }
-
-  input[type="text"], input[type="email"], input[type="password"],
-  input[type="number"], input[type="search"], input[type="tel"],
-  input[type="url"], textarea, [contenteditable="true"] { cursor: text; }
-
-  button, a, [role="button"], [role="link"], [role="menuitem"],
-  [role="tab"], [role="option"], [data-slot="button"],
-  label[for], .cursor-pointer { cursor: pointer !important; }
-
-  [disabled], [aria-disabled="true"] { cursor: not-allowed; }
-
-  a, button { user-select: none !important; }
-
-  *:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
-  }
+  /* Browser defaults manejan los cursors (text, pointer, not-allowed).
+     Anteriormente había * { cursor: default }, button { cursor: pointer !important },
+     etc., que pisaban los cursors específicos de componentes (resize de textarea,
+     col-resize de tablas, grab/grabbing, etc.) y un *:focus-visible global con
+     box-shadow !important que pisaba los focus rings de shadcn/Radix. */
 }
 
 /* ===== Sidebar custom scrollbar (dark theme) ===== */
