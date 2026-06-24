@@ -25,6 +25,11 @@ npx prisma generate
 npx prisma migrate deploy
 npm run build
 
+# Asegurar el binario de Chromium para Playwright (renderiza PDFs de recibos y OPs).
+# Idempotente: si la versión del cache coincide con la del package, sale en <1s.
+echo "🧭 Verificando binario de Chromium (Playwright)..."
+npx playwright install chromium
+
 # Frontend (instalar todo: TypeScript y deps de build están en devDependencies)
 echo "📦 Actualizando frontend..."
 cd ../frontend
