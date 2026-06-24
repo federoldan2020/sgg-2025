@@ -45,11 +45,14 @@ jobs:
           ssh-keyscan -p ${{ secrets.VPS_PORT }} ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts || true
 
       # deploy.sh corre como root porque pm2 / sgg-backend / sgg-frontend son del root pm2.
-      # La clave github-actions-udap está en /root/.ssh/authorized_keys del VPS.
+      # IMPORTANTE: el secret SSH_PRIVATE_KEY debe ser una clave registrada en
+      # /root/.ssh/authorized_keys (la entrada "github-actions-udap").
+      # En sesiones no-interactivas nvm no se carga: hay que sourcearlo a mano.
       - name: Execute deploy.sh as root
         run: |
           ssh -p ${{ secrets.VPS_PORT }} -o StrictHostKeyChecking=accept-new \
-            root@udap.fourdev.com.ar "bash -lc '/var/www/sgg-2025/deploy.sh'"
+            root@udap.fourdev.com.ar \
+            'bash -c "export NVM_DIR=/root/.nvm && . \$NVM_DIR/nvm.sh && nvm use 20 >/dev/null && bash /var/www/sgg-2025/deploy.sh"'
 
       - name: Health check
         run: |
