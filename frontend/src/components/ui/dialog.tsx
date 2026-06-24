@@ -43,7 +43,9 @@ const DialogContent = React.forwardRef<
         className={cn(
           "fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]",
           "max-h-[85vh] overflow-y-auto",
-          "rounded-xl border border-neutral-200 bg-white shadow-lg",
+          // isolate + backdrop-blur-none refuerzan el bg-white contra
+          // backdrop-filter heredado del shell.
+          "isolate rounded-xl border border-neutral-200 bg-white shadow-lg backdrop-blur-none",
           "p-5 sm:p-6 space-y-4",
           "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
