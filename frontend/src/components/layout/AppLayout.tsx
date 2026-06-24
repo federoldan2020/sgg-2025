@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Header from "./Header";
 import SidebarNav from "./SidebarNav";
 import AuthGuard from "../auth/AuthGuard";
+import UppercaseInputs from "../UppercaseInputs";
 import { useAuth } from "@/contexts/auth";
 import type { Role } from "../../tipos/nav";
 
@@ -42,6 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <UserContext.Provider value={ctx}>
+        <UppercaseInputs />
         <div className="relative min-h-screen bg-gradient-to-br from-neutral-50 via-white to-medical-50/40">
           {/* Decorative subtle radial glow */}
           <div

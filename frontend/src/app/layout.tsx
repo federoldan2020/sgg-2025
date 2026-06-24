@@ -3,8 +3,7 @@ import type { Metadata } from "next";
 import AppLayout from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/auth";
 import { OrgSelectorProvider } from "@/contexts/orgSelector";
-import { Toaster } from "@/components/ui/sonner"; // Added Toaster import
-import UppercaseInputs from "@/components/UppercaseInputs";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "PGG 2025",
@@ -13,13 +12,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{ // Changed to Readonly
+}: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html lang="es">
       <body>
-        <UppercaseInputs />
         <AuthProvider>
           <OrgSelectorProvider>
             <AppLayout>{children}</AppLayout>
