@@ -58,7 +58,7 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { PageContainer, PageHeader, Money } from "@/components/ui-kit";
+import { PageContainer, PageHeader, Money, EmptyState } from "@/components/ui-kit";
 
 /* ============================================================
    Tipos según endpoints
@@ -324,8 +324,9 @@ export default function OrdenesCreditoNuevaPage() {
   return (
     <PageContainer>
       {/* ===== Toolbar sticky: buscador de afiliado ===== */}
-      <div className="sticky top-14 z-30 -mx-6 border-b border-neutral-200/70 bg-white/90 px-6 py-3 backdrop-blur-md">
-        <div className="relative">
+      <div className="sticky top-14 z-30 -mx-6 border-b border-neutral-200 bg-white px-6 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted-foreground/80" />
           <Input
             ref={inputRef}
@@ -364,9 +365,19 @@ export default function OrdenesCreditoNuevaPage() {
             </div>
           )}
         </div>
+          <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600 lg:flex">
+            <span className="font-medium text-neutral-800">Emisión rápida</span>
+            <span className="h-3.5 w-px bg-neutral-200" />
+            <span>Afiliado, padrón, comercio y cuotas</span>
+          </div>
+        </div>
       </div>
 
-      <PageHeader title="Órdenes de Crédito" subtitle="Emisión a comercios · cupo y cuotas">
+      <PageHeader
+        title="Órdenes de Crédito"
+        subtitle="Emisión a comercios · cupo y cuotas"
+        className="mb-6 pb-3"
+      >
         <Button
           variant="ghost"
           onClick={resetAll}
@@ -381,42 +392,44 @@ export default function OrdenesCreditoNuevaPage() {
       </PageHeader>
 
       {!afi ? (
-        <Card className="rounded-2xl border-2 border-dashed border-border/60 bg-muted/20 shadow-none">
-          <CardContent className="flex flex-col items-center justify-center px-6 py-20 text-center">
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-medical-50 text-medical-600">
-              <Search className="h-7 w-7" />
-            </div>
-            <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
-              Buscá un afiliado para emitir órdenes
-            </h2>
-            <p className="mx-auto mt-2 w-full max-w-md text-sm text-muted-foreground">
-              Ingresá el DNI o el nombre en el buscador de arriba para ver sus
-              padrones, cupos disponibles y emitir órdenes a comercios.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
-              <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">
-                Ctrl K
-              </kbd>
-              <span>foco buscador</span>
-              <span className="opacity-50">·</span>
-              <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">
-                Esc
-              </kbd>
-              <span>limpiar</span>
+        <Card className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+          <CardContent className="px-6 py-14">
+            <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-medical-50 text-medical-600 shadow-sm">
+                <Search className="h-7 w-7" />
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-neutral-900">
+                Buscá un afiliado para emitir órdenes
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-600">
+                Ingresá el DNI o el nombre en el buscador superior para revisar
+                padrones, cupo disponible y registrar órdenes a comercios.
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+                <kbd className="rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">
+                  Ctrl K
+                </kbd>
+                <span>buscar</span>
+                <span className="opacity-50">·</span>
+                <kbd className="rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">
+                  Esc
+                </kbd>
+                <span>limpiar</span>
+              </div>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* ===== Tarjeta de afiliado + KPIs del padrón ===== */}
           <Card className="rounded-2xl border-border/60 shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-lg font-bold text-white shadow-sm">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-base font-bold text-white shadow-sm">
                   {initials(afi.display)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-lg font-semibold tracking-tight">{afi.display}</h2>
+                  <h2 className="truncate text-base font-semibold tracking-tight sm:text-lg">{afi.display}</h2>
                   <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>DNI {afi.dni || "—"}</span>
                     {padrones.length > 0 && (
@@ -440,7 +453,7 @@ export default function OrdenesCreditoNuevaPage() {
                     onValueChange={setPadronId}
                     disabled={padrones.length === 0}
                   >
-                    <SelectTrigger className="h-10 w-[220px] rounded-lg">
+                    <SelectTrigger className="h-10 w-[210px] rounded-xl border-neutral-200 bg-white">
                       <SelectValue placeholder="Seleccionar…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -467,7 +480,7 @@ export default function OrdenesCreditoNuevaPage() {
 
               {/* KPIs del padrón seleccionado */}
               {padronSel && (
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                   <KpiTile
                     label="Estado"
                     value={padronSel.activo ? "Activo" : "Inactivo"}
@@ -507,7 +520,7 @@ export default function OrdenesCreditoNuevaPage() {
 
           {/* ===== Últimas órdenes ===== */}
           <Card className="rounded-2xl border-border/60 shadow-sm">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2.5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -569,7 +582,7 @@ function KpiTile({
         {icon}
         {label}
       </div>
-      <div className={cn("mt-1 text-base font-semibold tabular-nums", accentMap[accent])}>
+      <div className={cn("mt-1 text-sm font-semibold tabular-nums sm:text-base", accentMap[accent])}>
         {money !== undefined ? <Money amount={money} /> : value}
       </div>
     </div>
@@ -609,7 +622,7 @@ function ComercioCombobox({
         <Button
           variant="outline"
           className={cn(
-            "h-10 w-full justify-start gap-2 rounded-lg",
+            "h-10 w-full justify-start gap-2 rounded-xl border-neutral-200 bg-white",
             !value && "text-muted-foreground"
           )}
         >
@@ -618,7 +631,7 @@ function ComercioCombobox({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[520px] p-0" align="start">
+      <PopoverContent className="w-[min(520px,calc(100vw-2rem))] p-0" align="start">
         <Command>
           <CommandInput
             placeholder="Buscar por razón social, código o CUIT…"
@@ -735,7 +748,7 @@ function OrdenForm({
 
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2.5">
         <CardTitle className="flex items-center gap-2 text-base">
           <CheckCircle2 className="h-4 w-4" />
           Nueva orden
@@ -746,7 +759,7 @@ function OrdenForm({
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-12">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
           {/* Comercio */}
           <div className="md:col-span-5">
             <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -769,7 +782,7 @@ function OrdenForm({
             </label>
             <Input
               className={cn(
-                "h-10 rounded-lg text-right tabular-nums",
+                "h-10 rounded-xl text-right tabular-nums",
                 excedeCupo &&
                   "border-rose-300 focus-visible:border-rose-500 focus-visible:ring-rose-500"
               )}
@@ -802,7 +815,7 @@ function OrdenForm({
             </label>
             <Input
               className={cn(
-                "h-10 rounded-lg text-right tabular-nums",
+                "h-10 rounded-xl text-right tabular-nums",
                 excedeCuotasMax &&
                   "border-rose-300 focus-visible:border-rose-500 focus-visible:ring-rose-500"
               )}
@@ -829,7 +842,7 @@ function OrdenForm({
             <Button
               type="submit"
               size="lg"
-              className="h-10 w-full rounded-lg font-semibold"
+              className="h-10 w-full rounded-xl font-semibold"
               disabled={!canSubmit || loading}
             >
               {loading ? (
@@ -867,17 +880,16 @@ function OrdenForm({
 function TablaOrdenes({ rows }: { rows: OrdenCreditoLite[] }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <FileText className="h-5 w-5" />
-        </div>
-        <div>
-          <div className="text-sm font-medium text-neutral-700">Sin órdenes registradas</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            Las órdenes emitidas aparecerán acá
+      <EmptyState
+        className="py-8"
+        title="Sin órdenes registradas"
+        description="Las órdenes emitidas para este afiliado aparecerán acá."
+        icon={
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <FileText className="h-5 w-5" />
           </div>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
