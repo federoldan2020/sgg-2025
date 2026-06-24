@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { api } from "@/servicios/api";
 
-// shadcn
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -40,25 +43,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// icons
 import {
-  Search,
-  X,
-  User,
-  CreditCard,
-  Wallet,
-  TrendingUp,
-  DollarSign,
-  Hash,
-  Store,
-  CheckCircle,
-  FileText,
   AlertCircle,
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  Hash,
+  Layers,
+  Loader2,
+  Search,
+  Store,
+  Wallet,
 } from "lucide-react";
 
-// ============================
-// Tipos según TUS endpoints
-// ============================
+import { PageContainer, PageHeader, Money } from "@/components/ui-kit";
+
+/* ============================================================
+   Tipos según endpoints
+   ============================================================ */
 type PadronLite = {
   id: string;
   padron: string;
@@ -108,7 +112,7 @@ type Comercio = {
 
 type OrdenCreditoLite = {
   id: string;
-  fecha: string; // ISO
+  fecha: string;
   comercioRazon: string;
   monto: number;
   cuotas: number;
@@ -116,16 +120,14 @@ type OrdenCreditoLite = {
   estado: "OK" | "PEND" | "ANULADA" | string;
 };
 
-// ---------- Fetchers ----------
+/* ============================================================
+   Fetchers
+   ============================================================ */
 const buscarAfiliados = async (q: string) =>
-  api<AfiliadoSuggest[]>(`/afiliados/suggest?q=${encodeURIComponent(q)}`, {
-    method: "GET",
-  });
+  api<AfiliadoSuggest[]>(`/afiliados/suggest?q=${encodeURIComponent(q)}`, { method: "GET" });
 
 const padronesActivos = async (afiliadoId: string) =>
-  api<PadronLite[]>(`/padrones?afiliadoId=${encodeURIComponent(afiliadoId)}`, {
-    method: "GET",
-  });
+  api<PadronLite[]>(`/padrones?afiliadoId=${encodeURIComponent(afiliadoId)}`, { method: "GET" });
 
 const buscarComercios = async (q: string) =>
   api<Comercio[]>(`/comercios?q=${encodeURIComponent(q)}`, { method: "GET" });
@@ -141,16 +143,9 @@ const crearOrden = async (payload: {
 const listarOrdenesAfiliado = async (afiliadoId: string) =>
   api<any[]>(`/ordenes/${encodeURIComponent(afiliadoId)}`, { method: "GET" });
 
-// ============================
-// Helpers
-// ============================
-const money = (n: number | string) =>
-  new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    maximumFractionDigits: 2,
-  }).format(typeof n === "string" ? Number(n || 0) : n || 0);
-
+/* ============================================================
+   Helpers
+   ============================================================ */
 function useDebounced<T>(value: T, ms = 250) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -172,24 +167,25 @@ function fmtFechaHora(iso: string) {
   }
 }
 
-// Normaliza una orden del backend a OrdenCreditoLite para la grilla
+function initials(name?: string | null): string {
+  if (!name) return "—";
+  const parts = name.trim().split(/[\s,]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "—";
+}
+
 function normalizeOrdenBackend(o: any): OrdenCreditoLite {
   const fechaSrc = o.fechaAlta ?? o.createdAt ?? o.fecha ?? new Date().toISOString();
-
   const comercioRazon =
     o.comercio?.razonSocial ??
     o.comercioRazon ??
     (typeof o.comercio === "string" ? o.comercio : null) ??
     "—";
-
   const cuotasCount = Array.isArray(o.cuotas)
     ? o.cuotas.length
     : Number.isFinite(Number(o.cantidadCuotas ?? o.cuotas))
     ? Number(o.cantidadCuotas ?? o.cuotas)
     : 1;
-
   const montoNum = Number(o.importeTotal ?? o.total ?? o.monto ?? o.importe ?? 0);
-
   const padronStr = o.padron?.padron ?? o.padronLabel ?? o.padron ?? o.padronId ?? "—";
 
   return {
@@ -203,212 +199,264 @@ function normalizeOrdenBackend(o: any): OrdenCreditoLite {
   };
 }
 
-const EstadoBadge = ({ estado }: { estado: string }) => {
-  const config = {
-    OK: {
-      bg: "bg-emerald-100",
-      border: "border-emerald-300",
-      text: "text-emerald-700",
-      dot: "bg-emerald-500",
-    },
-    PEND: {
-      bg: "bg-amber-100",
-      border: "border-amber-300",
-      text: "text-amber-700",
-      dot: "bg-amber-500",
-    },
-    ANULADA: {
-      bg: "bg-rose-100",
-      border: "border-rose-300",
-      text: "text-rose-700",
-      dot: "bg-rose-500",
-    },
-  };
-
-  const style = config[estado as keyof typeof config] || {
-    bg: "bg-gray-100",
-    border: "border-gray-300",
-    text: "text-gray-700",
-    dot: "bg-gray-500",
-  };
+/* ============================================================
+   Estado badge
+   ============================================================ */
+function EstadoBadge({ estado }: { estado: string }) {
+  const style =
+    estado === "OK"
+      ? { dot: "bg-emerald-500", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" }
+      : estado === "ANULADA"
+      ? { dot: "bg-rose-500", cls: "border-rose-200 bg-rose-50 text-rose-700" }
+      : estado === "PEND"
+      ? { dot: "bg-amber-500", cls: "border-amber-200 bg-amber-50 text-amber-700" }
+      : { dot: "bg-neutral-400", cls: "border-neutral-200 bg-neutral-50 text-neutral-700" };
 
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "rounded-full px-3 py-1 font-medium",
-        style.bg,
-        style.border,
-        style.text
-      )}
-    >
-      <div className="flex items-center gap-1.5">
-        <div className={cn("w-1.5 h-1.5 rounded-full", style.dot)} />
-        {estado}
-      </div>
+    <Badge variant="outline" className={cn("gap-1.5 px-2 py-0 text-[11px]", style.cls)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", style.dot)} />
+      {estado}
     </Badge>
   );
-};
+}
 
-// ============================
-// Page principal
-// ============================
-export default function OrdenesCreditoPage() {
-  const [afiliado, setAfiliado] = useState<AfiliadoSuggest | null>(null);
+/* ============================================================
+   Página
+   ============================================================ */
+export default function OrdenesCreditoNuevaPage() {
+  const [afQuery, setAfQuery] = useState("");
+  const debouncedQuery = useDebounced(afQuery, 220);
+  const [afOpts, setAfOpts] = useState<AfiliadoSuggest[]>([]);
+  const [afi, setAfi] = useState<AfiliadoSuggest | null>(null);
+  const [showOpts, setShowOpts] = useState(false);
+
   const [padrones, setPadrones] = useState<PadronLite[]>([]);
   const [padronId, setPadronId] = useState<string>("");
   const [ultimas, setUltimas] = useState<OrdenCreditoLite[]>([]);
 
-  // cargar padrones y últimas cuando cambia afiliado
-  useEffect(() => {
-    (async () => {
-      if (!afiliado?.id) {
-        setPadrones([]);
-        setPadronId("");
-        setUltimas([]);
-        return;
-      }
-      const [ps, ordsRaw] = await Promise.all([
-        padronesActivos(afiliado.id),
-        listarOrdenesAfiliado(afiliado.id),
-      ]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // suggest afiliados (debounced)
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const q = debouncedQuery.trim();
+      if (q.length < 2) return setAfOpts([]);
+      const r = await buscarAfiliados(q).catch(() => []);
+      if (!cancel) setAfOpts(r);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [debouncedQuery]);
+
+  // al cambiar afiliado: padrones + últimas órdenes
+  useEffect(() => {
+    if (!afi?.id) {
+      setPadrones([]);
+      setPadronId("");
+      setUltimas([]);
+      return;
+    }
+    let cancel = false;
+    (async () => {
+      const [ps, ordsRaw] = await Promise.all([
+        padronesActivos(afi.id).catch(() => [] as PadronLite[]),
+        listarOrdenesAfiliado(afi.id).catch(() => [] as any[]),
+      ]);
+      if (cancel) return;
       setPadrones(ps);
       setPadronId((prev) => prev || ps[0]?.id || "");
-
-      const mapped = Array.isArray(ordsRaw) ? ordsRaw.map(normalizeOrdenBackend) : [];
-      setUltimas(mapped);
+      setUltimas(Array.isArray(ordsRaw) ? ordsRaw.map(normalizeOrdenBackend) : []);
     })();
-  }, [afiliado?.id]);
+    return () => {
+      cancel = true;
+    };
+  }, [afi?.id]);
 
   const padronSel = useMemo(
     () => padrones.find((p) => p.id === padronId),
     [padrones, padronId]
   );
 
+  const resetAll = useCallback(() => {
+    setAfi(null);
+    setAfQuery("");
+    setAfOpts([]);
+    setPadrones([]);
+    setPadronId("");
+    setUltimas([]);
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }, []);
+
+  // atajos: Ctrl+K focus search, Esc reset
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      const target = e.target as HTMLElement;
+      const editing =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        target.closest("[role='combobox']") ||
+        target.closest("[role='dialog']");
+
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+        return;
+      }
+      if (editing) return;
+      if (e.key === "Escape" && afi) {
+        e.preventDefault();
+        resetAll();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [afi, resetAll]);
+
+  const onCreada = (nueva: OrdenCreditoLite) => {
+    setUltimas((prev) => [nueva, ...prev].slice(0, 50));
+  };
+
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/20">
-      <Header afiliado={afiliado} onSelectAfiliado={setAfiliado} />
+    <PageContainer>
+      {/* ===== Toolbar sticky: buscador de afiliado ===== */}
+      <div className="sticky top-14 z-30 -mx-6 border-b border-neutral-200/70 bg-white/90 px-6 py-3 backdrop-blur-md">
+        <div className="relative">
+          <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted-foreground/80" />
+          <Input
+            ref={inputRef}
+            placeholder="Buscar afiliado por DNI o nombre…"
+            value={afQuery}
+            onFocus={() => setShowOpts(true)}
+            onBlur={() => setTimeout(() => setShowOpts(false), 150)}
+            onChange={(e) => {
+              setAfQuery(e.target.value);
+              setShowOpts(true);
+              if (afi) setAfi(null);
+            }}
+            className="h-11 rounded-xl pl-10 pr-20"
+            autoFocus
+          />
+          <kbd className="pointer-events-none absolute inset-y-0 right-3 my-auto hidden h-fit items-center rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-400 sm:flex">
+            Ctrl K
+          </kbd>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 space-y-6">
-        {/* Estado vacío cuando no hay afiliado */}
-        {!afiliado ? (
-          <Card className="p-12 text-center border-2 border-dashed border-blue-200 bg-white/50 backdrop-blur-sm">
-            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center">
-              <User className="h-8 w-8 text-blue-600" />
+          {showOpts && debouncedQuery.trim().length >= 2 && !afi && afOpts.length > 0 && (
+            <div className="isolate absolute left-0 right-0 top-full z-[60] mt-1 max-h-80 overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-xl ring-1 ring-black/5">
+              {afOpts.map((o) => (
+                <button
+                  key={o.id}
+                  className="block w-full border-b border-neutral-100 bg-white px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-medical-50"
+                  onClick={() => {
+                    setAfi(o);
+                    setAfQuery(o.display);
+                    setShowOpts(false);
+                  }}
+                >
+                  <div className="text-sm font-medium text-neutral-900">{o.display}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">DNI: {o.dni}</div>
+                </button>
+              ))}
             </div>
-            <h3 className="mt-4 text-lg font-bold text-gray-900">Seleccioná un afiliado</h3>
-            <p className="text-sm text-gray-600 mt-2 max-w-md mx-auto">
-              Usá el buscador en el encabezado o presioná{" "}
-              <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs font-mono">
-                Ctrl+K
-              </kbd>{" "}
-              para comenzar
+          )}
+        </div>
+      </div>
+
+      <PageHeader title="Órdenes de Crédito" subtitle="Emisión a comercios · cupo y cuotas">
+        <Button
+          variant="ghost"
+          onClick={resetAll}
+          className="rounded-xl"
+          disabled={!afi}
+        >
+          Limpiar
+          <kbd className="ml-1.5 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-400">
+            Esc
+          </kbd>
+        </Button>
+      </PageHeader>
+
+      {!afi ? (
+        <Card className="rounded-2xl border-2 border-dashed border-border/60 bg-muted/20 shadow-none">
+          <CardContent className="flex flex-col items-center justify-center px-6 py-20 text-center">
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-medical-50 text-medical-600">
+              <Search className="h-7 w-7" />
+            </div>
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
+              Buscá un afiliado para emitir órdenes
+            </h2>
+            <p className="mx-auto mt-2 w-full max-w-md text-sm text-muted-foreground">
+              Ingresá el DNI o el nombre en el buscador de arriba para ver sus
+              padrones, cupos disponibles y emitir órdenes a comercios.
             </p>
-          </Card>
-        ) : (
-          <>
-            {/* Summary */}
-            <Card className="p-5 border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-50/50 to-white shadow-md">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+              <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">
+                Ctrl K
+              </kbd>
+              <span>foco buscador</span>
+              <span className="opacity-50">·</span>
+              <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">
+                Esc
+              </kbd>
+              <span>limpiar</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {/* ===== Tarjeta de afiliado + KPIs del padrón ===== */}
+          <Card className="rounded-2xl border-border/60 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-lg font-bold text-white shadow-sm">
+                  {initials(afi.display)}
+                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-sm text-blue-600 font-semibold">
-                    <User className="h-4 w-4" />
-                    Afiliado Seleccionado
+                  <h2 className="truncate text-lg font-semibold tracking-tight">{afi.display}</h2>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>DNI {afi.dni || "—"}</span>
+                    {padrones.length > 0 && (
+                      <>
+                        <span className="opacity-50">·</span>
+                        <span>
+                          {padrones.length} padr{padrones.length === 1 ? "ón" : "ones"}
+                        </span>
+                      </>
+                    )}
                   </div>
-                  <div className="mt-2 text-lg font-bold text-gray-900 truncate">
-                    {afiliado.display}
-                  </div>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
-                    <CreditCard className="h-3.5 w-3.5" />
-                    DNI {afiliado.dni || "—"}
-                  </div>
-
-                  {padronSel && (
-                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {/* Estado */}
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={cn(
-                            "w-2.5 h-2.5 rounded-full ring-2 ring-offset-2",
-                            padronSel.activo
-                              ? "bg-emerald-500 ring-emerald-200"
-                              : "bg-gray-400 ring-gray-200"
-                          )}
-                        />
-                        <span className="text-xs font-semibold text-gray-700">
-                          {padronSel.activo ? "Activo" : "Inactivo"}
-                        </span>
-                      </div>
-
-                      {/* Saldo */}
-                      <div className="flex flex-col">
-                        <span className="text-xs text-gray-500 flex items-center gap-1 mb-0.5">
-                          <Wallet className="h-3 w-3" />
-                          Saldo
-                        </span>
-                        <span className="text-sm font-bold text-rose-600 tabular-nums">
-                          {money(padronSel.saldo)}
-                        </span>
-                      </div>
-
-                      {/* Cupo */}
-                      <div className="flex flex-col">
-                        <span className="text-xs text-gray-500 flex items-center gap-1 mb-0.5">
-                          <TrendingUp className="h-3 w-3" />
-                          Cupo
-                        </span>
-                        <span className="text-sm font-bold text-emerald-600 tabular-nums">
-                          {money(padronSel.cupo)}
-                        </span>
-                      </div>
-
-                      {/* Disponible */}
-                      <div className="flex flex-col">
-                        <span className="text-xs text-gray-500 flex items-center gap-1 mb-0.5">
-                          <DollarSign className="h-3 w-3" />
-                          Disponible
-                        </span>
-                        <span className="text-sm font-bold text-blue-600 tabular-nums">
-                          {money(Number(padronSel.cupo) - Number(padronSel.saldo))}
-                        </span>
-                      </div>
-
-                      {/* Sistema */}
-                      {padronSel.sistema && (
-                        <div className="flex flex-col col-span-2 md:col-span-4">
-                          <span className="text-xs text-gray-500 mb-0.5">Sistema</span>
-                          <span className="text-sm font-semibold text-indigo-600">
-                            {padronSel.sistema}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                {/* Selector de padrón con estilo */}
-                <div className="flex items-center gap-3 md:pt-1 bg-white rounded-lg p-3 border-2 border-blue-100 shadow-sm">
-                  <div className="text-xs font-semibold text-gray-700">Padrón</div>
+                {/* Selector de padrón */}
+                <div className="shrink-0">
+                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Padrón
+                  </label>
                   <Select
                     value={padronId}
                     onValueChange={setPadronId}
-                    disabled={!afiliado || padrones.length === 0}
+                    disabled={padrones.length === 0}
                   >
-                    <SelectTrigger className="h-10 w-[220px] border-blue-200 focus:border-blue-500 focus:ring-blue-500">
-                      <SelectValue placeholder="Seleccionar..." />
+                    <SelectTrigger className="h-10 w-[220px] rounded-lg">
+                      <SelectValue placeholder="Seleccionar…" />
                     </SelectTrigger>
                     <SelectContent>
                       {padrones.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           <div className="flex items-center gap-2">
-                            <div
+                            <span
                               className={cn(
-                                "w-2 h-2 rounded-full",
-                                p.activo ? "bg-emerald-500" : "bg-gray-400"
+                                "h-2 w-2 rounded-full",
+                                p.activo ? "bg-emerald-500" : "bg-neutral-400"
                               )}
                             />
                             {p.padron}
+                            {p.sistema && (
+                              <span className="text-xs text-muted-foreground">· {p.sistema}</span>
+                            )}
                           </div>
                         </SelectItem>
                       ))}
@@ -416,171 +464,121 @@ export default function OrdenesCreditoPage() {
                   </Select>
                 </div>
               </div>
-            </Card>
 
-            {/* Form */}
-            <OrdenForm
-              afiliado={afiliado}
-              padronId={padronId}
-              padronSel={padronSel}
-              padronLabel={padronSel?.padron ?? ""}
-              onCreada={(nueva) => setUltimas((prev) => [nueva, ...prev].slice(0, 50))}
-            />
+              {/* KPIs del padrón seleccionado */}
+              {padronSel && (
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <KpiTile
+                    label="Estado"
+                    value={padronSel.activo ? "Activo" : "Inactivo"}
+                    accent={padronSel.activo ? "emerald" : "neutral"}
+                  />
+                  <KpiTile
+                    label="Cupo"
+                    money={Number(padronSel.cupo)}
+                    icon={<Layers className="h-3.5 w-3.5" />}
+                  />
+                  <KpiTile
+                    label="Saldo usado"
+                    money={Number(padronSel.saldo)}
+                    icon={<Wallet className="h-3.5 w-3.5" />}
+                    accent="rose"
+                  />
+                  <KpiTile
+                    label="Disponible"
+                    money={Number(padronSel.cupo) - Number(padronSel.saldo)}
+                    icon={<CreditCard className="h-3.5 w-3.5" />}
+                    accent="medical"
+                    emphasize
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* Últimas órdenes */}
-            <Card className="overflow-hidden shadow-md border-t-4 border-t-indigo-500">
-              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b">
+          {/* ===== Form nueva orden ===== */}
+          <OrdenForm
+            afiliado={afi}
+            padronId={padronId}
+            padronSel={padronSel}
+            padronLabel={padronSel?.padron ?? ""}
+            onCreada={onCreada}
+          />
+
+          {/* ===== Últimas órdenes ===== */}
+          <Card className="rounded-2xl border-border/60 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-base font-bold text-gray-900 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-indigo-600" />
-                    Últimas Órdenes
-                  </div>
-                  <div className="text-xs text-gray-600 mt-0.5">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-4 w-4" />
+                    Últimas órdenes
+                  </CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {ultimas.length} orden{ultimas.length !== 1 ? "es" : ""} registrada
                     {ultimas.length !== 1 ? "s" : ""}
-                  </div>
+                  </p>
                 </div>
               </div>
+            </CardHeader>
+            <CardContent className="pt-0">
               <TablaOrdenes rows={ultimas} />
-            </Card>
-          </>
-        )}
-      </main>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </PageContainer>
+  );
+}
+
+/* ============================================================
+   KPI Tile
+   ============================================================ */
+function KpiTile({
+  label,
+  value,
+  money,
+  icon,
+  accent = "default",
+  emphasize = false,
+}: {
+  label: string;
+  value?: string;
+  money?: number;
+  icon?: React.ReactNode;
+  accent?: "default" | "emerald" | "rose" | "medical" | "neutral";
+  emphasize?: boolean;
+}) {
+  const accentMap: Record<string, string> = {
+    default: "text-neutral-900",
+    emerald: "text-emerald-700",
+    rose: "text-rose-700",
+    medical: "text-medical-700",
+    neutral: "text-neutral-500",
+  };
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3",
+        emphasize
+          ? "border-medical-200 bg-medical-50/60"
+          : "border-border/60 bg-muted/30"
+      )}
+    >
+      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {icon}
+        {label}
+      </div>
+      <div className={cn("mt-1 text-base font-semibold tabular-nums", accentMap[accent])}>
+        {money !== undefined ? <Money amount={money} /> : value}
+      </div>
     </div>
   );
 }
 
-// ============================
-// Header premium (Combobox afiliado + limpiar)
-// ============================
-function Header({
-  onSelectAfiliado,
-  afiliado,
-}: {
-  onSelectAfiliado: (a: AfiliadoSuggest | null) => void;
-  afiliado: AfiliadoSuggest | null;
-}) {
-  // Ctrl/Cmd + K
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        const el = document.getElementById("afiliado-combobox-trigger");
-        (el as HTMLButtonElement | null)?.click();
-      }
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
-
-  return (
-    <header className="sticky top-0 z-30 border-b bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-4">
-        <div className="min-w-0">
-          <div className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <CreditCard className="h-5 w-5 text-white" />
-            </div>
-            Órdenes de Crédito
-          </div>
-          <div className="text-xs text-blue-100 ml-10">Gestión y emisión</div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <AfiliadoCombobox value={afiliado} onSelect={onSelectAfiliado} />
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-10 bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm"
-            onClick={() => onSelectAfiliado(null)}
-            disabled={!afiliado}
-          >
-            <X className="h-4 w-4 mr-2" />
-            Limpiar
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function AfiliadoCombobox({
-  value,
-  onSelect,
-}: {
-  value: AfiliadoSuggest | null;
-  onSelect: (a: AfiliadoSuggest | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const dq = useDebounced(q, 250);
-  const [items, setItems] = useState<AfiliadoSuggest[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (dq.trim().length < 2) {
-      setItems([]);
-      return;
-    }
-    setLoading(true);
-    buscarAfiliados(dq)
-      .then(setItems)
-      .finally(() => setLoading(false));
-  }, [dq]);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id="afiliado-combobox-trigger"
-          variant="outline"
-          className="h-10 w-[420px] justify-start gap-2 bg-white/95 hover:bg-white border-white/50 backdrop-blur-sm"
-        >
-          <Search className="h-4 w-4 text-blue-600" />
-          <span className={cn("truncate", value ? "text-gray-900 font-medium" : "text-gray-500")}>
-            {value ? value.display : "Buscar afiliado… (Ctrl+K)"}
-          </span>
-        </Button>
-      </PopoverTrigger>
-
-      <PopoverContent className="p-0 w-[420px]" align="end">
-        <Command>
-          <CommandInput placeholder="DNI, nombre o padrón…" value={q} onValueChange={setQ} />
-          <CommandList>
-            {loading ? (
-              <div className="p-3 text-sm text-muted-foreground">Buscando…</div>
-            ) : (
-              <CommandEmpty>Sin resultados.</CommandEmpty>
-            )}
-            <CommandGroup heading="Afiliados">
-              {items.map((a) => (
-                <CommandItem
-                  key={a.id}
-                  value={`${a.display} ${a.dni}`}
-                  onSelect={() => {
-                    onSelect(a);
-                    setOpen(false);
-                    setQ("");
-                    setItems([]);
-                  }}
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{a.display}</span>
-                    <span className="text-xs text-muted-foreground">DNI {a.dni || "—"}</span>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ============================
-// Comercio picker premium (Popover + Command)
-// ============================
+/* ============================================================
+   Comercio combobox
+   ============================================================ */
 function ComercioCombobox({
   value,
   onChange,
@@ -611,19 +609,19 @@ function ComercioCombobox({
         <Button
           variant="outline"
           className={cn(
-            "h-11 w-full justify-start border-purple-200 focus:border-purple-500 bg-white",
-            value ? "text-gray-900 font-medium" : "text-gray-500"
+            "h-10 w-full justify-start gap-2 rounded-lg",
+            !value && "text-muted-foreground"
           )}
         >
-          <Store className="h-4 w-4 mr-2 text-purple-600" />
+          <Store className="h-4 w-4 shrink-0 text-medical-600" />
           <span className="truncate">{value ? value.razonSocial : "Seleccionar comercio…"}</span>
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="p-0 w-[520px]" align="start">
+      <PopoverContent className="w-[520px] p-0" align="start">
         <Command>
           <CommandInput
-            placeholder="Buscar por razón social, código, CUIT…"
+            placeholder="Buscar por razón social, código o CUIT…"
             value={q}
             onValueChange={(v) => {
               setQ(v);
@@ -664,9 +662,9 @@ function ComercioCombobox({
   );
 }
 
-// ============================
-// Form premium con validaciones visuales
-// ============================
+/* ============================================================
+   Form nueva orden
+   ============================================================ */
 function OrdenForm({
   afiliado,
   padronId,
@@ -674,7 +672,7 @@ function OrdenForm({
   padronLabel,
   onCreada,
 }: {
-  afiliado: AfiliadoSuggest | null;
+  afiliado: AfiliadoSuggest;
   padronId: string;
   padronSel: PadronLite | undefined;
   padronLabel: string;
@@ -690,7 +688,7 @@ function OrdenForm({
   const cupoDisponible = padronSel
     ? Number(padronSel.cupo) - Number(padronSel.saldo)
     : 0;
-  const excedeCupo = montoNum > cupoDisponible && padronSel;
+  const excedeCupo = montoNum > cupoDisponible && !!padronSel;
   const excedeCuotasMax = comercio?.cuoMax ? cuotas > comercio.cuoMax : false;
 
   const canSubmit = Boolean(
@@ -705,7 +703,7 @@ function OrdenForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit || !afiliado || !comercio) return;
+    if (!canSubmit || !comercio) return;
 
     setLoading(true);
     try {
@@ -736,211 +734,183 @@ function OrdenForm({
   };
 
   return (
-    <Card className="p-6 border-l-4 border-l-indigo-500 shadow-md bg-gradient-to-br from-indigo-50/30 to-white">
-      <div className="mb-5">
-        <div className="text-base font-bold text-gray-900 flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-            <CheckCircle className="h-5 w-5 text-indigo-600" />
-          </div>
-          Nueva Orden
-        </div>
-        <div className="text-sm text-gray-600 mt-1 ml-10">
-          Completá los datos y confirmá para generar la orden
-        </div>
-      </div>
+    <Card className="rounded-2xl border-border/60 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CheckCircle2 className="h-4 w-4" />
+          Nueva orden
+        </CardTitle>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Completá comercio, monto y cuotas para emitir la orden
+        </p>
+      </CardHeader>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-12">
-        {/* Padrón (readonly) */}
-        <div className="md:col-span-3">
-          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <CreditCard className="h-3.5 w-3.5 text-gray-600" />
-            Padrón
-          </label>
-          <Input
-            readOnly
-            className="h-11 bg-gray-100 border-gray-200 text-gray-700 font-medium"
-            value={padronId ? padronLabel || "—" : "—"}
-          />
-        </div>
-
-        {/* Monto */}
-        <div className="md:col-span-3">
-          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-            Monto
-          </label>
-          <Input
-            className={cn(
-              "h-11 bg-white font-semibold",
-              excedeCupo
-                ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500"
-                : "border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500"
-            )}
-            type="number"
-            min={0}
-            step="0.01"
-            inputMode="decimal"
-            placeholder="0,00"
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-          />
-          {excedeCupo && (
-            <div className="mt-1.5 text-xs text-rose-600 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Excede el cupo disponible ({money(cupoDisponible)})
-            </div>
-          )}
-          {!excedeCupo && montoNum > 0 && padronSel && (
-            <div className="mt-1.5 text-xs text-emerald-600 flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" />
-              Disponible: {money(cupoDisponible - montoNum)}
-            </div>
-          )}
-        </div>
-
-        {/* Cuotas */}
-        <div className="md:col-span-2">
-          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <Hash className="h-3.5 w-3.5 text-blue-600" />
-            Cuotas
-          </label>
-          <Input
-            className={cn(
-              "h-11 bg-white font-semibold",
-              excedeCuotasMax
-                ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500"
-                : "border-blue-200 focus:border-blue-500 focus:ring-blue-500"
-            )}
-            type="number"
-            min={1}
-            step={1}
-            value={cuotas}
-            onChange={(e) => setCuotas(Math.max(1, Number(e.target.value) || 1))}
-          />
-          {excedeCuotasMax && (
-            <div className="mt-1.5 text-xs text-rose-600 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Máximo {comercio?.cuoMax} cuotas
-            </div>
-          )}
-          {!excedeCuotasMax && montoNum > 0 && enCuotas && (
-            <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="text-xs text-blue-700 font-medium">
-                {cuotas}x {money(montoNum / cuotas)}
+      <CardContent>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-12">
+          {/* Comercio */}
+          <div className="md:col-span-5">
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Store className="h-3.5 w-3.5" />
+              Comercio <span className="text-rose-500">*</span>
+            </label>
+            <ComercioCombobox value={comercio} onChange={setComercio} />
+            {comercio?.cuoMax ? (
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                Hasta {comercio.cuoMax} cuota{comercio.cuoMax !== 1 ? "s" : ""}
               </div>
-            </div>
-          )}
-        </div>
+            ) : null}
+          </div>
 
-        {/* Comercio */}
-        <div className="md:col-span-3">
-          <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <Store className="h-3.5 w-3.5 text-purple-600" />
-            Comercio <span className="text-rose-500">*</span>
-          </label>
-          <ComercioCombobox value={comercio} onChange={setComercio} />
-          {comercio?.cuoMax && (
-            <div className="mt-1.5 text-xs text-purple-600">
-              Máx. {comercio.cuoMax} cuota{comercio.cuoMax !== 1 ? "s" : ""}
-            </div>
-          )}
-        </div>
+          {/* Monto */}
+          <div className="md:col-span-3">
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Wallet className="h-3.5 w-3.5" />
+              Monto
+            </label>
+            <Input
+              className={cn(
+                "h-10 rounded-lg text-right tabular-nums",
+                excedeCupo &&
+                  "border-rose-300 focus-visible:border-rose-500 focus-visible:ring-rose-500"
+              )}
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+            />
+            {excedeCupo ? (
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-rose-600">
+                <AlertCircle className="h-3 w-3" />
+                Excede el disponible (<Money amount={cupoDisponible} />)
+              </div>
+            ) : montoNum > 0 && padronSel ? (
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-emerald-600">
+                <Check className="h-3 w-3" />
+                Queda <Money amount={cupoDisponible - montoNum} />
+              </div>
+            ) : null}
+          </div>
 
-        {/* Botón */}
-        <div className="md:col-span-1 flex items-end">
-          <Button
-            type="submit"
-            className="h-11 w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-            disabled={!canSubmit || loading}
-          >
-            {loading ? (
-              <>
-                <div className="h-4 w-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Creando…
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Crear
-              </>
-            )}
-          </Button>
-        </div>
-      </form>
+          {/* Cuotas */}
+          <div className="md:col-span-2">
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Hash className="h-3.5 w-3.5" />
+              Cuotas
+            </label>
+            <Input
+              className={cn(
+                "h-10 rounded-lg text-right tabular-nums",
+                excedeCuotasMax &&
+                  "border-rose-300 focus-visible:border-rose-500 focus-visible:ring-rose-500"
+              )}
+              type="number"
+              min={1}
+              step={1}
+              value={cuotas}
+              onChange={(e) => setCuotas(Math.max(1, Number(e.target.value) || 1))}
+            />
+            {excedeCuotasMax ? (
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-rose-600">
+                <AlertCircle className="h-3 w-3" />
+                Máximo {comercio?.cuoMax}
+              </div>
+            ) : enCuotas && montoNum > 0 ? (
+              <div className="mt-1.5 text-xs tabular-nums text-medical-700">
+                {cuotas} × <Money amount={montoNum / cuotas} />
+              </div>
+            ) : null}
+          </div>
+
+          {/* Botón */}
+          <div className="md:col-span-2 flex items-end">
+            <Button
+              type="submit"
+              size="lg"
+              className="h-10 w-full rounded-lg font-semibold"
+              disabled={!canSubmit || loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creando…
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Emitir
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+
+        {/* Padrón informativo (cuando no hay selección o no hay padrones) */}
+        {!padronId && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <span>
+              Seleccioná un padrón del afiliado para poder emitir la orden.
+            </span>
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
 
-// ============================
-// Tabla premium
-// ============================
+/* ============================================================
+   Tabla últimas órdenes
+   ============================================================ */
 function TablaOrdenes({ rows }: { rows: OrdenCreditoLite[] }) {
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <FileText className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-neutral-700">Sin órdenes registradas</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Las órdenes emitidas aparecerán acá
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border border-border/60">
       <Table>
         <TableHeader>
-          <TableRow className="bg-gray-50/50">
-            <TableHead className="w-[160px] font-semibold text-gray-700">Fecha</TableHead>
-            <TableHead className="font-semibold text-gray-700">Comercio</TableHead>
-            <TableHead className="w-[140px] text-right font-semibold text-gray-700">
-              Monto
-            </TableHead>
-            <TableHead className="w-[110px] text-center font-semibold text-gray-700">
-              Cuotas
-            </TableHead>
-            <TableHead className="w-[140px] font-semibold text-gray-700">Padrón</TableHead>
-            <TableHead className="w-[140px] font-semibold text-gray-700">Estado</TableHead>
+          <TableRow>
+            <TableHead className="w-[160px]">Fecha</TableHead>
+            <TableHead>Comercio</TableHead>
+            <TableHead className="w-[140px] text-right">Monto</TableHead>
+            <TableHead className="w-[90px] text-center">Cuotas</TableHead>
+            <TableHead className="w-[140px]">Padrón</TableHead>
+            <TableHead className="w-[110px]">Estado</TableHead>
           </TableRow>
         </TableHeader>
-
         <TableBody>
-          {rows.map((r, idx) => (
-            <TableRow
-              key={r.id}
-              className={cn(
-                "hover:bg-blue-50/50 transition-colors",
-                idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"
-              )}
-            >
-              <TableCell className="font-medium text-gray-700">
+          {rows.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell className="text-sm tabular-nums text-muted-foreground">
                 {fmtFechaHora(r.fecha)}
               </TableCell>
-              <TableCell className="max-w-[520px] truncate text-gray-900">
-                {r.comercioRazon}
+              <TableCell className="max-w-[520px] truncate font-medium">{r.comercioRazon}</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">
+                <Money amount={r.monto} />
               </TableCell>
-              <TableCell className="text-right font-bold tabular-nums text-gray-900">
-                {money(r.monto)}
-              </TableCell>
-              <TableCell className="text-center font-semibold text-gray-700">
-                {r.cuotas}
-              </TableCell>
-              <TableCell className="text-gray-700">{r.padron}</TableCell>
+              <TableCell className="text-center text-sm">{r.cuotas}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{r.padron}</TableCell>
               <TableCell>
                 <EstadoBadge estado={r.estado} />
               </TableCell>
             </TableRow>
           ))}
-
-          {rows.length === 0 && (
-            <TableRow>
-              <TableCell
-                colSpan={6}
-                className="py-16 text-center text-sm text-gray-500"
-              >
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                    <FileText className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-700">Sin órdenes registradas</div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Las órdenes creadas aparecerán aquí
-                    </div>
-                  </div>
-                </div>
-              </TableCell>
-            </TableRow>
-          )}
         </TableBody>
       </Table>
     </div>
