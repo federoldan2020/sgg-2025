@@ -29,6 +29,8 @@ export type Movimiento = {
   saldoPosterior?: string | number | null;
   saldoPendiente?: string | number | null;
   asientoId?: string | null;
+  comprobanteId?: string | null;
+  numeroRecibo?: string | null;
 };
 
 export type CtaCteResp = {

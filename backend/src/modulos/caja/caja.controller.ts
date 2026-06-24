@@ -1,16 +1,23 @@
 // src/modulos/caja/caja.controller.ts
 import { Controller, Post, Body, Req, Get, BadRequestException, Param, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ComprobanteFormato, ComprobanteEstado } from '@prisma/client';
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../common/prisma.service';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
 import { MovimientosService } from '../movimientos/movimientos.service';
 import { CoberturaService } from '../suspensiones/cobertura.service';
 import { SuspensionesService } from '../suspensiones/suspensiones.service';
 import { CoseguroService } from '../coseguro/coseguro.service';
+import { ImpresionService, ImprimirComprobanteDto } from '../impresion/impresion.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuditService } from '../../common/audit.service';
 import type { Usuario } from '@prisma/client';
+
+const SERIE_RC = 'RC';
+const PTOVTA_RC = 0;
 
 type MetodoDto = { metodo: string; monto: number; ref?: string };
 type AplicacionDto = { 
@@ -31,8 +38,164 @@ export class CajaController {
     private readonly cobertura: CoberturaService,
     private readonly suspensiones: SuspensionesService,
     private readonly coseguro: CoseguroService,
+    private readonly impresion: ImpresionService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /** Reserva número correlativo de recibo (RECIBO_AFILIADO / ptoVta=0 / serie=RC). */
+  private async reservarNumeroRecibo(
+    tx: Prisma.TransactionClient,
+    organizacionId: string,
+    longitud = 8,
+  ) {
+    const tipo = 'RECIBO_AFILIADO' as const;
+    for (let i = 0; i < 3; i++) {
+      const exist = await tx.numerador.findUnique({
+        where: {
+          organizacionId_tipo_ptoVta_serie: {
+            organizacionId,
+            tipo,
+            ptoVta: PTOVTA_RC,
+            serie: SERIE_RC,
+          },
+        },
+        select: { longitud: true },
+      });
+      if (exist) {
+        const upd = await tx.numerador.update({
+          where: {
+            organizacionId_tipo_ptoVta_serie: {
+              organizacionId,
+              tipo,
+              ptoVta: PTOVTA_RC,
+              serie: SERIE_RC,
+            },
+          },
+          data: { ultimoNumero: { increment: 1 } },
+          select: { ultimoNumero: true, longitud: true },
+        });
+        return {
+          numero: upd.ultimoNumero,
+          numeroFormateado: String(upd.ultimoNumero).padStart(upd.longitud ?? longitud, '0'),
+        };
+      }
+      const aggComp = await tx.comprobante.aggregate({
+        where: { organizacionId, tipo, ptoVta: PTOVTA_RC, serie: SERIE_RC },
+        _max: { numero: true },
+      });
+      const start = (aggComp._max.numero ?? 0) + 1;
+      try {
+        const created = await tx.numerador.create({
+          data: {
+            organizacionId,
+            tipo,
+            ptoVta: PTOVTA_RC,
+            serie: SERIE_RC,
+            ultimoNumero: start,
+            longitud,
+          },
+          select: { ultimoNumero: true, longitud: true },
+        });
+        return {
+          numero: created.ultimoNumero,
+          numeroFormateado: String(created.ultimoNumero).padStart(
+            created.longitud ?? longitud,
+            '0',
+          ),
+        };
+      } catch (e: unknown) {
+        if ((e as { code?: string })?.code !== 'P2002') throw e;
+      }
+    }
+    throw new Error('No se pudo reservar número de recibo (colisiones repetidas).');
+  }
+
+  /** Persiste el PDF en disco y devuelve storageKey + hash. */
+  private async savePdfRecibo(buffer: Buffer, filename: string) {
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    const dir = path.join(process.cwd(), 'storage', 'comprobantes');
+    await fs.mkdir(dir, { recursive: true });
+    const full = path.join(dir, filename);
+    await fs.writeFile(full, buffer);
+    return { storageKey: `file://${full}`, hash };
+  }
+
+  /**
+   * Arma los items del recibo a partir de los movimientos que acaba de crear el cobro
+   * (misma fuente de verdad que /caja/pagos/:id/para-imprimir).
+   */
+  private async buildItemsReciboFromMovimientos(
+    tx: Prisma.TransactionClient,
+    organizacionId: string,
+    pagoId: bigint,
+  ) {
+    const movimientos = await tx.movimientoAfiliado.findMany({
+      where: { organizacionId, pagoId },
+      select: {
+        concepto: true,
+        importe: true,
+        cuotaId: true,
+        obligacionId: true,
+      },
+    });
+
+    const cuotaIds = [...new Set(movimientos.filter((m) => m.cuotaId).map((m) => m.cuotaId!))];
+    const oblIds = [...new Set(movimientos.filter((m) => m.obligacionId).map((m) => m.obligacionId!))];
+
+    const cuotas = cuotaIds.length
+      ? await tx.ordenCreditoCuota.findMany({
+          where: { id: { in: cuotaIds } },
+          include: {
+            orden: { select: { descripcion: true, cantidadCuotas: true } },
+          },
+        })
+      : [];
+    const mapCuotas = new Map(cuotas.map((c) => [c.id.toString(), c]));
+
+    const obls = oblIds.length
+      ? await tx.obligacion.findMany({
+          where: { id: { in: oblIds } },
+          include: { concepto: true },
+        })
+      : [];
+    const mapObls = new Map(obls.map((o) => [o.id.toString(), o]));
+
+    const items: Array<{ desc: string; cantidad: number; pUnit: number; importe: number }> = [];
+    const seen = new Set<string>();
+
+    for (const m of movimientos) {
+      let desc = '';
+      let pUnit = 0;
+      if (m.cuotaId) {
+        const c = mapCuotas.get(m.cuotaId.toString());
+        if (c) {
+          const base = c.orden?.descripcion || '';
+          const total = c.orden?.cantidadCuotas || 0;
+          const periodo = c.periodoVenc || '';
+          const numCuota = c.numero || 0;
+          desc = base
+            ? `${base} - Cuota ${numCuota}${total > 0 ? `/${total}` : ''}${periodo ? ` (${periodo})` : ''}`
+            : `Cuota ${numCuota}${total > 0 ? `/${total}` : ''}${periodo ? ` (${periodo})` : ''}`;
+          pUnit = Number(c.importe || 0);
+        }
+      } else if (m.obligacionId) {
+        const o = mapObls.get(m.obligacionId.toString());
+        if (o) {
+          desc = o.concepto?.nombre || o.concepto?.codigo || m.concepto || 'Concepto sin nombre';
+          pUnit = Number(o.monto || 0);
+        }
+      } else {
+        desc = m.concepto || 'Pago en caja';
+        pUnit = Number(m.importe);
+      }
+      const key = `${desc}-${Number(m.importe)}`;
+      if (!seen.has(key)) {
+        items.push({ desc, cantidad: 1, pUnit, importe: Number(m.importe) });
+        seen.add(key);
+      }
+    }
+    return items;
+  }
 
   /**
    * Normaliza un período a formato "YYYY-MM" para almacenamiento.
@@ -482,6 +645,111 @@ export class CajaController {
       });
       // ======================= /MOVIMIENTO DE CREDITO ======================
 
+      // ======================= COMPROBANTE: RECIBO_AFILIADO ===============
+      // Reservamos número, renderizamos PDF y persistimos el Comprobante en la
+      // misma transacción para garantizar que cada Pago de caja queda con su
+      // recibo correlativo y archivable.
+      const afiliadoBasico = await tx.afiliado.findUnique({
+        where: { id: BigInt(dto.afiliadoId) },
+        select: { nombre: true, apellido: true, dni: true, cuit: true },
+      });
+      const nombreCompleto = afiliadoBasico
+        ? `${afiliadoBasico.apellido || ''}${
+            afiliadoBasico.apellido && afiliadoBasico.nombre ? ', ' : ''
+          }${afiliadoBasico.nombre || ''}`.trim()
+        : '';
+
+      const itemsRecibo = await this.buildItemsReciboFromMovimientos(tx, org, pago.id);
+      const itemsFallback = itemsRecibo.length
+        ? itemsRecibo
+        : [{ desc: 'Pago en caja', cantidad: 1, pUnit: totalMetodos, importe: totalMetodos }];
+
+      const seq = await this.reservarNumeroRecibo(tx, org);
+
+      const dtoImp: ImprimirComprobanteDto = {
+        tipo: 'RECIBO_AFILIADO',
+        formato: 'A4',
+        copias: 2,
+        titulo: 'RECIBO',
+        numero: seq.numeroFormateado,
+        fecha: pago.fecha.toISOString(),
+        tercero: {
+          nombre: nombreCompleto || 'N/A',
+          cuit: afiliadoBasico?.cuit ?? (afiliadoBasico?.dni != null ? String(afiliadoBasico.dni) : null),
+        },
+        items: itemsFallback,
+        subtotal: totalMetodos,
+        descuentos: 0,
+        percepciones: 0,
+        impuestos: 0,
+        total: totalMetodos,
+        notas: `Métodos: ${dto.metodos
+          .map((m) => `${m.metodo} $${Number(m.monto).toFixed(2)}`)
+          .join(', ')}`,
+      };
+
+      const { buffer, filename } = await this.impresion.render(org, dtoImp);
+      const { storageKey, hash } = await this.savePdfRecibo(
+        buffer as unknown as Buffer,
+        filename,
+      );
+
+      const comp = await tx.comprobante.create({
+        data: {
+          organizacionId: org,
+          tipo: 'RECIBO_AFILIADO',
+          ptoVta: PTOVTA_RC,
+          serie: SERIE_RC,
+          numero: seq.numero,
+          numeroCompleto: seq.numeroFormateado,
+          titulo: dtoImp.titulo ?? null,
+          fechaEmision: pago.fecha,
+          terceroNombre: dtoImp.tercero?.nombre ?? null,
+          terceroCuit: dtoImp.tercero?.cuit ?? null,
+          subtotal: new Prisma.Decimal(dtoImp.subtotal ?? 0),
+          descuentos: new Prisma.Decimal(dtoImp.descuentos ?? 0),
+          percepciones: new Prisma.Decimal(dtoImp.percepciones ?? 0),
+          impuestos: new Prisma.Decimal(dtoImp.impuestos ?? 0),
+          total: new Prisma.Decimal(dtoImp.total ?? 0),
+          notas: dtoImp.notas ?? null,
+          formato: ComprobanteFormato.A4,
+          copias: dtoImp.copias ?? 2,
+          templateArchivo: 'recibo_afiliado.a4.njk',
+          templateCss: 'a4.css',
+          templateVersion: process.env.TEMPLATES_VERSION ?? null,
+          pdfStorageKey: storageKey,
+          pdfHash: hash,
+          payload: {
+            ...dtoImp,
+            origen: { pagoId: pago.id.toString(), cajaId: dto.cajaId },
+          } as unknown as Prisma.InputJsonValue,
+          estado: ComprobanteEstado.EMITIDO,
+        },
+        select: { id: true, numeroCompleto: true },
+      });
+
+      if (itemsFallback.length) {
+        await tx.comprobanteItem.createMany({
+          data: itemsFallback.map((it, i) => ({
+            comprobanteId: comp.id,
+            orden: i + 1,
+            desc: it.desc,
+            cantidad: new Prisma.Decimal(it.cantidad ?? 1),
+            pUnit: it.pUnit != null ? new Prisma.Decimal(it.pUnit) : null,
+            importe: new Prisma.Decimal(it.importe ?? 0),
+          })),
+        });
+      }
+
+      await tx.pago.update({
+        where: { id: pago.id },
+        data: {
+          comprobanteId: comp.id,
+          numeroRecibo: seq.numeroFormateado,
+        },
+      });
+      // ======================= /COMPROBANTE ===============================
+
       const pagoCompleto = await tx.pago.findUnique({
         where: { id: pago.id },
         include: {
@@ -514,12 +782,24 @@ export class CajaController {
         accion: 'CAJA_COBRAR',
         entidad: 'Pago',
         entidadId: pago.id.toString(),
-        payloadDespues: { afiliadoId: dto.afiliadoId, total: totalMetodos, cajaId: dto.cajaId },
+        payloadDespues: {
+          afiliadoId: dto.afiliadoId,
+          total: totalMetodos,
+          cajaId: dto.cajaId,
+          comprobanteId: comp.id,
+          numeroRecibo: seq.numeroFormateado,
+        },
         ipAddress: req.ip,
         userAgent: req.headers?.['user-agent'],
       });
 
-      return pagoCompleto;
+      return {
+        ...pagoCompleto,
+        comprobanteId: comp.id,
+        comprobanteNumero: comp.numeroCompleto,
+        numeroRecibo: seq.numeroFormateado,
+        pdfFilename: filename,
+      };
     });
 
     // ───── Hook post-pago: recalcular cobertura + rehabilitar si corresponde ─────

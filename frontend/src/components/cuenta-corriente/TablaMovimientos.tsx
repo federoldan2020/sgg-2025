@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Eye,
+  Receipt,
   Search,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { formatearFechaArgentina } from "@/utiles/formatos";
+import { openPdf } from "@/servicios/api";
 import { obtenerDetallesPagosOrden } from "./api";
 import { DetallesOrden } from "./DetallesOrden";
 import type { Movimiento, OrdenDetallesPagos } from "./types";
@@ -123,6 +125,14 @@ export function TablaMovimientos({
     }
   };
 
+  const openRecibo = async (comprobanteId: string) => {
+    try {
+      await openPdf(`/comprobantes/${comprobanteId}/pdf?disposition=inline`);
+    } catch (e) {
+      console.error("Error abriendo recibo:", e);
+    }
+  };
+
   const detalles = ordenIdSel ? cache.get(ordenIdSel) : null;
 
   if (loading && rows.length === 0) {
@@ -207,6 +217,15 @@ export function TablaMovimientos({
                             </Badge>
                           )}
 
+                          {m.numeroRecibo && (
+                            <Badge
+                              variant="outline"
+                              className="rounded border-amber-200 bg-amber-50 text-amber-700 font-mono"
+                            >
+                              Recibo N° {m.numeroRecibo}
+                            </Badge>
+                          )}
+
                           {estado && (
                             <Badge
                               variant="outline"
@@ -233,18 +252,33 @@ export function TablaMovimientos({
                     </TableCell>
 
                     <TableCell className="py-3 text-right">
-                      {m.ordenId ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openOrden(m.ordenId!)}
-                          aria-label="Ver detalle de orden"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {m.ordenId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openOrden(m.ordenId!)}
+                            aria-label="Ver detalle de orden"
+                            title="Ver detalle de orden"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {m.comprobanteId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openRecibo(m.comprobanteId!)}
+                            aria-label="Ver recibo"
+                            title={`Ver recibo${m.numeroRecibo ? ` N° ${m.numeroRecibo}` : ""}`}
+                          >
+                            <Receipt className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {!m.ordenId && !m.comprobanteId && (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

@@ -301,6 +301,7 @@ export class MovimientosService {
     const obligacionIds = [
       ...new Set(rows.filter((m) => m.obligacionId).map((m) => m.obligacionId!)),
     ];
+    const pagoIds = [...new Set(rows.filter((m) => m.pagoId).map((m) => m.pagoId!))];
 
     // Consultar saldos actuales
     const cuotas = cuotaIds.length > 0
@@ -309,7 +310,7 @@ export class MovimientosService {
           select: { id: true, saldo: true },
         })
       : [];
-    
+
     const ordenes = ordenIds.length > 0
       ? await this.prisma.ordenCredito.findMany({
           where: { id: { in: ordenIds } },
@@ -325,14 +326,23 @@ export class MovimientosService {
           })
         : [];
 
+    // Comprobante de recibo asociado al pago (para botón "ver recibo")
+    const pagos = pagoIds.length > 0
+      ? await this.prisma.pago.findMany({
+          where: { id: { in: pagoIds } },
+          select: { id: true, comprobanteId: true, numeroRecibo: true },
+        })
+      : [];
+
     const mapaCuotas = new Map(cuotas.map((c) => [c.id.toString(), c]));
     const mapaOrdenes = new Map(ordenes.map((o) => [o.id.toString(), o]));
     const mapaObligaciones = new Map(obligaciones.map((o) => [o.id.toString(), o]));
+    const mapaPagos = new Map(pagos.map((p) => [p.id.toString(), p]));
 
     // Enriquecer movimientos con saldo pendiente actual
     const movimientos = rows.map((mov) => {
       let saldoPendiente: number | null = null;
-      
+
       // Solo mostrar saldo pendiente para débitos vinculados a órdenes/cuotas
       if (mov.naturaleza === 'debito') {
         if (mov.cuotaId) {
@@ -347,7 +357,14 @@ export class MovimientosService {
         }
       }
 
-      return { ...mov, saldoPendiente };
+      const pagoInfo = mov.pagoId ? mapaPagos.get(mov.pagoId.toString()) : null;
+
+      return {
+        ...mov,
+        saldoPendiente,
+        comprobanteId: pagoInfo?.comprobanteId ?? null,
+        numeroRecibo: pagoInfo?.numeroRecibo ?? null,
+      };
     });
 
     // SALDO FINAL = deuda total acumulada del padrón = suma(débito) − suma(crédito).

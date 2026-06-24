@@ -459,6 +459,7 @@ model Pago {
   total          Decimal  @db.Decimal(12, 2)
   numeroRecibo   String?
   origen         String? // "caja" | "nomina" | "ajuste"
+  comprobanteId  String?
   // --- NUEVO (opcionales agregados) ---
   totalMoneda    Decimal? @db.Decimal(12, 2) // si el pago entero fuera en una moneda (suma de metodos en esa moneda)
   moneda         Moneda? // solo informativo; si hay mezcla de monedas, dejalo null
@@ -473,6 +474,7 @@ model Pago {
 
   @@index([organizacionId, cajaId])
   @@index([organizacionId, afiliadoId])
+  @@index([comprobanteId])
 }
 
 model MetodoPago {

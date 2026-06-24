@@ -27,7 +27,14 @@ export type CobrarReq = {
   aplicaciones: AplicacionReq[];
 };
 
-export type CobrarResp = { id: number | string; total: number | string };
+export type CobrarResp = {
+  id: number | string;
+  total: number | string;
+  comprobanteId?: string | null;
+  comprobanteNumero?: string | null;
+  numeroRecibo?: string | null;
+  pdfFilename?: string | null;
+};
 
 export type CierreItem = {
   metodo: string | null;
