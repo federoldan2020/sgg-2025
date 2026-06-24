@@ -1,6 +1,7 @@
 // src/app/contabilidad/plan/page.tsx
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { XCircle } from "lucide-react";
 import AuthGate from "@/components/auth/AuthGate";
 import { api } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
@@ -263,26 +264,9 @@ function PlanCtasInner() {
 
       {/* Mensaje de error */}
       {msg && (
-        <div className="alert alert-error">
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            </div>
-            <div className="alert-text">{msg}</div>
-          </div>
+        <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+          <XCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
+          <div className="flex-1">{msg}</div>
         </div>
       )}
 

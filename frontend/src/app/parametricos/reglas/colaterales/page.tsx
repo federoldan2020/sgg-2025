@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Check, XCircle } from "lucide-react";
 import { api, getErrorMessage } from "@/servicios/api";
 import { fecha10, num } from "@/utiles/formatos";
 import { PageContainer, PageHeader } from "@/components/ui-kit";
@@ -98,7 +99,7 @@ function IntInput({
     <input
       type="text"
       inputMode="numeric"
-      className="filter-select"
+      className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
       placeholder={placeholder}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
@@ -126,7 +127,7 @@ function MoneyInput({
     <input
       type="text"
       inputMode="decimal"
-      className="filter-select"
+      className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
       value={local}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => onCommit(normalizeDecimal(local))}
@@ -422,7 +423,7 @@ export default function ReglasColateralesPage() {
   const Field = (props: React.PropsWithChildren<{ label: string }>) => (
     <div>
       <label
-        className="filter-label"
+        className="mb-1 block text-xs font-medium text-muted-foreground"
         style={{ display: "block", fontSize: 12, color: "#666" }}
       >
         {props.label}
@@ -454,7 +455,7 @@ export default function ReglasColateralesPage() {
           </span>
 
           <input
-            className="filter-select"
+            className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
             style={{ minWidth: 240 }}
             placeholder="Comentario de publicación (opcional)"
             value={pubComentario}
@@ -484,40 +485,23 @@ export default function ReglasColateralesPage() {
 
       {msg && (
         <div
-          className={`alert ${
+          className={`mb-3 flex items-start gap-3 rounded-lg border p-3 text-sm ${
             msg.startsWith("SUCCESS:")
-              ? "alert-success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
               : msg.startsWith("ERROR:")
-              ? "alert-error"
-              : "alert-warning"
+              ? "border-rose-200 bg-rose-50 text-rose-900"
+              : "border-amber-200 bg-amber-50 text-amber-900"
           }`}
         >
-          <div className="alert-content">
-            <div className="alert-icon">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="10" />
-                {msg.startsWith("SUCCESS:") ? (
-                  <polyline points="16 12 11 17 8 14" />
-                ) : msg.startsWith("ERROR:") ? (
-                  <>
-                    <line x1="15" y1="9" x2="9" y2="15" />
-                    <line x1="9" y1="9" x2="15" y2="15" />
-                  </>
-                ) : (
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                )}
-              </svg>
-            </div>
-            <div className="alert-text">
-              {msg.replace(/^(SUCCESS:|ERROR:)/, "")}
-            </div>
+          {msg.startsWith("SUCCESS:") ? (
+            <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+          ) : msg.startsWith("ERROR:") ? (
+            <XCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
+          ) : (
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+          )}
+          <div className="flex-1">
+            {msg.replace(/^(SUCCESS:|ERROR:)/, "")}
           </div>
         </div>
       )}
@@ -534,7 +518,7 @@ export default function ReglasColateralesPage() {
         >
           <Field label="Parentesco">
             <select
-              className="filter-select"
+              className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
               value={form.parentescoId}
               onChange={(e) =>
                 setForm((f) => ({ ...f, parentescoId: e.target.value }))
@@ -572,7 +556,7 @@ export default function ReglasColateralesPage() {
           <Field label="Vigente desde">
             <input
               type="date"
-              className="filter-select"
+              className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
               value={form.vigenteDesde}
               onChange={(e) =>
                 setForm((f) => ({ ...f, vigenteDesde: e.target.value }))
@@ -583,7 +567,7 @@ export default function ReglasColateralesPage() {
           <Field label="Vigente hasta (opcional)">
             <input
               type="date"
-              className="filter-select"
+              className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
               value={form.vigenteHasta}
               onChange={(e) =>
                 setForm((f) => ({ ...f, vigenteHasta: e.target.value }))
@@ -782,26 +766,11 @@ export default function ReglasColateralesPage() {
           >
             <h3 style={{ margin: 0, marginBottom: 8 }}>Editar regla</h3>
 
-            <div className="alert" style={{ marginBottom: 12 }}>
-              <div className="alert-content">
-                <div className="alert-icon">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <circle cx="12" cy="16" r="1" />
-                  </svg>
-                </div>
-                <div className="alert-text">
-                  Si hay superposición de vigencias, aplicará la de mayor{" "}
-                  <b>vigenteDesde</b>.
-                </div>
+            <div className="mb-3 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <div className="flex-1">
+                Si hay superposición de vigencias, aplicará la de mayor{" "}
+                <b>vigenteDesde</b>.
               </div>
             </div>
 
@@ -815,7 +784,7 @@ export default function ReglasColateralesPage() {
             >
               <Field label="Parentesco">
                 <select
-                  className="filter-select"
+                  className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                   value={editRow.parentescoId}
                   onChange={(e) =>
                     setEditRow(
@@ -858,7 +827,7 @@ export default function ReglasColateralesPage() {
               <Field label="Vigente desde">
                 <input
                   type="date"
-                  className="filter-select"
+                  className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                   value={editRow.vigenteDesde}
                   onChange={(e) =>
                     setEditRow(
@@ -871,7 +840,7 @@ export default function ReglasColateralesPage() {
               <Field label="Vigente hasta (opcional)">
                 <input
                   type="date"
-                  className="filter-select"
+                  className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500"
                   value={editRow.vigenteHasta}
                   onChange={(e) =>
                     setEditRow(
@@ -892,7 +861,7 @@ export default function ReglasColateralesPage() {
 
               <div>
                 <label
-                  className="filter-label"
+                  className="mb-1 block text-xs font-medium text-muted-foreground"
                   style={{ display: "block", fontSize: 12, color: "#666" }}
                 >
                   Estado
