@@ -663,18 +663,18 @@ function CajaCobrosInner() {
             </kbd>
 
             {showOpts && debouncedQuery.trim().length >= 2 && !afi && afOpts.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-xl border border-border/60 bg-background shadow-lg">
+              <div className="isolate absolute left-0 right-0 top-full z-[60] mt-1 max-h-80 overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-xl ring-1 ring-black/5">
                 {afOpts.map((o) => (
                   <button
                     key={o.id}
-                    className="block w-full border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/50"
+                    className="block w-full border-b border-neutral-100 bg-white px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-medical-50"
                     onClick={() => {
                       setAfi(o);
                       setAfQuery(o.display);
                       setShowOpts(false);
                     }}
                   >
-                    <div className="text-sm font-medium">{o.display}</div>
+                    <div className="text-sm font-medium text-neutral-900">{o.display}</div>
                     <div className="mt-0.5 text-xs text-muted-foreground">DNI: {o.dni}</div>
                   </button>
                 ))}
@@ -730,308 +730,346 @@ function CajaCobrosInner() {
         </Card>
       )}
 
-      {!afi ? (
-        <Card className="rounded-2xl border-border/60 shadow-sm">
-          <CardContent className="py-16">
-            <EmptyState
-              icon={<Search className="h-12 w-12" />}
-              title="Buscá un afiliado para comenzar"
-              description="Ingresá el DNI o el nombre en el buscador de arriba para ver sus padrones y cuotas pendientes."
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* ===== Columna principal ===== */}
-          <div className="space-y-6 lg:col-span-8">
-            {/* Afiliado */}
-            <Card className="rounded-2xl border-border/60 shadow-sm">
-              <CardContent className="p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-lg font-bold text-white shadow-sm">
-                    {initials(nombreAfi)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate text-lg font-semibold tracking-tight">{nombreAfi}</h2>
-                      {deudaTotal > 0.01 ? (
-                        <Badge variant="outline" className="gap-1 border-rose-200 bg-rose-50 px-2 py-0 text-[11px] text-rose-600">
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                          Con deuda
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 px-2 py-0 text-[11px] text-emerald-700">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          Al día
-                        </Badge>
-                      )}
+      {/* Layout grilla SIEMPRE activo: izquierda contexto, derecha POS sticky */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* ===== Columna principal ===== */}
+        <div className="space-y-6 lg:col-span-8">
+          {afi ? (
+            <>
+              {/* Afiliado */}
+              <Card className="rounded-2xl border-border/60 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-lg font-bold text-white shadow-sm">
+                      {initials(nombreAfi)}
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {[
-                        afiDet?.tipo ? `Tipo ${afiDet.tipo}` : null,
-                        altaLabel ? `Alta ${altaLabel}` : null,
-                        padrones.length ? `${padrones.length} padr${padrones.length === 1 ? "ón" : "ones"}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "Afiliado"}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="truncate text-lg font-semibold tracking-tight">{nombreAfi}</h2>
+                        {deudaTotal > 0.01 ? (
+                          <Badge variant="outline" className="gap-1 border-rose-200 bg-rose-50 px-2 py-0 text-[11px] text-rose-600">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                            Con deuda
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 px-2 py-0 text-[11px] text-emerald-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            Al día
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {[
+                          afiDet?.tipo ? `Tipo ${afiDet.tipo}` : null,
+                          altaLabel ? `Alta ${altaLabel}` : null,
+                          padrones.length ? `${padrones.length} padr${padrones.length === 1 ? "ón" : "ones"}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "Afiliado"}
+                      </p>
 
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      <InfoChip label="DNI" value={String(afi.dni)} />
-                      {afiDet?.numeroSocio && <InfoChip label="N° Socio" value={afiDet.numeroSocio} />}
-                      {afiDet?.cuit && <InfoChip label="CUIT" value={afiDet.cuit} />}
-                      {afiDet?.estado && <InfoChip label="Estado" value={afiDet.estado} capitalize />}
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        <InfoChip label="DNI" value={String(afi.dni)} />
+                        {afiDet?.numeroSocio && <InfoChip label="N° Socio" value={afiDet.numeroSocio} />}
+                        {afiDet?.cuit && <InfoChip label="CUIT" value={afiDet.cuit} />}
+                        {afiDet?.estado && <InfoChip label="Estado" value={afiDet.estado} capitalize />}
+                      </div>
                     </div>
-                  </div>
 
-                  <Button variant="ghost" size="icon" className="shrink-0 rounded-xl" onClick={resetAll} title="Cambiar afiliado">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Deuda total */}
-                <div className="mt-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-rose-600">
-                      Deuda total acumulada
-                    </div>
-                    <div className="text-2xl font-bold tabular-nums text-rose-700">
-                      <Money amount={deudaTotal} />
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground sm:text-right">
-                    Sumando cuotas pendientes de todos los padrones
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Selector de padrón + cuotas */}
-            <Card className="rounded-2xl border-border/60 shadow-sm">
-              <CardHeader className="pb-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Layers className="h-4 w-4" />
-                      Cuotas pendientes
-                    </CardTitle>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {cuotasSel > 0 ? `${cuotasSel} seleccionada${cuotasSel === 1 ? "" : "s"}` : "Elegí un padrón y tildá las cuotas a cobrar"}
-                    </p>
-                  </div>
-                  {pend.length > 0 && (
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={seleccionarVisibles}>
-                      <Check className="mr-1 h-4 w-4" />
-                      Seleccionar visibles
+                    <Button variant="ghost" size="icon" className="shrink-0 rounded-xl" onClick={resetAll} title="Cambiar afiliado">
+                      <X className="h-4 w-4" />
                     </Button>
-                  )}
-                </div>
-
-                {/* Selector de padrones (pills) */}
-                {padrones.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <PadronPill active={padronId === ""} onClick={() => setPadronId("")} label="Todos" />
-                    {padrones.map((p) => (
-                      <PadronPill
-                        key={p.id}
-                        active={padronId === p.id}
-                        onClick={() => setPadronId(p.id)}
-                        label={`${p.padron || "Sin padrón"}${p.centro ? ` · C${p.centro}` : ""}`}
-                        hint={p.sistema || undefined}
-                      />
-                    ))}
                   </div>
-                )}
-              </CardHeader>
 
-              <CardContent>
-                {pend.length === 0 ? (
-                  <EmptyState
-                    title="Sin cuotas pendientes"
-                    description={padronId ? "Este padrón no tiene cuotas pendientes" : "El afiliado no tiene cuotas pendientes"}
-                  />
-                ) : (
-                  <div className="space-y-5">
-                    {grupos.map(([label, items]) => {
-                      const sub = items.reduce((a, b) => a + b.saldo, 0);
-                      return (
-                        <div key={label} className="space-y-2">
-                          <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-1.5">
-                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              <Layers className="h-3.5 w-3.5" />
-                              <span className="truncate">{label}</span>
-                            </div>
-                            <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                              {items.length} · <Money amount={sub} />
-                            </div>
-                          </div>
-                          {items.map((o) => {
-                            const row = rowFor(o);
-                            return (
-                              <CuotaRow
-                                key={o.id}
-                                o={o}
-                                checked={!!row}
-                                monto={row?.monto ?? ""}
-                                onToggle={() => toggleCuota(o)}
-                                onMonto={(v) => setMontoCuota(o, v)}
-                              />
-                            );
-                          })}
+                  {/* Deuda total — rojo si debe, verde compacta si está al día */}
+                  {deudaTotal > 0.01 ? (
+                    <div className="mt-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-[11px] font-medium uppercase tracking-wide text-rose-600">
+                          Deuda total acumulada
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* ===== Sidebar POS ===== */}
-          <div className="space-y-4 lg:col-span-4 lg:sticky lg:top-32 lg:h-fit">
-            {/* Total a cobrar */}
-            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-medical-600 to-medical-800 p-5 text-white shadow-lg shadow-medical-600/20">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
-                Total a cobrar
-              </div>
-              <div className="mt-1 text-4xl font-bold tabular-nums">
-                <Money amount={totalAplic} />
-              </div>
-              <div className="mt-2 text-sm text-white/80">
-                {cuotasSel > 0 ? `${cuotasSel} cuota${cuotasSel === 1 ? "" : "s"}` : "Sin cuotas"} · {nombreAfi}
-              </div>
-            </div>
-
-            {/* Métodos de pago */}
-            <Card className="rounded-2xl border-border/60 shadow-sm">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    Métodos de pago
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 rounded-lg px-2 text-xs text-medical-700 hover:bg-medical-50"
-                    onClick={autoAsignar}
-                    disabled={totalAplic <= 0}
-                    title="Asignar el total al primer método"
-                  >
-                    <Zap className="mr-1 h-3.5 w-3.5" />
-                    Auto
-                    <KeyBadge keys="F2" />
-                  </Button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-2.5">
-                {metodos.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Select
-                      value={m.metodo}
-                      onValueChange={(value) => {
-                        const v = [...metodos];
-                        v[i].metodo = value as typeof m.metodo;
-                        setMetodos(v);
-                      }}
-                    >
-                      <SelectTrigger className="h-10 w-32 shrink-0 rounded-lg">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="efectivo">Efectivo</SelectItem>
-                        <SelectItem value="tarjeta">Tarjeta</SelectItem>
-                        <SelectItem value="mercadopago">MercadoPago</SelectItem>
-                        <SelectItem value="otro">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={m.monto}
-                      onChange={(e) => {
-                        const v = [...metodos];
-                        v[i].monto = e.target.value;
-                        setMetodos(v);
-                      }}
-                      className="h-10 flex-1 rounded-lg text-right tabular-nums"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-9 shrink-0 rounded-lg"
-                      onClick={() => setMetodos(metodos.filter((_, j) => j !== i))}
-                      disabled={metodos.length === 1}
-                      title="Quitar"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMetodos([...metodos, { metodo: "efectivo", monto: "", ref: "" }])}
-                  className="h-10 w-full rounded-lg border-dashed"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Agregar método
-                </Button>
-
-                {/* Estado de asignación */}
-                {totalAplic > 0 && (
-                  <div className="pt-1">
-                    {Math.abs(diff) <= 0.01 ? (
-                      <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />
-                        Métodos asignados correctamente
+                        <div className="text-2xl font-bold tabular-nums text-rose-700">
+                          <Money amount={deudaTotal} />
+                        </div>
                       </div>
-                    ) : faltaAsignar > 0 ? (
-                      <div className="flex items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
-                        <span className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                          Falta asignar
-                        </span>
-                        <span className="tabular-nums">
-                          <Money amount={faltaAsignar} />
-                        </span>
+                      <div className="text-xs text-muted-foreground sm:text-right">
+                        Sumando cuotas pendientes de todos los padrones
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-                        <span className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                          Sobra asignado
-                        </span>
-                        <span className="tabular-nums">
-                          <Money amount={Math.abs(faltaAsignar)} />
-                        </span>
-                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span className="font-medium">Afiliado al día</span>
+                      <span className="text-emerald-700/70">— sin cuotas pendientes en ningún padrón</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Selector de padrón + cuotas */}
+              <Card className="rounded-2xl border-border/60 shadow-sm">
+                <CardHeader className="pb-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Layers className="h-4 w-4" />
+                        Cuotas pendientes
+                      </CardTitle>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {cuotasSel > 0 ? `${cuotasSel} seleccionada${cuotasSel === 1 ? "" : "s"}` : "Elegí un padrón y tildá las cuotas a cobrar"}
+                      </p>
+                    </div>
+                    {pend.length > 0 && (
+                      <Button variant="outline" size="sm" className="rounded-xl" onClick={seleccionarVisibles}>
+                        <Check className="mr-1 h-4 w-4" />
+                        Seleccionar visibles
+                      </Button>
                     )}
                   </div>
-                )}
 
-                <Button
-                  onClick={cobrar}
-                  disabled={!canConfirmar}
-                  size="lg"
-                  className="mt-1 h-12 w-full rounded-xl text-base font-semibold"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  {loading ? "Procesando…" : (
-                    <>
-                      Cobrar <Money amount={totalAplic} className="font-bold" />
-                    </>
+                  {/* Selector de padrones (pills) */}
+                  {padrones.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <PadronPill active={padronId === ""} onClick={() => setPadronId("")} label="Todos" />
+                      {padrones.map((p) => (
+                        <PadronPill
+                          key={p.id}
+                          active={padronId === p.id}
+                          onClick={() => setPadronId(p.id)}
+                          label={`${p.padron || "Sin padrón"}${p.centro ? ` · C${p.centro}` : ""}`}
+                          hint={p.sistema || undefined}
+                        />
+                      ))}
+                    </div>
                   )}
-                  {!loading && canConfirmar && <KeyBadge keys="Ctrl+Enter" />}
-                </Button>
+                </CardHeader>
+
+                <CardContent>
+                  {pend.length === 0 ? (
+                    <EmptyState
+                      title="Sin cuotas pendientes"
+                      description={padronId ? "Este padrón no tiene cuotas pendientes" : "El afiliado no tiene cuotas pendientes"}
+                    />
+                  ) : (
+                    <div className="space-y-5">
+                      {grupos.map(([label, items]) => {
+                        const sub = items.reduce((a, b) => a + b.saldo, 0);
+                        return (
+                          <div key={label} className="space-y-2">
+                            <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-1.5">
+                              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <Layers className="h-3.5 w-3.5" />
+                                <span className="truncate">{label}</span>
+                              </div>
+                              <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                                {items.length} · <Money amount={sub} />
+                              </div>
+                            </div>
+                            {items.map((o) => {
+                              const row = rowFor(o);
+                              return (
+                                <CuotaRow
+                                  key={o.id}
+                                  o={o}
+                                  checked={!!row}
+                                  monto={row?.monto ?? ""}
+                                  onToggle={() => toggleCuota(o)}
+                                  onMonto={(v) => setMontoCuota(o, v)}
+                                />
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            /* Estado vacío: bienvenida — solo en la columna principal, NO colapsa el ancho */
+            <Card className="rounded-2xl border-2 border-dashed border-border/60 bg-muted/20 shadow-none">
+              <CardContent className="flex flex-col items-center justify-center px-6 py-20 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-medical-50 text-medical-600">
+                  <Search className="h-7 w-7" />
+                </div>
+                <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
+                  Buscá un afiliado para comenzar
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                  Ingresá el DNI o el nombre en el buscador de arriba para ver
+                  sus padrones, cuotas pendientes y cobrar.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">Ctrl K</kbd>
+                  <span>foco buscador</span>
+                  <span className="opacity-50">·</span>
+                  <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">F2</kbd>
+                  <span>autoasignar</span>
+                  <span className="opacity-50">·</span>
+                  <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">Ctrl Enter</kbd>
+                  <span>cobrar</span>
+                </div>
               </CardContent>
             </Card>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* ===== Sidebar POS — SIEMPRE visible y sticky ===== */}
+        <div className="space-y-4 lg:col-span-4 lg:sticky lg:top-32 lg:h-fit lg:self-start">
+          {/* Total a cobrar (hero) */}
+          <div className={`overflow-hidden rounded-2xl p-5 text-white shadow-lg transition-all ${
+            afi
+              ? "bg-gradient-to-br from-medical-600 to-medical-800 shadow-medical-600/20"
+              : "bg-gradient-to-br from-neutral-400 to-neutral-600 shadow-neutral-400/20"
+          }`}>
+            <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+              Total a cobrar
+            </div>
+            <div className="mt-1 text-4xl font-bold tabular-nums">
+              <Money amount={totalAplic} />
+            </div>
+            <div className="mt-2 truncate text-sm text-white/80">
+              {!afi
+                ? "Seleccioná un afiliado"
+                : cuotasSel > 0
+                ? `${cuotasSel} cuota${cuotasSel === 1 ? "" : "s"} · ${nombreAfi}`
+                : `Sin cuotas · ${nombreAfi}`}
+            </div>
+          </div>
+
+          {/* Métodos de pago */}
+          <Card className="rounded-2xl border-border/60 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Métodos de pago
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 rounded-lg px-2 text-xs text-medical-700 hover:bg-medical-50"
+                  onClick={autoAsignar}
+                  disabled={totalAplic <= 0}
+                  title="Asignar el total al primer método"
+                >
+                  <Zap className="mr-1 h-3.5 w-3.5" />
+                  Auto
+                  <KeyBadge keys="F2" />
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-2.5">
+              {metodos.map((m, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Select
+                    value={m.metodo}
+                    onValueChange={(value) => {
+                      const v = [...metodos];
+                      v[i].metodo = value as typeof m.metodo;
+                      setMetodos(v);
+                    }}
+                    disabled={!afi}
+                  >
+                    <SelectTrigger className="h-10 w-32 shrink-0 rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="efectivo">Efectivo</SelectItem>
+                      <SelectItem value="tarjeta">Tarjeta</SelectItem>
+                      <SelectItem value="mercadopago">MercadoPago</SelectItem>
+                      <SelectItem value="otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={m.monto}
+                    disabled={!afi}
+                    onChange={(e) => {
+                      const v = [...metodos];
+                      v[i].monto = e.target.value;
+                      setMetodos(v);
+                    }}
+                    className="h-10 flex-1 rounded-lg text-right tabular-nums"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-9 shrink-0 rounded-lg"
+                    onClick={() => setMetodos(metodos.filter((_, j) => j !== i))}
+                    disabled={metodos.length === 1 || !afi}
+                    title="Quitar"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMetodos([...metodos, { metodo: "efectivo", monto: "", ref: "" }])}
+                disabled={!afi}
+                className="h-10 w-full rounded-lg border-dashed"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Agregar método
+              </Button>
+
+              {/* Estado de asignación */}
+              {totalAplic > 0 && (
+                <div className="pt-1">
+                  {Math.abs(diff) <= 0.01 ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      Métodos asignados correctamente
+                    </div>
+                  ) : faltaAsignar > 0 ? (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+                      <span className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Falta asignar
+                      </span>
+                      <span className="tabular-nums">
+                        <Money amount={faltaAsignar} />
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                      <span className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Sobra asignado
+                      </span>
+                      <span className="tabular-nums">
+                        <Money amount={Math.abs(faltaAsignar)} />
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button
+                onClick={cobrar}
+                disabled={!canConfirmar}
+                size="lg"
+                className="mt-1 h-12 w-full rounded-xl text-base font-semibold"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {loading ? "Procesando…" : (
+                  <>
+                    Cobrar <Money amount={totalAplic} className="font-bold" />
+                  </>
+                )}
+                {!loading && canConfirmar && <KeyBadge keys="Ctrl+Enter" />}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </PageContainer>
   );
 }
