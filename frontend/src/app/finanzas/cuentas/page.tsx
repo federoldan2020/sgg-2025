@@ -566,7 +566,6 @@ export default function CuentasIndexPage() {
             </div>
           )}
         </div>
-      </div>
     </PageContainer>
   );
 }
