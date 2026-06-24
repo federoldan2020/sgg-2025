@@ -30,11 +30,13 @@ export function EmptyState({
         className
       )}
     >
-      <div className="mb-4 text-muted-foreground">
+      <div className="mb-4 shrink-0 text-muted-foreground">
         {icon ?? <Inbox className="h-12 w-12" />}
       </div>
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <p className="mb-4 w-full max-w-sm text-sm text-muted-foreground">
+      <h3 className="mb-2 max-w-md text-sm font-semibold leading-6 text-balance">
+        {title}
+      </h3>
+      <p className="mb-4 mx-auto w-full max-w-md whitespace-normal break-words text-sm leading-6 text-muted-foreground">
         {description}
       </p>
       {action && (
@@ -69,11 +71,13 @@ export function ErrorState({
         className
       )}
     >
-      <div className="mb-4 text-destructive">
+      <div className="mb-4 shrink-0 text-destructive">
         <AlertCircle className="h-12 w-12" />
       </div>
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <p className="mb-4 w-full max-w-sm text-sm text-muted-foreground">
+      <h3 className="mb-2 max-w-md text-sm font-semibold leading-6 text-balance">
+        {title}
+      </h3>
+      <p className="mb-4 mx-auto w-full max-w-md whitespace-normal break-words text-sm leading-6 text-muted-foreground">
         {description}
       </p>
       {onRetry && (

@@ -679,7 +679,7 @@ function CajaCobrosInner() {
         </div>
       </div>
 
-      <PageHeader title="Caja" subtitle="Cobro de cuotas y aportes">
+      <PageHeader title="Caja" subtitle="Cobro de cuotas y aportes" className="mb-6 pb-3">
         <Button variant="ghost" onClick={resetAll} className="rounded-xl" disabled={loading}>
           Limpiar
           <KeyBadge keys="Esc" />
@@ -725,21 +725,21 @@ function CajaCobrosInner() {
       )}
 
       {/* Layout grilla SIEMPRE activo: izquierda contexto, derecha POS sticky */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         {/* ===== Columna principal ===== */}
-        <div className="space-y-6 lg:col-span-8">
+        <div className="space-y-5 lg:col-span-8">
           {afi ? (
             <>
               {/* Afiliado */}
               <Card className="rounded-2xl border-border/60 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-lg font-bold text-white shadow-sm">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-medical-400 to-medical-600 text-base font-bold text-white shadow-sm">
                       {initials(nombreAfi)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-lg font-semibold tracking-tight">{nombreAfi}</h2>
+                        <h2 className="truncate text-base font-semibold tracking-tight sm:text-lg">{nombreAfi}</h2>
                         {deudaTotal > 0.01 ? (
                           <Badge variant="outline" className="gap-1 border-rose-200 bg-rose-50 px-2 py-0 text-[11px] text-rose-600">
                             <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
@@ -762,7 +762,7 @@ function CajaCobrosInner() {
                           .join(" · ") || "Afiliado"}
                       </p>
 
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         <InfoChip label="DNI" value={String(afi.dni)} />
                         {afiDet?.numeroSocio && <InfoChip label="N° Socio" value={afiDet.numeroSocio} />}
                         {afiDet?.cuit && <InfoChip label="CUIT" value={afiDet.cuit} />}
@@ -777,7 +777,7 @@ function CajaCobrosInner() {
 
                   {/* Deuda total — rojo si debe, verde compacta si está al día */}
                   {deudaTotal > 0.01 ? (
-                    <div className="mt-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-3 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="text-[11px] font-medium uppercase tracking-wide text-rose-600">
                           Deuda total acumulada
@@ -791,7 +791,7 @@ function CajaCobrosInner() {
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span className="font-medium">Afiliado al día</span>
                       <span className="text-emerald-700/70">— sin cuotas pendientes</span>
@@ -802,7 +802,7 @@ function CajaCobrosInner() {
 
               {/* Selector de padrón + cuotas */}
               <Card className="rounded-2xl border-border/60 shadow-sm">
-                <CardHeader className="pb-4">
+                <CardHeader className="pb-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <CardTitle className="flex items-center gap-2 text-base">
@@ -823,7 +823,7 @@ function CajaCobrosInner() {
 
                   {/* Selector de padrones (pills) */}
                   {padrones.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2.5 flex flex-wrap gap-2">
                       <PadronPill active={padronId === ""} onClick={() => setPadronId("")} label="Todos" />
                       {padrones.map((p) => (
                         <PadronPill
@@ -838,15 +838,15 @@ function CajaCobrosInner() {
                   )}
                 </CardHeader>
 
-                <CardContent className="thin-scroll max-h-[calc(100vh-32rem)] min-h-[200px] overflow-y-auto pr-1">
+                <CardContent className="thin-scroll max-h-[calc(100vh-28rem)] min-h-[180px] overflow-y-auto pr-1">
                   {pend.length === 0 ? (
                     <EmptyState
-                      className="py-6"
+                      className="py-5"
                       title="Sin cuotas pendientes"
                       description={padronId ? "Este padrón no tiene cuotas pendientes" : "El afiliado no tiene cuotas pendientes"}
                     />
                   ) : (
-                    <div className="space-y-5">
+                    <div className="space-y-4">
                       {grupos.map(([label, items]) => {
                         const sub = items.reduce((a, b) => a + b.saldo, 0);
                         return (
@@ -883,27 +883,29 @@ function CajaCobrosInner() {
             </>
           ) : (
             /* Estado vacío: bienvenida — solo en la columna principal, NO colapsa el ancho */
-            <Card className="rounded-2xl border-2 border-dashed border-border/60 bg-muted/20 shadow-none">
-              <CardContent className="flex flex-col items-center justify-center px-6 py-20 text-center">
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-medical-50 text-medical-600">
-                  <Search className="h-7 w-7" />
-                </div>
-                <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
-                  Buscá un afiliado para comenzar
-                </h2>
-                <p className="mx-auto mt-2 w-full max-w-md text-sm text-muted-foreground">
-                  Ingresá el DNI o el nombre en el buscador de arriba para ver
-                  sus padrones, cuotas pendientes y cobrar.
-                </p>
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">Ctrl K</kbd>
-                  <span>foco buscador</span>
-                  <span className="opacity-50">·</span>
-                  <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">F2</kbd>
-                  <span>autoasignar</span>
-                  <span className="opacity-50">·</span>
-                  <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">Ctrl Enter</kbd>
-                  <span>cobrar</span>
+            <Card className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+              <CardContent className="px-6 py-14">
+                <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
+                  <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-medical-50 text-medical-600 shadow-sm">
+                    <Search className="h-7 w-7" />
+                  </div>
+                  <h2 className="text-xl font-semibold tracking-tight text-neutral-900">
+                    Buscá un afiliado para comenzar
+                  </h2>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-600">
+                    Ingresá el DNI o el nombre en el buscador superior para ver sus
+                    padrones, seleccionar cuotas pendientes y registrar el cobro.
+                  </p>
+                  <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <kbd className="rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">Ctrl K</kbd>
+                    <span>buscar</span>
+                    <span className="opacity-50">·</span>
+                    <kbd className="rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">F2</kbd>
+                    <span>autoasignar</span>
+                    <span className="opacity-50">·</span>
+                    <kbd className="rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-500">Ctrl Enter</kbd>
+                    <span>cobrar</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -911,9 +913,9 @@ function CajaCobrosInner() {
         </div>
 
         {/* ===== Sidebar POS — SIEMPRE visible y sticky ===== */}
-        <div className="space-y-4 lg:col-span-4 lg:sticky lg:top-32 lg:h-fit lg:self-start">
+        <div className="space-y-3.5 lg:col-span-4 lg:sticky lg:top-28 lg:h-fit lg:self-start">
           {/* Total a cobrar (hero) */}
-          <div className={`overflow-hidden rounded-2xl border p-5 shadow-sm transition-colors ${
+          <div className={`overflow-hidden rounded-2xl border px-5 py-4 shadow-sm transition-colors ${
             afi
               ? "border-medical-200 bg-medical-50 text-medical-950"
               : "border-neutral-200 bg-neutral-50 text-neutral-800"
@@ -923,10 +925,10 @@ function CajaCobrosInner() {
             }`}>
               Total a cobrar
             </div>
-            <div className="mt-1 text-3xl font-bold tabular-nums">
+            <div className="mt-1 text-[2rem] font-bold leading-none tabular-nums">
               <Money amount={totalAplic} />
             </div>
-            <div className={`mt-2 truncate text-sm ${afi ? "text-medical-800/80" : "text-neutral-600"}`}>
+            <div className={`mt-1.5 truncate text-sm ${afi ? "text-medical-800/80" : "text-neutral-600"}`}>
               {!afi
                 ? "Seleccioná un afiliado"
                 : cuotasSel > 0
@@ -936,16 +938,16 @@ function CajaCobrosInner() {
           </div>
 
           {/* Métodos de pago */}
-          <Card className="rounded-2xl border-border/60 shadow-sm">
-            <CardHeader className="pb-3">
+          <Card className="rounded-2xl border-neutral-200 shadow-sm">
+            <CardHeader className="pb-2.5">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                <CardTitle className="text-sm font-semibold uppercase tracking-wide text-neutral-700">
                   Métodos de pago
                 </CardTitle>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 rounded-lg px-2 text-xs text-medical-700 hover:bg-medical-50"
+                  className="h-8 rounded-lg px-2 text-xs text-medical-700 hover:bg-medical-50"
                   onClick={autoAsignar}
                   disabled={totalAplic <= 0}
                   title="Asignar el total al primer método"
@@ -958,8 +960,8 @@ function CajaCobrosInner() {
             </CardHeader>
 
             <CardContent className="space-y-2.5">
-              {metodos.map((m, i) => (
-                <div key={m.id} className="flex items-center gap-2">
+              {metodos.map((m) => (
+                <div key={m.id} className="flex items-center gap-2.5">
                   <Select
                     value={m.metodo}
                     onValueChange={(value) => {
@@ -971,7 +973,7 @@ function CajaCobrosInner() {
                     }}
                     disabled={!afi}
                   >
-                    <SelectTrigger className="h-10 w-32 shrink-0 rounded-lg">
+                    <SelectTrigger className="h-10 w-32 shrink-0 rounded-xl border-neutral-200 bg-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -995,12 +997,12 @@ function CajaCobrosInner() {
                         )
                       );
                     }}
-                    className="h-10 flex-1 rounded-lg text-right tabular-nums"
+                    className="h-10 flex-1 rounded-xl border-neutral-200 bg-white text-right tabular-nums"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-9 shrink-0 rounded-lg"
+                    className="h-10 w-10 shrink-0 rounded-xl text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
                     onClick={() => setMetodos((prev) => prev.filter((row) => row.id !== m.id))}
                     disabled={metodos.length === 1 || !afi}
                     title="Quitar"
@@ -1015,7 +1017,7 @@ function CajaCobrosInner() {
                 size="sm"
                 onClick={() => setMetodos((prev) => [...prev, createMetodoRow()])}
                 disabled={!afi}
-                className="h-10 w-full rounded-lg border-dashed"
+                className="h-10 w-full rounded-xl border-dashed border-neutral-300 bg-neutral-50/50 text-neutral-700 hover:bg-neutral-100"
               >
                 <Plus className="mr-1 h-4 w-4" />
                 Agregar método
@@ -1057,7 +1059,7 @@ function CajaCobrosInner() {
                 onClick={cobrar}
                 disabled={!canConfirmar}
                 size="lg"
-                className="mt-1 h-12 w-full rounded-xl text-base font-semibold"
+                className="mt-1.5 h-11 w-full rounded-xl text-base font-semibold"
               >
                 <ShoppingCart className="h-5 w-5" />
                 {loading ? "Procesando…" : (
