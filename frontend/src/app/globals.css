@@ -153,46 +153,6 @@
   }
 }
 
-/* ===== Page Layout ===== */
-.page-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--space-xl);
-}
-
-.page-header {
-  margin-bottom: var(--space-2xl);
-  padding: var(--space-xl) 0;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.page-title-section {
-  text-align: left;
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 var(--space-sm) 0;
-  line-height: 1.2;
-}
-
-.page-subtitle {
-  font-size: 15px;
-  color: var(--text-secondary);
-  margin: 0;
-  font-weight: 400;
-}
-
-.page-content {
-  display: -webkit-flex;
-  display: flex;
-  -webkit-flex-direction: column;
-  flex-direction: column;
-  gap: var(--space-2xl);
-}
-
 /* ===== Alerts ===== */
 .alert {
   display: -webkit-flex;
@@ -914,15 +874,6 @@
     align-items: flex-start;
     gap: var(--space-xs);
   }
-}
-
-/* ===== Page Actions ===== */
-.page-actions {
-  display: -webkit-flex;
-  display: flex;
-  -webkit-align-items: center;
-  align-items: center;
-  gap: var(--space-md);
 }
 
 /* ===== Plan de Cuentas Styles ===== */
