@@ -18,7 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { api, getErrorMessage, ORG } from "@/servicios/api";
+import { api, getErrorMessage, getOrgId, ORG } from "@/servicios/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -92,8 +92,13 @@ function useDebounced<T>(value: T, delay = 300) {
 
 /* ===== Page ===== */
 export default function NuevoComprobantePage() {
-  // organizacionId fijo desde el contexto; no se edita en la UI.
-  const [organizacionId] = useState(ORG);
+  // organizacionId resuelto desde el contexto (localStorage > env). No se edita en la UI.
+  const [organizacionId, setOrganizacionId] = useState(ORG);
+  useEffect(() => {
+    // localStorage solo está disponible en cliente
+    const id = getOrgId();
+    if (id) setOrganizacionId(id);
+  }, []);
   const [rol, setRol] = useState<RolTercero>("PROVEEDOR");
   const [terceroSel, setTerceroSel] = useState<TerceroSearchItem | null>(null);
 
@@ -291,13 +296,22 @@ export default function NuevoComprobantePage() {
   const hasError = (field: string) =>
     touched && errores.some((e) => e.field === field);
 
-  const canSubmit = !!organizacionId && errores.length === 0;
+  const canSubmit = errores.length === 0;
+  const orgFaltante = !organizacionId;
 
   /* ===== Submit ===== */
   const submit = async () => {
     setTouched(true);
+    if (orgFaltante) {
+      setMsg(
+        "Error: no se pudo determinar la organización. Cerrá sesión y volvé a ingresar."
+      );
+      return;
+    }
     if (!canSubmit) {
-      setMsg(`Revisá los campos marcados antes de continuar.`);
+      setMsg(
+        "Faltan datos obligatorios. Revisá los campos marcados en rojo más abajo."
+      );
       return;
     }
     try {
@@ -335,20 +349,57 @@ export default function NuevoComprobantePage() {
         method: "POST",
         body: JSON.stringify(payload),
       });
+
+      // Reset del form para cargar el siguiente
+      setTerceroSel(null);
+      setQ("");
+      setClase("");
+      setPV("");
+      setNumero("");
+      setFecha(new Date().toISOString().slice(0, 10));
+      setVenc("");
+      setMoneda("ARS");
+      setCuitEmisor("");
+      setObs("");
+      setLineas([
+        { descripcion: "Item 1", cantidad: 1, precioUnitario: 10000, alicuotaIVA: 21 },
+      ]);
+      setImpuestos([]);
+      setTouched(false);
+
       setMsg(
         `Comprobante creado exitosamente (ID: ${r.id}). Total: $${fmt(
           Number(r.total ?? 0)
         )}`
       );
+
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (e) {
       setMsg(`Error: ${getErrorMessage(e)}`);
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } finally {
       setPosting(false);
     }
   };
 
   /* ===== Render ===== */
-  const isError = msg ? msg.toLowerCase().includes("error") : false;
+  const msgKind: "error" | "warn" | "success" = msg
+    ? msg.toLowerCase().startsWith("error")
+      ? "error"
+      : msg.toLowerCase().startsWith("faltan") ||
+          msg.toLowerCase().includes("no tiene rol")
+        ? "warn"
+        : "success"
+    : "success";
+  const alertStyles = {
+    error: "border-rose-200 bg-rose-50 text-rose-800",
+    warn: "border-amber-200 bg-amber-50 text-amber-900",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  }[msgKind];
   return (
     <div className="mx-auto max-w-7xl pb-12">
       {/* Toolbar */}
@@ -375,17 +426,13 @@ export default function NuevoComprobantePage() {
 
       {msg && (
         <div
-          className={`mb-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-            isError
-              ? "border-rose-200 bg-rose-50 text-rose-800"
-              : "border-emerald-200 bg-emerald-50 text-emerald-800"
-          }`}
+          className={`mb-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${alertStyles}`}
           role="alert"
         >
-          {isError ? (
-            <AlertCircle className="mt-0.5 size-5 shrink-0" />
-          ) : (
+          {msgKind === "success" ? (
             <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+          ) : (
+            <AlertCircle className="mt-0.5 size-5 shrink-0" />
           )}
           <span className="font-medium">{msg}</span>
           <button
