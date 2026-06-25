@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 // src/modulos/terceros-finanzas/ordenes-pago.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import {
   Prisma,
   RolTercero,
@@ -37,6 +37,8 @@ function isMetodoPagoOP(x: string): x is MetodoPagoOPValue {
 
 @Injectable()
 export class OrdenesPagoService {
+  private readonly logger = new Logger(OrdenesPagoService.name);
+
   constructor(
     private cuentas: CuentasService,
     private contab: ContabilidadService,
@@ -457,10 +459,20 @@ export class OrdenesPagoService {
         orden.id,
         `Orden de pago #${numeroOPStr}`,
       );
-      await this.contab.onOrdenPagoConfirmada(tx, {
-        organizacionId: dto.organizacionId,
-        ordenId: orden.id,
-      });
+      try {
+        await this.contab.onOrdenPagoConfirmada(tx, {
+          organizacionId: dto.organizacionId,
+          ordenId: orden.id,
+        });
+      } catch (err) {
+        if (err instanceof UnprocessableEntityException) {
+          this.logger.warn(
+            `OP ${orden.id} confirmada sin asiento contable: ${err.message}`,
+          );
+        } else {
+          throw err;
+        }
+      }
 
       // === 6) Comprobante impreso (usa el MISMO número) ===
       const itemsImpresion = await this.buildItemsDesdeAplicaciones(tx, dto.aplicaciones, comprobantesCreados);
@@ -719,7 +731,17 @@ export class OrdenesPagoService {
         data: { estado: EstadoOrdenPago.anulado },
       });
 
-      await this.contab.onOrdenPagoAnulada(tx, { organizacionId, ordenId: op.id });
+      try {
+        await this.contab.onOrdenPagoAnulada(tx, { organizacionId, ordenId: op.id });
+      } catch (err) {
+        if (err instanceof UnprocessableEntityException) {
+          this.logger.warn(
+            `OP ${op.id} anulada sin reversa contable: ${err.message}`,
+          );
+        } else {
+          throw err;
+        }
+      }
 
       return { ok: true };
     });

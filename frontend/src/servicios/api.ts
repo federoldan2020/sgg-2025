@@ -162,6 +162,19 @@ async function ensureOk(res: Response, path: string): Promise<Response> {
       throw new Error("No autorizado. Redirigiendo al login...");
     }
 
+    // Intentamos extraer el `message` del body JSON de NestJS para mostrar
+    // un error legible. Si no es JSON, caemos al texto crudo recortado.
+    let friendly: string | null = null;
+    try {
+      const body: unknown = JSON.parse(text);
+      friendly = parseApiErrorMessage(body, "");
+    } catch {
+      /* no era JSON */
+    }
+
+    if (friendly) {
+      throw new Error(friendly);
+    }
     throw new Error(`HTTP ${res.status} @ ${join(API_URL, path)}\n${text.slice(0, 300)}`);
   }
 

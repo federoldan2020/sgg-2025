@@ -1,5 +1,5 @@
 // src/modulos/terceros-finanzas/comprobantes.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma, EstadoComprobanteTercero, RolTercero, ReintegroEstado, TipoComprobanteTercero } from '@prisma/client';
 import { CuentasService } from './cuentas.service';
 import { ContabilidadService } from '../contabilidad/contabilidad.service';
@@ -20,6 +20,8 @@ const TIPOS_REQUIEREN_PV_NUM = new Set(['FACTURA', 'PRESTACION', 'NOTA_CREDITO',
 
 @Injectable()
 export class ComprobantesService {
+  private readonly logger = new Logger(ComprobantesService.name);
+
   constructor(
     private cuentas: CuentasService,
     private contab: ContabilidadService,
@@ -318,11 +320,24 @@ export class ComprobantesService {
         `${dto.tipo}${dto.clase ? ' ' + dto.clase : ''} ${fmtAfip(dto.puntoVenta ?? 0, dto.numero ?? 0)}`,
       );
 
-      // Contabilización (doble partida)
-      await this.contab.onComprobanteEmitido(tx, {
-        organizacionId: dto.organizacionId,
-        comprobanteId: cab.id,
-      });
+      // Contabilización (doble partida). Si la organización todavía no tiene
+      // los mapeos contables configurados, registramos el comprobante igual
+      // y dejamos el asiento pendiente. Cuando se configuren los mapeos, el
+      // asiento puede generarse en una pasada de backfill.
+      try {
+        await this.contab.onComprobanteEmitido(tx, {
+          organizacionId: dto.organizacionId,
+          comprobanteId: cab.id,
+        });
+      } catch (err) {
+        if (err instanceof UnprocessableEntityException) {
+          this.logger.warn(
+            `Comprobante ${cab.id} creado sin asiento contable: ${err.message}`,
+          );
+        } else {
+          throw err;
+        }
+      }
 
       // devolvemos total consistente (nada de 0,00 en front)
       return { id: cab.id, total: Number(cab.total) };
@@ -368,11 +383,22 @@ export class ComprobantesService {
         data: { estado: 'anulado' as EstadoComprobanteTercero },
       });
 
-      // 5) Reversa contable (doble partida)
-      await this.contab.onComprobanteAnulado(tx, {
-        organizacionId,
-        comprobanteId: comp.id,
-      });
+      // 5) Reversa contable (doble partida). Tolerante: si faltan mapeos,
+      // la anulación se completa igual y queda la reversa pendiente.
+      try {
+        await this.contab.onComprobanteAnulado(tx, {
+          organizacionId,
+          comprobanteId: comp.id,
+        });
+      } catch (err) {
+        if (err instanceof UnprocessableEntityException) {
+          this.logger.warn(
+            `Comprobante ${comp.id} anulado sin reversa contable: ${err.message}`,
+          );
+        } else {
+          throw err;
+        }
+      }
 
       return { ok: true };
     });

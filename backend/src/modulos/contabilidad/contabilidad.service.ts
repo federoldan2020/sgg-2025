@@ -1,5 +1,5 @@
 // src/modulos/contabilidad/contabilidad.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma, type Asiento } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
 import { PrismaService } from '../../common/prisma.service';
@@ -961,8 +961,10 @@ export class ContabilidadService {
     const m3 = await tryFind(null);
     if (m3) return m3;
 
-    throw new Error(
-      `No hay mapeo contable para origen=${origen} concepto=${concepto}${rol ? ` rol=${rol}` : ''}`,
+    // Nest convierte UnprocessableEntityException → 422 con este message en el body.
+    // Antes esto era `new Error()` y se traducía a un 500 "Internal server error" sin contexto.
+    throw new UnprocessableEntityException(
+      `Falta configurar el mapeo contable para "${origen}" / concepto "${concepto}"${rol ? ` / rol "${rol}"` : ''}. Configurálo en Contabilidad → Mapeos antes de registrar el comprobante.`,
     );
   }
 
