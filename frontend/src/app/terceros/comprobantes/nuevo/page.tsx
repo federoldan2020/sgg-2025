@@ -457,7 +457,158 @@ export default function NuevoComprobantePage() {
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Columna principal */}
         <div className="space-y-5 lg:col-span-2">
-          {/* DATOS DEL COMPROBANTE (va primero: el usuario elige primero qué va a registrar) */}
+          {/* TERCERO + ROL */}
+          <Card className="rounded-xl border-neutral-200 p-5">
+            <SectionHeader
+              icon={<Building2 className="size-4" />}
+              title="Tercero"
+              hint="Elegí primero el rol — el buscador filtra por tipo de tercero."
+            />
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {/* ROL primero: filtra el buscador */}
+              <div>
+                <label className={labelCls}>Rol</label>
+                <select
+                  className={selectCls}
+                  value={rol}
+                  onChange={(e) => {
+                    const next = e.target.value as RolTercero;
+                    setRol(next);
+                    if (terceroSel && !terceroSel.roles.includes(next)) {
+                      setMsg(
+                        `El tercero seleccionado no tiene rol ${next}. Roles disponibles: ${terceroSel.roles.join(
+                          ", "
+                        )}.`
+                      );
+                    } else {
+                      setMsg(null);
+                    }
+                  }}
+                >
+                  <option value="PROVEEDOR">Proveedor</option>
+                  <option value="PRESTADOR">Prestador</option>
+                  <option value="COMERCIO">Comercio</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2" ref={acWrapRef}>
+                <label className={labelCls}>
+                  Tercero <Req />
+                  {terceroSel && (
+                    <span className="ml-1 font-normal text-neutral-400">
+                      · {terceroSel.roles.join(", ")}
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                  <Input
+                    ref={inputRef}
+                    className={`pl-9 pr-9 ${inputCls}`}
+                    value={q}
+                    aria-invalid={hasError("tercero") || undefined}
+                    onChange={(e) => {
+                      setQ(e.target.value);
+                      setOpen(Boolean(e.target.value.trim()));
+                      if (!e.target.value) setTerceroSel(null);
+                    }}
+                    onFocus={() => setOpen(Boolean(q.trim()))}
+                    onKeyDown={onAutoKeyDown}
+                    placeholder="Buscar por CUIT o nombre…"
+                    aria-autocomplete="list"
+                    aria-expanded={open}
+                  />
+                  {(searching || typingAhead) && q.trim() ? (
+                    <Loader2 className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-neutral-400" />
+                  ) : terceroSel ? (
+                    <button
+                      type="button"
+                      onClick={limpiarTercero}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-700"
+                      title="Limpiar selección"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  ) : null}
+
+                  {open && q.trim() && (
+                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-neutral-200 bg-white shadow-lg">
+                      {items.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className="flex w-full items-start justify-between gap-2 border-b border-neutral-100 px-3 py-2 text-left last:border-0 hover:bg-neutral-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => pick(t)}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-neutral-900">
+                              {t.nombre}
+                              {t.fantasia && (
+                                <span className="ml-1 font-normal text-neutral-400">
+                                  ({t.fantasia})
+                                </span>
+                              )}
+                            </div>
+                            {t.cuit && (
+                              <div className="text-xs text-neutral-500">
+                                CUIT {t.cuit}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            {t.roles.map((r) => (
+                              <Badge
+                                key={r}
+                                variant="outline"
+                                className="text-[10px]"
+                              >
+                                {r}
+                              </Badge>
+                            ))}
+                          </div>
+                        </button>
+                      ))}
+                      {!items.length && !searching && !typingAhead && (
+                        <div className="flex items-center justify-center gap-2 px-3 py-4 text-center text-sm text-neutral-500">
+                          Sin resultados para &quot;{q}&quot;
+                        </div>
+                      )}
+                      {!items.length && (searching || typingAhead) && (
+                        <div className="flex items-center justify-center gap-2 px-3 py-4 text-center text-sm text-neutral-500">
+                          <Loader2 className="size-4 animate-spin" />
+                          Buscando…
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <FieldError show={hasError("tercero")}>
+                  Seleccioná un tercero del listado.
+                </FieldError>
+              </div>
+            </div>
+
+            {terceroSel && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-medical-100 bg-medical-50/60 px-3 py-2 text-xs text-medical-900">
+                <CheckCircle2 className="size-4 text-medical-600" />
+                <span className="font-medium">{terceroSel.nombre}</span>
+                {terceroSel.cuit && (
+                  <span className="text-medical-700/80">· CUIT {terceroSel.cuit}</span>
+                )}
+                <span className="ml-auto flex flex-wrap gap-1">
+                  {terceroSel.roles.map((r) => (
+                    <Badge key={r} variant="outline" className="border-medical-200 bg-white text-[10px] text-medical-700">
+                      {r}
+                    </Badge>
+                  ))}
+                </span>
+              </div>
+            )}
+          </Card>
+
+          {/* DATOS DEL COMPROBANTE */}
           <Card className="rounded-xl border-neutral-200 p-5">
             <SectionHeader
               icon={<FileText className="size-4" />}
@@ -588,158 +739,6 @@ export default function NuevoComprobantePage() {
                 />
               </div>
             </div>
-          </Card>
-
-          {/* TERCERO + ROL */}
-          <Card className="rounded-xl border-neutral-200 p-5">
-            <SectionHeader
-              icon={<Building2 className="size-4" />}
-              title="Tercero"
-              hint="Buscá por nombre o CUIT y elegí el rol con el que se imputa."
-            />
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="sm:col-span-2" ref={acWrapRef}>
-                <label className={labelCls}>
-                  Tercero <Req />
-                  {terceroSel && (
-                    <span className="ml-1 font-normal text-neutral-400">
-                      · {terceroSel.roles.join(", ")}
-                    </span>
-                  )}
-                </label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
-                  <Input
-                    ref={inputRef}
-                    className={`pl-9 pr-9 ${inputCls}`}
-                    value={q}
-                    aria-invalid={hasError("tercero") || undefined}
-                    onChange={(e) => {
-                      setQ(e.target.value);
-                      setOpen(Boolean(e.target.value.trim()));
-                      if (!e.target.value) setTerceroSel(null);
-                    }}
-                    onFocus={() => setOpen(Boolean(q.trim()))}
-                    onKeyDown={onAutoKeyDown}
-                    placeholder="Buscar por CUIT o nombre…"
-                    aria-autocomplete="list"
-                    aria-expanded={open}
-                  />
-                  {/* Loader mientras se busca; si hay selección y no se está editando, X de limpiar */}
-                  {(searching || typingAhead) && q.trim() ? (
-                    <Loader2 className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-neutral-400" />
-                  ) : terceroSel ? (
-                    <button
-                      type="button"
-                      onClick={limpiarTercero}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-700"
-                      title="Limpiar selección"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  ) : null}
-
-                  {open && q.trim() && (
-                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-neutral-200 bg-white shadow-lg">
-                      {items.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          className="flex w-full items-start justify-between gap-2 border-b border-neutral-100 px-3 py-2 text-left last:border-0 hover:bg-neutral-50"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => pick(t)}
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-neutral-900">
-                              {t.nombre}
-                              {t.fantasia && (
-                                <span className="ml-1 font-normal text-neutral-400">
-                                  ({t.fantasia})
-                                </span>
-                              )}
-                            </div>
-                            {t.cuit && (
-                              <div className="text-xs text-neutral-500">
-                                CUIT {t.cuit}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                            {t.roles.map((r) => (
-                              <Badge
-                                key={r}
-                                variant="outline"
-                                className="text-[10px]"
-                              >
-                                {r}
-                              </Badge>
-                            ))}
-                          </div>
-                        </button>
-                      ))}
-                      {/* Estados de empty: sólo cuando no se está buscando */}
-                      {!items.length && !searching && !typingAhead && (
-                        <div className="flex items-center justify-center gap-2 px-3 py-4 text-center text-sm text-neutral-500">
-                          Sin resultados para &quot;{q}&quot;
-                        </div>
-                      )}
-                      {!items.length && (searching || typingAhead) && (
-                        <div className="flex items-center justify-center gap-2 px-3 py-4 text-center text-sm text-neutral-500">
-                          <Loader2 className="size-4 animate-spin" />
-                          Buscando…
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <FieldError show={hasError("tercero")}>
-                  Seleccioná un tercero del listado.
-                </FieldError>
-              </div>
-
-              <div>
-                <label className={labelCls}>Rol</label>
-                <select
-                  className={selectCls}
-                  value={rol}
-                  onChange={(e) => {
-                    const next = e.target.value as RolTercero;
-                    setRol(next);
-                    if (terceroSel && !terceroSel.roles.includes(next)) {
-                      setMsg(
-                        `El tercero seleccionado no tiene rol ${next}. Roles disponibles: ${terceroSel.roles.join(
-                          ", "
-                        )}.`
-                      );
-                    } else {
-                      setMsg(null);
-                    }
-                  }}
-                >
-                  <option value="PROVEEDOR">Proveedor</option>
-                  <option value="PRESTADOR">Prestador</option>
-                  <option value="COMERCIO">Comercio</option>
-                </select>
-              </div>
-            </div>
-
-            {terceroSel && (
-              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-medical-100 bg-medical-50/60 px-3 py-2 text-xs text-medical-900">
-                <CheckCircle2 className="size-4 text-medical-600" />
-                <span className="font-medium">{terceroSel.nombre}</span>
-                {terceroSel.cuit && (
-                  <span className="text-medical-700/80">· CUIT {terceroSel.cuit}</span>
-                )}
-                <span className="ml-auto flex flex-wrap gap-1">
-                  {terceroSel.roles.map((r) => (
-                    <Badge key={r} variant="outline" className="border-medical-200 bg-white text-[10px] text-medical-700">
-                      {r}
-                    </Badge>
-                  ))}
-                </span>
-              </div>
-            )}
           </Card>
 
           {/* LÍNEAS */}
